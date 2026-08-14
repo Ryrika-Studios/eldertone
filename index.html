@@ -17241,6 +17241,24 @@ function encodeSaveCode(g) {
     const json = JSON.stringify(lean);
     return SAVE_CODE_PREFIX + btoa(unescape(encodeURIComponent(json)));
 }
+// renamed cards migrate forward in saves — a rename must never eat a player's card
+const CARD_RENAMES = { "Enchantress": "Enchanter", "Bigger Shruikens": "Bigger Shurikens", "Chargeeative accounting": "Creative accounting", "Excellent Chargeaftsmanship": "Excellent Craftsmanship" };
+function migrateSaveNames(g) {
+    if (!g)
+        return g;
+    const fix = (o) => { if (o && CARD_RENAMES[o.name]) o.name = CARD_RENAMES[o.name]; };
+    for (const L in (g.slots || {}))
+        fix(g.slots[L]);
+    (g.reserves || []).forEach(fix);
+    if (g.battle && g.battle.chords)
+        g.battle.chords.forEach((c) => {
+            if (CARD_RENAMES[c.name])
+                c.name = CARD_RENAMES[c.name];
+            if (CARD_RENAMES[c.baseName])
+                c.baseName = CARD_RENAMES[c.baseName];
+        });
+    return g;
+}
 function decodeSaveCode(code) {
     const s = (code || "").replace(/\s+/g, "");
     if (!s)
@@ -17257,7 +17275,7 @@ function decodeSaveCode(code) {
     if (!sv || typeof sv !== "object" || !sv.slots || sv.hp == null || sv.maxHp == null)
         throw new Error("corrupt save code");
     sv.decisionLog = sv.decisionLog || [];
-    return sv;
+    return migrateSaveNames(sv);
 }
 function SaveCodeOverlay({ code, onClose }) {
     const taRef = useRef(null);
@@ -26574,7 +26592,7 @@ function EldertoneInner() {
                 const r = await window.storage.get(SAVE_KEY);
                 if (!r || !r.value)
                     return;
-                const sv = JSON.parse(r.value);
+                const sv = migrateSaveNames(JSON.parse(r.value));
                 if (sv.runId && (!sv.decisionLog || !sv.decisionLog.length)) {
                     try {
                         const ar = await window.storage.get(ARCHIVE_KEY);
@@ -27088,12 +27106,12 @@ function EldertoneInner() {
                 React.createElement("b", { style: { color: "#e8c98a" } }, "\u{1FAA8} " + t.id + " totem · L" + t.lv),
                 " — ",
                 totemDesc(t.id, t.lv)))),
-        React.createElement("div", { className: "et-grid" }, "ABCDEFG".split("").filter((L) => g.slots[L]).map((L) => {
+        React.createElement("div", { className: "et-grid" }, "ABCDEFG".split("").filter((L) => g.slots[L] && CARD_BY[cardKey(g.slots[L].name, g.slots[L].lv)]).map((L) => {
             const c = CARD_BY[cardKey(g.slots[L].name, g.slots[L].lv)];
             return React.createElement(CardFace, { key: L, name: dispName(g.slots[L].name, L), slot: L, lv: g.slots[L].lv, rows: grownRows(c.txt, g.slots[L]), activeIdx: null, ring: { charge: 0, max: c.c }, footer: g.slots[L].growth ? "+" + g.slots[L].growth + " permanent damage" : undefined });
         })),
         g.reserves.some(Boolean) && React.createElement("div", { className: "et-note" }, "Reserves"),
-        React.createElement("div", { className: "et-grid" }, g.reserves.filter(Boolean).map((r, i) => (React.createElement(CardFace, { key: "r" + i, name: dispName(r.name, r.slot), slot: r.slot, lv: r.lv, rows: grownRows(CARD_BY[cardKey(r.name, r.lv)].txt, r), activeIdx: null, ring: { charge: 0, max: CARD_BY[cardKey(r.name, r.lv)].c }, footer: r.growth ? "reserve · +" + r.growth + " dmg" : "reserve" }))))));
+        React.createElement("div", { className: "et-grid" }, g.reserves.filter((r) => r && CARD_BY[cardKey(r.name, r.lv)]).map((r, i) => (React.createElement(CardFace, { key: "r" + i, name: dispName(r.name, r.slot), slot: r.slot, lv: r.lv, rows: grownRows(CARD_BY[cardKey(r.name, r.lv)].txt, r), activeIdx: null, ring: { charge: 0, max: CARD_BY[cardKey(r.name, r.lv)].c }, footer: r.growth ? "reserve · +" + r.growth + " dmg" : "reserve" }))))));
     // road-ahead overlay (Map button in the top bar): the biome path from anywhere.
     // Same faces as the map screen — events and small stores stay "?" until passed.
     const MapOverlay = () => {
