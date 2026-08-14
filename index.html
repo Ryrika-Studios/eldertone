@@ -22157,6 +22157,9 @@ const CSS = `
 .et-eslot{width:30px;height:30px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#3c3c46,#101018);border:2px solid #6f7275;color:#f4f0e2;font-family:'Cormorant SC',serif;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;margin:2px auto -4px;position:relative;z-index:2;box-shadow:0 2px 4px rgba(0,0,0,.55)}
 .et-enemy.tgt .et-eslot{border-color:#ffd76a;color:#ffd76a;box-shadow:0 0 9px rgba(255,215,106,.85)}
 .et-esprite{font-size:42px;line-height:1.2;text-align:center;padding-top:2px}
+.et-egnomec{position:relative;width:54px;height:56px;margin:0 auto}
+.et-egnomec .egn-l{position:absolute;inset:0;font-size:46px;line-height:54px;text-align:center}
+.et-egnomec .egn-prop{position:absolute;right:-5px;bottom:-2px;font-size:20px}
 .et-ezomb{position:relative;width:58px;height:64px;margin:0 auto}
 .et-ezomb .ez-glyph{position:absolute;left:0;right:0;top:0;height:52px;font-size:48px;line-height:52px;text-align:center}
 .et-ezomb .ez-leg{position:absolute;top:42px;font-size:21px;line-height:22px;filter:hue-rotate(70deg) saturate(.4) brightness(.9)}
@@ -22314,6 +22317,16 @@ const KING_ART = {
 // zombie_parts thresholds set flags p0/p1/p2 as pieces break off - the matching
 // layer vanishes from his body and the freed unit renders as a zoomed crop of
 // that same region (so the severed piece visually IS the piece he lost).
+// Gnomes are little PEOPLE (Aug 2026, user design): the mage glyph in clipped
+// layers — hat + jacket + robe recolored per gnome, the face window left
+// natural — plus a signature tool (red dagger / yellow axe / gray hammer).
+const GNOME_ZONES = ["inset(0 0 64% 0)", "inset(36% 68% 28% 0)", "inset(64% 32% 28% 32%)", "inset(36% 0 28% 68%)", "inset(72% 0 0 0)"];
+const GNOME_FACE = "inset(36% 32% 36% 32%)";
+const GNOME_ART = {
+    "Red Gnome": { filter: "sepia(1) saturate(4) hue-rotate(-25deg) brightness(.95)", prop: "🗡️" },
+    "Yellow Gnome": { filter: "sepia(1) saturate(3.5) hue-rotate(8deg) brightness(1.35)", prop: "🪓" },
+    "Gray Gnome": { filter: "grayscale(1) brightness(1.2)", prop: "🔨" },
+};
 const ZOMBIE_ZONES = {
     shirt: { clip: "inset(58% 41% 0 41%)" },
     head: { clip: "polygon(0 0, 100% 0, 100% 47%, 59% 47%, 59% 58%, 41% 58%, 41% 47%, 0 47%)", gone: "p2" },
@@ -22354,7 +22367,7 @@ const MINION_EMOJI = {
     Armadillo: "\u{1F994}", Ape: "\u{1F98D}", Barrage: "\u{1F4A3}", Badger: "\u{1F9A1}", Bear: "\u{1F43B}",
     "Bat (vampire)": "\u{1F987}", Canary: "\u{1F424}", Cat: "\u{1F408}", Dino: "\u{1F995}", Donkey: "\u{1F434}",
     Dragon: "\u{1F409}", Eagle: "\u{1F985}", Elephant: "\u{1F418}", Ent: "\u{1F333}", "Fairy Friend": "\u{1F9DA}",
-    Firefox: "\u{1F98A}", "Fly trap": "\u{1FAB4}", Gas: "\u2601\uFE0F", Gnome: "\u{1F344}",
+    Firefox: "\u{1F98A}", "Fly trap": "\u{1FAB4}", Gas: "\u2601\uFE0F", Gnome: "🧙‍♂️",
     Skeleton: "\u{1F480}", Ghost: "\u{1F47B}",
     "Celestial Pegasus": "\u{1F984}",
 };
@@ -27338,6 +27351,13 @@ function EldertoneInner() {
                             (() => {
                                 const kindCls = en.kind === "boss" ? " esp-boss" : en.kind === "elite" ? " esp-elite" : "";
                                 const em = ENEMY_EMOJI[en.name] || "\u{1F47E}";
+                                if (GNOME_ART[en.name]) {
+                                    const ga = GNOME_ART[en.name];
+                                    return React.createElement("div", { className: "et-esprite et-egnomec" + kindCls },
+                                        React.createElement("span", { className: "egn-l", style: { clipPath: GNOME_FACE } }, "🧙‍♂️"),
+                                        GNOME_ZONES.map((z, zi) => React.createElement("span", { key: zi, className: "egn-l", style: { clipPath: z, filter: ga.filter } }, "🧙‍♂️")),
+                                        React.createElement("span", { className: "egn-prop" }, ga.prop));
+                                }
                                 if (en.name === "Zombie")
                                     return React.createElement("div", { className: "et-esprite et-ezomb" + kindCls },
                                         ZOMBIE_LAYER_ORDER
