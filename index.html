@@ -18410,8 +18410,10 @@ function startBattle(game, enemyNames, kindLabel) {
                 stages = clone(c.st).map((st2) => st2.map((o) => (o[0] === "gain" && o[1] === "strength" ? ["gain", "strength", o[2] + s.extraUp] : o)));
                 txt = c.txt.map((r) => r + " (+" + s.extraUp + ")");
             }
-            if (s.bag)
-                stages = bagApplyStages(game, stages, s); // grab-bag chord upgrades
+            if (s.bag) {
+                stages = bagApplyStages(stages, s); // grab-bag chord upgrades
+                txt = txt.map((r, si2) => r + bagRowSuffix(s, si2, stages.length));
+            }
             chords.push({ slot: L, name, lv, baseName: s.name, max: Math.max(1, c.c - (s.costMod || 0)),
                 stages, txt, charge: 0, plays: 0, note,
                 pDebuffCharge: flat.includes('"self_full_on_debuff"'),
@@ -22053,7 +22055,7 @@ function bagKindFits(g, entry, k) {
         return false;
     const j = JSON.stringify(c.st);
     if (k === "damage")
-        return j.includes('"damage');
+        return j.includes('["damage"');
     if (k === "shield")
         return j.includes('["gain","shield"');
     if (k === "charge")
@@ -22128,47 +22130,89 @@ function bagApply(g, tgt, kind, n) {
     const entry = tgt.where === "slot" ? g.slots[tgt.L] : g.reserves[tgt.i];
     if (!entry)
         return;
-    if (kind === "damage")
-        entry.growth = (entry.growth || 0) + n;
-    else if (kind === "charge")
+    if (kind === "charge")
         entry.costMod = (entry.costMod || 0) + 1;
     else {
+        const key = kind === "resource" ? heroResource(g) : kind;
         entry.bag = entry.bag || {};
-        entry.bag[kind] = (entry.bag[kind] || 0) + n;
+        entry.bag[key] = (entry.bag[key] || 0) + n;
     }
+}
+// grab-bag bonuses count IN FULL at full charge; partial stages of scaling
+// cards get the same (k/C)^1.5 curve as card values (user design Aug 2026)
+function bagStageAdd(n, si, C) {
+    return C <= 1 ? n : Math.round(n * Math.pow((si + 1) / C, 1.5));
+}
+// buff-style row annotation — keyword BEFORE the number so fxRow's live
+// number-rewriting regex (digit followed by keyword) never matches it
+function bagRowLabel(k, n) {
+    if (k === "damage")
+        return "damage +" + n;
+    if (k === "shield")
+        return "Shield +" + n;
+    if (k === "strength")
+        return "Strength gain +" + n;
+    if (k === "blinddodge")
+        return "Blind/Dodge +" + n;
+    if (k === "poisburn")
+        return "Poison/Firewall +" + n;
+    if (k === "chilled")
+        return "Chilled +" + n;
+    if (k === "entrenched")
+        return "Entrenched +" + n;
+    if (k === "enraged")
+        return "Enraged +" + n;
+    if (k === "heal")
+        return "healing +" + n;
+    return k.charAt(0).toUpperCase() + k.slice(1) + " +" + n; // darkness/spellbound/discipline
+}
+function bagRowSuffix(entry, si, C) {
+    const bag = entry && entry.bag;
+    if (!bag)
+        return "";
+    const parts = [];
+    for (const k in bag) {
+        const add = bagStageAdd(bag[k], si, C);
+        if (add > 0)
+            parts.push(bagRowLabel(k, add));
+    }
+    return parts.length ? " (" + parts.join(", ") + ")" : "";
 }
 function bagDesc(g, entry) {
     if (!entry || !entry.bag)
         return "";
-    return Object.keys(entry.bag).map((k) => bagLabel(g, k, entry.bag[k])).join(" \u00b7 ");
+    return Object.keys(entry.bag).map((k) => bagRowLabel(k, entry.bag[k])).join(" \u00b7 ");
 }
-function bagApplyStages(g, stages, entry) {
+function bagApplyStages(stages, entry) {
     const bag = entry && entry.bag;
     if (!bag)
         return stages;
-    const res = heroResource(g);
-    return stages.map((st2) => st2.map((o) => {
+    const C = stages.length;
+    return stages.map((st2, si) => st2.map((o) => {
+        const A = (n) => bagStageAdd(n, si, C);
         const o2 = o.slice();
-        if (o2[0] === "gain" && o2[1] === "shield" && bag.shield)
-            o2[2] += bag.shield;
+        if (o2[0] === "damage" && bag.damage)
+            o2[1] += A(bag.damage);
+        else if (o2[0] === "gain" && o2[1] === "shield" && bag.shield)
+            o2[2] += A(bag.shield);
         else if (o2[0] === "gain" && o2[1] === "strength" && bag.strength)
-            o2[2] += bag.strength;
+            o2[2] += A(bag.strength);
         else if (o2[0] === "gain" && o2[1] === "dodge" && bag.blinddodge)
-            o2[2] += bag.blinddodge;
+            o2[2] += A(bag.blinddodge);
         else if (o2[0] === "apply" && o2[1] === "blind" && bag.blinddodge)
-            o2[2] += bag.blinddodge;
+            o2[2] += A(bag.blinddodge);
         else if (o2[0] === "apply" && (o2[1] === "poison" || o2[1] === "burn") && bag.poisburn)
-            o2[2] += bag.poisburn;
+            o2[2] += A(bag.poisburn);
         else if (o2[0] === "apply" && o2[1] === "chilled" && bag.chilled)
-            o2[2] += bag.chilled;
+            o2[2] += A(bag.chilled);
         else if (o2[0] === "gain" && o2[1] === "entrenched" && bag.entrenched)
-            o2[2] += bag.entrenched;
+            o2[2] += A(bag.entrenched);
         else if (o2[0] === "gain" && o2[1] === "enraged" && bag.enraged)
-            o2[2] += bag.enraged;
+            o2[2] += A(bag.enraged);
         else if (o2[0] === "heal" && bag.heal)
-            o2[1] = (o2[1] || 0) + bag.heal;
-        else if (o2[0] === "gain" && o2[1] === res && bag.resource)
-            o2[2] += bag.resource;
+            o2[1] = (o2[1] || 0) + A(bag.heal);
+        else if (o2[0] === "gain" && (o2[1] === "darkness" || o2[1] === "spellbound" || o2[1] === "discipline") && bag[o2[1]])
+            o2[2] += A(bag[o2[1]]);
         else
             return o;
         return o2;
@@ -23124,9 +23168,12 @@ class ErrorShield extends React.Component {
 // out-of-battle card text with permanent growth folded in (Advancing Technology etc.)
 function grownRows(txt, entry) {
     const gr = entry && entry.growth;
-    if (!gr)
-        return txt;
-    return txt.map((t) => t.replace(/Deal (\d+)/gi, (m, n) => "Deal " + (Number(n) + gr)));
+    let rows = txt;
+    if (gr)
+        rows = rows.map((t) => t.replace(/Deal (\d+)/gi, (m, n) => "Deal " + (Number(n) + gr)));
+    if (entry && entry.bag)
+        rows = rows.map((t, si) => t + bagRowSuffix(entry, si, rows.length));
+    return rows;
 }
 function copyTextRobust(text, done) {
     const finish = (ok) => { if (done) done(ok); };
