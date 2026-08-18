@@ -18410,6 +18410,8 @@ function startBattle(game, enemyNames, kindLabel) {
                 stages = clone(c.st).map((st2) => st2.map((o) => (o[0] === "gain" && o[1] === "strength" ? ["gain", "strength", o[2] + s.extraUp] : o)));
                 txt = c.txt.map((r) => r + " (+" + s.extraUp + ")");
             }
+            if (s.bag)
+                stages = bagApplyStages(game, stages, s); // grab-bag chord upgrades
             chords.push({ slot: L, name, lv, baseName: s.name, max: Math.max(1, c.c - (s.costMod || 0)),
                 stages, txt, charge: 0, plays: 0, note,
                 pDebuffCharge: flat.includes('"self_full_on_debuff"'),
@@ -21748,7 +21750,7 @@ function swapReserve(g, ri) {
         return;
     const L = r.slot;
     const occ = g.slots[L];
-    g.slots[L] = { name: r.name, lv: r.lv, costMod: r.costMod || 0, plays: r.plays || 0, growth: r.growth || 0 };
+    g.slots[L] = { name: r.name, lv: r.lv, costMod: r.costMod || 0, plays: r.plays || 0, growth: r.growth || 0, extraUp: r.extraUp || 0, bag: r.bag || null };
     g.reserves[ri] = occ ? { ...occ, slot: L } : null;
 }
 function reserveToSlot(g, ri, L) {
@@ -21756,7 +21758,7 @@ function reserveToSlot(g, ri, L) {
     if (!r)
         return;
     const occ = g.slots[L];
-    g.slots[L] = { name: r.name, lv: r.lv, costMod: r.costMod || 0, plays: r.plays || 0, growth: r.growth || 0 };
+    g.slots[L] = { name: r.name, lv: r.lv, costMod: r.costMod || 0, plays: r.plays || 0, growth: r.growth || 0, extraUp: r.extraUp || 0, bag: r.bag || null };
     g.reserves[ri] = occ ? { ...occ, slot: L } : null;
 }
 function autoEquipReserves(g) {
@@ -22024,6 +22026,154 @@ function gainRelic(g, id) {
     if (id === "Mini Transmuter")
         g.transTokens = (g.transTokens || 0) + 1;
 }
+// GRAB BAG (Aug 2026, "Rewards and Shop Costs V2"): a 45g repeatable daily-deal
+// purchase that rolls a random PERMANENT chord upgrade — only options that fit
+// at least one card the player owns (loadout or reserves) can be rolled; the
+// player then picks which eligible chord receives it.
+const BAG_ROLLS = [
+    { k: "damage", w: 16, a: 1, b: 4 },
+    { k: "shield", w: 16, a: 1, b: 4 },
+    { k: "charge", w: 8, a: 1, b: 1 },
+    { k: "strength", w: 7, a: 1, b: 1 },
+    { k: "blinddodge", w: 8, a: 1, b: 2 },
+    { k: "poisburn", w: 11, a: 2, b: 4 },
+    { k: "chilled", w: 8, a: 2, b: 4 },
+    { k: "entrenched", w: 6, a: 1, b: 2 },
+    { k: "enraged", w: 6, a: 2, b: 4 },
+    { k: "heal", w: 6, a: 2, b: 4 },
+    { k: "resource", w: 8, a: 2, b: 5 },
+];
+function heroResource(g) {
+    const fx = heroDef(g).furyFx;
+    return fx === "skeleton" ? "darkness" : fx === "iceshard" ? "spellbound" : "discipline";
+}
+function bagKindFits(g, entry, k) {
+    const c = CARD_BY[cardKey(entry.name, entry.lv)];
+    if (!c)
+        return false;
+    const j = JSON.stringify(c.st);
+    if (k === "damage")
+        return j.includes('"damage');
+    if (k === "shield")
+        return j.includes('["gain","shield"');
+    if (k === "charge")
+        return (c.c - (entry.costMod || 0)) > 1;
+    if (k === "strength")
+        return j.includes('["gain","strength"');
+    if (k === "blinddodge")
+        return j.includes('["apply","blind"') || j.includes('["gain","dodge"');
+    if (k === "poisburn")
+        return j.includes('["apply","poison"') || j.includes('["apply","burn"');
+    if (k === "chilled")
+        return j.includes('"chilled"');
+    if (k === "entrenched")
+        return j.includes('["gain","entrenched"');
+    if (k === "enraged")
+        return j.includes('["gain","enraged"');
+    if (k === "heal")
+        return j.includes('["heal"');
+    if (k === "resource")
+        return j.includes('["gain","' + heroResource(g) + '"');
+    return false;
+}
+function bagTargets(g, k) {
+    const out = [];
+    "ABCDEFG".split("").forEach((L) => { if (g.slots[L] && bagKindFits(g, g.slots[L], k))
+        out.push({ where: "slot", L }); });
+    (g.reserves || []).forEach((r, i) => { if (r && bagKindFits(g, r, k))
+        out.push({ where: "res", i }); });
+    return out;
+}
+function bagRoll(g) {
+    const elig = BAG_ROLLS.filter((r) => bagTargets(g, r.k).length);
+    if (!elig.length)
+        return null;
+    const tot = elig.reduce((a, r) => a + r.w, 0);
+    let x = Math.random() * tot;
+    let sel = elig[0];
+    for (const r of elig) {
+        x -= r.w;
+        if (x <= 0) {
+            sel = r;
+            break;
+        }
+    }
+    return { kind: sel.k, n: ri(sel.a, sel.b) };
+}
+function bagLabel(g, kind, n) {
+    if (kind === "damage")
+        return "+" + n + " damage";
+    if (kind === "shield")
+        return "+" + n + " Shield";
+    if (kind === "charge")
+        return "max charge \u22121";
+    if (kind === "strength")
+        return "+1 Strength gain";
+    if (kind === "blinddodge")
+        return "+" + n + " Blind/Dodge";
+    if (kind === "poisburn")
+        return "+" + n + " Poison/Firewall";
+    if (kind === "chilled")
+        return "+" + n + " Chilled";
+    if (kind === "entrenched")
+        return "+" + n + " Entrenched";
+    if (kind === "enraged")
+        return "+" + n + " Enraged";
+    if (kind === "heal")
+        return "+" + n + " healing";
+    const res = heroResource(g);
+    return "+" + n + " " + res.charAt(0).toUpperCase() + res.slice(1);
+}
+function bagApply(g, tgt, kind, n) {
+    const entry = tgt.where === "slot" ? g.slots[tgt.L] : g.reserves[tgt.i];
+    if (!entry)
+        return;
+    if (kind === "damage")
+        entry.growth = (entry.growth || 0) + n;
+    else if (kind === "charge")
+        entry.costMod = (entry.costMod || 0) + 1;
+    else {
+        entry.bag = entry.bag || {};
+        entry.bag[kind] = (entry.bag[kind] || 0) + n;
+    }
+}
+function bagDesc(g, entry) {
+    if (!entry || !entry.bag)
+        return "";
+    return Object.keys(entry.bag).map((k) => bagLabel(g, k, entry.bag[k])).join(" \u00b7 ");
+}
+function bagApplyStages(g, stages, entry) {
+    const bag = entry && entry.bag;
+    if (!bag)
+        return stages;
+    const res = heroResource(g);
+    return stages.map((st2) => st2.map((o) => {
+        const o2 = o.slice();
+        if (o2[0] === "gain" && o2[1] === "shield" && bag.shield)
+            o2[2] += bag.shield;
+        else if (o2[0] === "gain" && o2[1] === "strength" && bag.strength)
+            o2[2] += bag.strength;
+        else if (o2[0] === "gain" && o2[1] === "dodge" && bag.blinddodge)
+            o2[2] += bag.blinddodge;
+        else if (o2[0] === "apply" && o2[1] === "blind" && bag.blinddodge)
+            o2[2] += bag.blinddodge;
+        else if (o2[0] === "apply" && (o2[1] === "poison" || o2[1] === "burn") && bag.poisburn)
+            o2[2] += bag.poisburn;
+        else if (o2[0] === "apply" && o2[1] === "chilled" && bag.chilled)
+            o2[2] += bag.chilled;
+        else if (o2[0] === "gain" && o2[1] === "entrenched" && bag.entrenched)
+            o2[2] += bag.entrenched;
+        else if (o2[0] === "gain" && o2[1] === "enraged" && bag.enraged)
+            o2[2] += bag.enraged;
+        else if (o2[0] === "heal" && bag.heal)
+            o2[1] = (o2[1] || 0) + bag.heal;
+        else if (o2[0] === "gain" && o2[1] === res && bag.resource)
+            o2[2] += bag.resource;
+        else
+            return o;
+        return o2;
+    }));
+}
 function makeStore(g, variant) {
     if (variant === "pet_shop") {
         const minions = CARDS.filter((c) => c.lv === 2 && !XMETA[c.n] && heroDef(g).pools.includes(c.cls) && JSON.stringify(c.st).includes('"summon"'));
@@ -22053,7 +22203,9 @@ function makeStore(g, variant) {
     // a single random section elsewhere. "free_one" event stores are always full.
     const SEC_TITLE = { armory: "Armory", daily: "Daily Deal", care: "Care Center" };
     const full = g.node === 7 || variant === "free_one";
-    const secList = full ? ["armory", "daily", "care"] : [pick(["armory", "daily", "care"])];
+    const dailyOk = (g.biomeIdx || 0) >= 2; // Daily Deal opens at level 3
+    const fullSecs = dailyOk ? ["armory", "daily", "care"] : ["armory", "care"];
+    const secList = full ? fullSecs : [pick(fullSecs)];
     const cards = secList.includes("armory")
         ? randomCardChoices(g, 4).map((c) => ({ card: c, cost: 50, sec: "armory" }))
         : [];
@@ -22065,19 +22217,20 @@ function makeStore(g, variant) {
     if (secList.includes("daily")) {
         const deals = [];
         if (g.furyMax > 2)
-            deals.push({ t: "fury", cost: 300, sec: "daily" });
+            deals.push({ t: "fury", cost: 310, sec: "daily" });
         if (totemMode(g)) {
             if ((g.totems || []).some((t) => t.lv < 5))
-                deals.push({ t: "totemUp", cost: 300, sec: "daily" });
+                deals.push({ t: "totemUp", cost: 295, sec: "daily" });
             if ((g.totems || []).length < 3 && TOTEM_IDS.some((id) => !(g.totems || []).some((t) => t.id === id)))
-                deals.push({ t: "totemNew", cost: 300, sec: "daily" });
+                deals.push({ t: "totemNew", cost: 280, sec: "daily" });
         }
         if (deals.length)
             items.push(pick(deals));
+        items.push({ t: "bag", cost: 45, repeat: true, sec: "daily" });
     }
     if (secList.includes("care")) {
-        items.push({ t: "heal", n: 5, cost: 10, repeat: true, sec: "care" });
-        items.push({ t: "healfull", cost: 85, sec: "care" });
+        items.push({ t: "heal", n: 5, cost: 7, repeat: true, sec: "care" });
+        items.push({ t: "healfull", cost: 60, sec: "care" });
         const mh = pick([{ n: 4, cost: 40 }, { n: 7, cost: 60 }, { n: 10, cost: 80 }]);
         items.push({ t: "maxhp", n: mh.n, cost: mh.cost, sec: "care" });
     }
@@ -27115,7 +27268,7 @@ function EldertoneInner() {
                 totemDesc(t.id, t.lv)))),
         React.createElement("div", { className: "et-grid" }, "ABCDEFG".split("").filter((L) => g.slots[L] && CARD_BY[cardKey(g.slots[L].name, g.slots[L].lv)]).map((L) => {
             const c = CARD_BY[cardKey(g.slots[L].name, g.slots[L].lv)];
-            return React.createElement(CardFace, { key: L, name: dispName(g.slots[L].name, L), slot: L, lv: g.slots[L].lv, rows: grownRows(c.txt, g.slots[L]), activeIdx: null, ring: { charge: 0, max: c.c }, footer: g.slots[L].growth ? "+" + g.slots[L].growth + " permanent damage" : undefined });
+            return React.createElement(CardFace, { key: L, name: dispName(g.slots[L].name, L), slot: L, lv: g.slots[L].lv, rows: grownRows(c.txt, g.slots[L]), activeIdx: null, ring: { charge: 0, max: c.c }, footer: [g.slots[L].growth ? "+" + g.slots[L].growth + " permanent damage" : "", bagDesc(g, g.slots[L])].filter(Boolean).join(" \u00b7 ") || undefined });
         })),
         g.reserves.some(Boolean) && React.createElement("div", { className: "et-note" }, "Reserves"),
         React.createElement("div", { className: "et-grid" }, g.reserves.filter((r) => r && CARD_BY[cardKey(r.name, r.lv)]).map((r, i) => (React.createElement(CardFace, { key: "r" + i, name: dispName(r.name, r.slot), slot: r.slot, lv: r.lv, rows: grownRows(CARD_BY[cardKey(r.name, r.lv)].txt, r), activeIdx: null, ring: { charge: 0, max: CARD_BY[cardKey(r.name, r.lv)].c }, footer: r.growth ? "reserve · +" + r.growth + " dmg" : "reserve" }))))));
@@ -27732,7 +27885,7 @@ function EldertoneInner() {
             React.createElement("div", { className: "et-note" }, "Active chords"),
             React.createElement("div", { className: "et-grid" }, "ABCDEFG".split("").filter((L) => g.slots[L]).map((L) => {
                 const c = CARD_BY[cardKey(g.slots[L].name, g.slots[L].lv)];
-                return React.createElement(CardFace, { key: L, name: dispName(g.slots[L].name, L), slot: L, lv: g.slots[L].lv, rows: grownRows(c.txt, g.slots[L]), activeIdx: null, ring: { charge: 0, max: c.c }, footer: g.slots[L].growth ? "+" + g.slots[L].growth + " permanent damage" : undefined });
+                return React.createElement(CardFace, { key: L, name: dispName(g.slots[L].name, L), slot: L, lv: g.slots[L].lv, rows: grownRows(c.txt, g.slots[L]), activeIdx: null, ring: { charge: 0, max: c.c }, footer: [g.slots[L].growth ? "+" + g.slots[L].growth + " permanent damage" : "", bagDesc(g, g.slots[L])].filter(Boolean).join(" \u00b7 ") || undefined });
             })),
             React.createElement("div", { className: "et-note" }, "Reserves \u2014 tap to swap into the matching slot"),
             React.createElement("div", { className: "et-grid" }, g.reserves.map((r, i) => r ? (React.createElement(CardFace, { key: i, name: dispName(r.name, r.slot), slot: r.slot, lv: r.lv, rows: grownRows(CARD_BY[cardKey(r.name, r.lv)].txt, r), activeIdx: null, ring: { charge: 0, max: CARD_BY[cardKey(r.name, r.lv)].c }, footer: g.slots[r.slot] ? "swaps with " + dispName(g.slots[r.slot].name, r.slot) : "fills empty " + r.slot + " slot", onClick: () => mut((g) => swapReserve(g, i)) })) : (React.createElement("div", { key: i, className: "et-panel et-pick", style: { opacity: 0.5, textAlign: "center" } }, "Empty reserve")))),
@@ -27809,13 +27962,23 @@ function EldertoneInner() {
                     P(it.cost),
                     "g"))));
         const renderItem = (it, i) => (React.createElement("div", { key: "i" + i, className: "et-panel et-pick" },
-            React.createElement("h4", null, it.t === "heal" ? "Heal " + it.n : it.t === "healfull" ? "Full heal" : it.t === "maxhp" ? "+" + it.n + " max health" : it.t === "fury" ? "Fury fills 1 faster" : it.t === "fury2" ? "Fury fills 2 faster" : it.t === "fury3" ? "Fury fills 3 faster" : it.t === "transmuter" ? "Transmuter" : it.t === "totemUp" ? "Upgrade a Totem" : it.t === "totemNew" ? "Purchase a new Totem" : it.t === "upcard" ? "Upgrade a chord" : "Upgrade a random chord"),
-            React.createElement("div", { className: "fx" }, it.t === "transmuter" ? "Move one of your chords to a different slot" : it.t === "uprandom" ? "A random eligible chord becomes level 2" : it.t === "totemUp" ? "Raise one of your totems a level" : it.t === "totemNew" ? "Add a totem to your collection" : it.t === "heal" && it.repeat ? "Buy as many times as you like" : it.t === "fury" ? "Lower max Fury by 1 — unleash more often" : ""),
+            React.createElement("h4", null, it.t === "bag" ? "Grab Bag" : it.t === "heal" ? "Heal " + it.n : it.t === "healfull" ? "Full heal" : it.t === "maxhp" ? "+" + it.n + " max health" : it.t === "fury" ? "Fury fills 1 faster" : it.t === "fury2" ? "Fury fills 2 faster" : it.t === "fury3" ? "Fury fills 3 faster" : it.t === "transmuter" ? "Transmuter" : it.t === "totemUp" ? "Upgrade a Totem" : it.t === "totemNew" ? "Purchase a new Totem" : it.t === "upcard" ? "Upgrade a chord" : "Upgrade a random chord"),
+            React.createElement("div", { className: "fx" }, it.t === "bag" ? "A random permanent chord upgrade \u2014 buy as many as you like" : it.t === "transmuter" ? "Move one of your chords to a different slot" : it.t === "uprandom" ? "A random eligible chord becomes level 2" : it.t === "totemUp" ? "Raise one of your totems a level" : it.t === "totemNew" ? "Add a totem to your collection" : it.t === "heal" && it.repeat ? "Buy as many times as you like" : it.t === "fury" ? "Lower max Fury by 1 — unleash more often" : ""),
             React.createElement("div", { style: { marginTop: 8 } },
                 React.createElement("button", { className: "et-btn", disabled: g.gold < P(it.cost) || ((it.t === "heal" || it.t === "healfull") && g.hp >= g.maxHp), title: (it.t === "heal" || it.t === "healfull") && g.hp >= g.maxHp ? "Already at full health" : undefined, onClick: () => {
                         if (it.t === "totemUp" || it.t === "totemNew") {
                             mut((g) => { if (g.gold >= P(it.cost) && !g.store.closed)
                                 g.store.totemPick = { t: it.t, idx: i, cost: P(it.cost) }; });
+                            return;
+                        }
+                        if (it.t === "bag") {
+                            mut((g) => {
+                                if (g.gold < P(it.cost) || g.store.closed)
+                                    return;
+                                const roll = bagRoll(g);
+                                if (roll)
+                                    g.store.bagPick = { ...roll, cost: P(it.cost) };
+                            });
                             return;
                         }
                         buy(it.cost, (g) => {
@@ -27864,7 +28027,7 @@ function EldertoneInner() {
                     P(it.cost),
                     "g"))));
         const SEC_META = { armory: ["Armory", "Chords, a transmuter, and a chord upgrade."],
-            daily: ["Daily Deal", "One deal per store."],
+            daily: ["Daily Deal", "One deal per store \u00b7 Grab Bags repeat as long as you can pay."],
             care: ["Care Center", "Heal 5 repeats as often as you can pay. One max-health boost per store."] };
         const secBlock = (sec) => {
             const cs = s.cards.map((it, i) => (!s.closed && !it.sold && it.sec === sec) ? renderCard(it, i) : null).filter(Boolean);
@@ -27877,6 +28040,7 @@ function EldertoneInner() {
                 React.createElement("div", { className: "et-grid" }, cs, is2)));
         };
         const tp = s.totemPick;
+        const bp = s.bagPick;
         return (React.createElement("div", { className: "et-root" },
             React.createElement("style", null, CSS),
             React.createElement(TopBar, null),
@@ -27916,7 +28080,26 @@ function EldertoneInner() {
                         React.createElement("h4", null, "\u{1F5FF} " + id),
                         React.createElement("div", { className: "fx" }, totemDesc(id, 1))))))),
                 React.createElement("div", { style: { textAlign: "center", marginTop: 10 } },
-                    React.createElement("button", { className: "et-btn", onClick: () => mut((g) => { g.store.totemPick = null; }) }, "Back")))) : s.secList ? (s.secList.map(secBlock)) : (React.createElement("div", { className: "et-grid" },
+                    React.createElement("button", { className: "et-btn", onClick: () => mut((g) => { g.store.totemPick = null; }) }, "Back")))) : bp ? (React.createElement("div", { style: { maxWidth: 760, margin: "0 auto" } },
+                React.createElement("h3", { className: "et-title", style: { color: "#d8b97a", textAlign: "center" } },
+                    "Grab Bag: ", bagLabel(g, bp.kind, bp.n), " \u2014 choose a chord"),
+                React.createElement("div", { className: "et-grid" }, bagTargets(g, bp.kind).map((t, ti) => {
+                    const entry = t.where === "slot" ? g.slots[t.L] : g.reserves[t.i];
+                    const cd = CARD_BY[cardKey(entry.name, entry.lv)];
+                    return React.createElement("div", { key: ti, className: "et-panel et-pick", style: { cursor: "pointer", borderColor: "#8a6d3b" }, onClick: () => mut((g) => {
+                            const pk = g.store.bagPick;
+                            if (!pk || g.gold < pk.cost)
+                                return;
+                            g.gold -= pk.cost;
+                            bagApply(g, t, pk.kind, pk.n);
+                            logDecision(g, "buy", { item: "bag:" + pk.kind + "+" + pk.n, cost: pk.cost });
+                            g.store.bagPick = null;
+                        }) },
+                        React.createElement("h4", null, dispName(entry.name, cd ? cd.slot : "") + (entry.lv === 2 ? "+" : "") + (t.where === "res" ? " (reserve)" : " (" + t.L + ")")),
+                        React.createElement("div", { className: "fx" }, (bagDesc(g, entry) || "no grab-bag upgrades yet") + " \u2192 " + bagLabel(g, bp.kind, bp.n)));
+                })),
+                React.createElement("div", { style: { textAlign: "center", marginTop: 10 } },
+                    React.createElement("button", { className: "et-btn", onClick: () => mut((g) => { g.store.bagPick = null; }) }, "Keep it in the bag (no charge)")))) : s.secList ? (s.secList.map(secBlock)) : (React.createElement("div", { className: "et-grid" },
                 !s.closed && s.cards.map((it, i) => !it.sold && renderCard(it, i)),
                 !s.closed && s.relics.map((it, i) => !it.sold && renderRelic(it, i)),
                 !s.closed && s.items.map((it, i) => !it.sold && renderItem(it, i)))),
