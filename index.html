@@ -21690,6 +21690,12 @@ function planBiome(g) {
             lane[pick(stores)] = "battle";
             stores = SPLITS.filter((n) => lane[n] === "store");
         }
+        // no wandering store before the player has seen the FIRST fixed store
+        // (node 7 of the Nature biome) — early Nature lane stores become battles
+        if ((g.biomeIdx || 0) === 0)
+            for (const n of [2, 3, 5, 6])
+                if (lane[n] === "store")
+                    lane[n] = "battle";
         if (!SPLITS.some((n) => lane[n] === "event")) {
             const cands = SPLITS.filter((n) => lane[n] === "battle");
             lane[pick(cands.length ? cands : [2, 3])] = "event";
