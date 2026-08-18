@@ -22253,8 +22253,9 @@ function makeStore(g, variant) {
     // a single random section elsewhere. "free_one" event stores are always full.
     const SEC_TITLE = { armory: "Armory", daily: "Daily Deal", care: "Care Center" };
     const full = g.node === 7 || variant === "free_one";
-    const dailyOk = (g.biomeIdx || 0) >= 2; // Daily Deal opens at level 3
-    const fullSecs = dailyOk ? ["armory", "daily", "care"] : ["armory", "care"];
+    // Daily Deal is available from the FIRST store (Nature node 7) onward —
+    // and since no store exists before that node, it is simply always offered
+    const fullSecs = ["armory", "daily", "care"];
     const secList = full ? fullSecs : [pick(fullSecs)];
     const cards = secList.includes("armory")
         ? randomCardChoices(g, 4).map((c) => ({ card: c, cost: 50, sec: "armory" }))
