@@ -26101,9 +26101,11 @@ function EldertoneInner() {
         const g = gref.current;
         if (!g || !g.tutorial || !g.battle)
             return;
+        if (g.tutorial.maxStep == null)
+            g.tutorial.maxStep = g.tutorial.step;
         const st = TUT_STEPS[g.tutorial.step];
-        if (st && st.require && st.require(g, g.battle))
-            mut((g2) => { g2.tutorial.step += 1; });
+        if (st && st.require && g.tutorial.step >= g.tutorial.maxStep && st.require(g, g.battle))
+            mut((g2) => { g2.tutorial.step += 1; g2.tutorial.maxStep = Math.max(g2.tutorial.maxStep || 0, g2.tutorial.step); });
     });
     // --- setup form state ---
     const [showDeck, setShowDeck] = useState(false);
@@ -27106,7 +27108,7 @@ function EldertoneInner() {
                             window.__eldertoneTestOpts = keep;
                             ng.totems = [{ id: "Strength", lv: 1 }];
                             ng.arenaMode = true;
-                            ng.tutorial = { step: 0 };
+                            ng.tutorial = { step: 0, maxStep: 0 };
                             ng.battle = startBattle(ng, ["Snail", "Grub"], "battle");
                             ng.battle.chords.forEach((c) => { if (c.name === "Attack")
                                 c.charge = c.max; if (c.name === "Defend")
@@ -27498,8 +27500,10 @@ function EldertoneInner() {
                                     React.createElement(ChargeRing, { charge: 3, max: 3 }),
                                     React.createElement("span", { style: { fontSize: 11.5, opacity: 0.85 } }, "3/3 — full power"))),
                             React.createElement("div", { style: { marginTop: 8, display: "flex", gap: 8, justifyContent: "center", alignItems: "center" } },
-                                !st.require && !st.last && React.createElement("button", { className: "et-btn", onClick: () => mut((g2) => { g2.tutorial.step += 1; }) }, "Next"),
-                                st.require && React.createElement("span", { style: { fontStyle: "italic", opacity: 0.8, fontSize: 12 } }, "(do it to continue)"),
+                                g.tutorial.step > 0 && React.createElement("button", { className: "et-btn", style: { opacity: 0.75 }, onClick: () => mut((g2) => { g2.tutorial.step -= 1; }) }, "\u2190 Back"),
+                                (st.last ? g.tutorial.step < (g.tutorial.maxStep || 0)
+                                    : (!st.require || g.tutorial.step < (g.tutorial.maxStep || 0))) && React.createElement("button", { className: "et-btn", onClick: () => mut((g2) => { g2.tutorial.step += 1; g2.tutorial.maxStep = Math.max(g2.tutorial.maxStep || 0, g2.tutorial.step); }) }, "Next"),
+                                st.require && g.tutorial.step >= (g.tutorial.maxStep || 0) && React.createElement("span", { style: { fontStyle: "italic", opacity: 0.8, fontSize: 12 } }, "(do it to continue)"),
                                 React.createElement("button", { className: "et-btn", style: { opacity: 0.6, fontSize: 12 }, onClick: () => setGame(null) }, st.last ? "Exit to menu" : "Skip tutorial"))),
                         st.glow ? React.createElement(TutArrow, { toSel: st.sel || TUT_SEL[st.glow], aim: st.aim }) : null);
                 })(),
