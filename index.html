@@ -21833,10 +21833,10 @@ function biomeCommons(g) {
 }
 function battleGoldReward(kind) {
     if (kind === "battle")
-        return ri(15, 35);
+        return ri(30, 40);
     if (kind === "elite")
-        return ri(36, 45);
-    return ri(46, 60);
+        return ri(41, 50);
+    return ri(51, 70);
 }
 function upgradeTargets(g) {
     return "ABCDEFG".split("").filter((L) => g.slots[L] &&
