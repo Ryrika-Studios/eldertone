@@ -21297,7 +21297,10 @@ function enemyAttackHero(b, g, en, dmg, lifesteal) {
 function enemyGainShield(b, g, en, n) {
     if (n > 0)
         en._shieldedThisTurn = true;
-    en.shield += n + (en.st.armored || 0);
+    const total = n + (en.st.armored || 0);
+    en.shield += total;
+    if (total > 0)
+        log(b, en.name + " shields itself (+" + total + ", " + en.shield + " total).");
 }
 function enemyPhase(b, g) {
     // enemy-applied hero debuffs (Weakened/Blind/Exposed) stay effective until
@@ -21811,7 +21814,8 @@ function autoEquipReserves(g) {
 function randomCardChoices(g, n) {
     const pool = heroPool(g); // rewards/stores only offer the hero's card classes
     const out = [];
-    const seen = new Set(Object.values(g.slots).filter(Boolean).map((s) => s.name));
+    const seen = new Set([...Object.values(g.slots).filter(Boolean).map((s) => s.name),
+        ...(g.reserves || []).filter(Boolean).map((r) => r.name)]);
     let guard = 0;
     while (out.length < n && guard++ < 200) {
         let c = pick(pool);
@@ -22249,11 +22253,15 @@ function bagApplyStages(stages, entry) {
 function makeStore(g, variant) {
     if (variant === "pet_shop") {
         const minions = CARDS.filter((c) => c.lv === 2 && !XMETA[c.n] && heroDef(g).pools.includes(c.cls) && JSON.stringify(c.st).includes('"summon"'));
+        const owned = new Set([...Object.values(g.slots).filter(Boolean).map((s) => s.name),
+            ...(g.reserves || []).filter(Boolean).map((r) => r.name)]);
         const cards = [];
-        while (cards.length < 3 && minions.length > cards.length) {
+        let mg = 0;
+        while (cards.length < 3 && mg++ < 60) {
             const c = pick(minions);
-            if (!cards.some((x) => x.card.n === c.n))
-                cards.push({ card: c, cost: 20 });
+            if (!c || owned.has(c.n) || cards.some((x) => x.card.n === c.n))
+                continue;
+            cards.push({ card: c, cost: 20 });
         }
         return { title: "Pet Shop", cards, relics: [], items: [], variant };
     }
@@ -26222,6 +26230,7 @@ function EldertoneInner() {
     const [importText, setImportText] = useState("");
     const [importMsg, setImportMsg] = useState("");
     const [logsView, setLogsView] = useState(null);
+    const [logPaste, setLogPaste] = useState("");
     // ===== EMBEDDED TEST BOT: driver + control panel =====
     // Off by default — the game behaves exactly like the original until the
     // "🤖 Test Bot" toggle on the start menu is switched on.
@@ -27199,10 +27208,28 @@ function EldertoneInner() {
                                 const bi2 = Math.max(0, Math.floor((sc - 1) / 10));
                                 const reach = (BIOME_NAME[BIOMES[bi2]] || "?") + " " + (sc - bi2 * 10) + "/10";
                                 return React.createElement("div", { key: r.runId || i, style: { borderTop: "1px solid #5c4a30", padding: "7px 0", fontSize: 12, color: "#cfc4a8" } },
-                                    React.createElement("b", { style: { color: r.win ? "#7fd18a" : "#e8c98a" } }, (r.win ? "\u2605 WIN \u00b7 " : "") + new Date(r.updated || 0).toLocaleString()),
+                                    React.createElement("b", { style: { color: r.win ? "#7fd18a" : "#e8c98a" } }, (r.shared ? "SHARED \u00b7 " : "") + (r.win ? "\u2605 WIN \u00b7 " : "") + new Date(r.updated || 0).toLocaleString()),
                                     React.createElement("div", null, "reached " + reach + (r.done ? "" : " (in progress)")),
                                     React.createElement("button", { className: "et-btn", style: { marginTop: 4, fontSize: 11, padding: "2px 8px" }, onClick: (e) => { const btn = e.target; copyTextRobust(JSON.stringify(r), (ok) => { btn.textContent = ok ? "Copied \u2713" : "Copy blocked"; }); } }, "Copy run JSON"));
                             }),
+                            React.createElement("div", { style: { marginTop: 10, borderTop: "1px solid #5c4a30", paddingTop: 8 } },
+                                React.createElement("div", { className: "et-note", style: { marginBottom: 4 } }, "View a friend's logs: paste the JSON from their Copy run JSON / Copy ALL button"),
+                                React.createElement("textarea", { value: logPaste, onChange: (e) => setLogPaste(e.target.value), placeholder: "paste run JSON here", style: { width: "100%", height: 54, boxSizing: "border-box", background: "#1c150e", color: "#e8dfc8", border: "1px solid #5c4a30", borderRadius: 6, font: "11px ui-monospace, Menlo, monospace", padding: 6 } }),
+                                React.createElement("div", { style: { marginTop: 4 } },
+                                    React.createElement("button", { className: "et-btn", style: { fontSize: 12 }, onClick: () => {
+                                            try {
+                                                const p2 = JSON.parse(logPaste);
+                                                const add = (p2.runs || [p2]).filter((r) => r && r.stats).map((r) => ({ ...r, shared: true }));
+                                                if (add.length) {
+                                                    setLogsView({ runs: [...logsView.runs, ...add] });
+                                                    setLogPaste("");
+                                                }
+                                            }
+                                            catch (e) {
+                                                setLogPaste("(could not read that \u2014 paste the JSON exactly as copied)");
+                                            }
+                                        } }, "Add to view"),
+                                    React.createElement("span", { className: "et-note", style: { marginLeft: 8, fontSize: 11 } }, "Shared runs join the combined report above (view only \u2014 not saved)."))),
                             React.createElement("div", { style: { marginTop: 10, display: "flex", gap: 8, justifyContent: "flex-end" } },
                                 React.createElement("button", { className: "et-btn", onClick: (e) => { const btn = e.target; copyTextRobust(JSON.stringify({ runs: logsView.runs }), (ok) => { btn.textContent = ok ? "Copied \u2713" : "Copy blocked"; }); } }, "Copy ALL"),
                                 React.createElement("button", { className: "et-btn", onClick: () => setLogsView(null) }, "Close")))) : null,
