@@ -24050,7 +24050,7 @@ const BOT = {
                     play = true;
                 }
                 if (play && (!bestShield || value > bestShield.value))
-                    bestShield = { idx, c, si, value, tgtId: null };
+                    bestShield = { idx, c, si, value, tgtId: null, growOpener: c.max <= 1 && sg > 0 };
                 return;
             }
             if (deals) {
@@ -24299,6 +24299,28 @@ const BOT = {
                 }))
                     return; // hold the ascension for the payload turn
             }
+            // Glug Glug timing (user design): next_turn_ops buffs land NEXT turn —
+            // play the turn BEFORE an attack; with no attack coming next turn the
+            // Strength is wasted, so hold even at full charge (low hp exempts: the
+            // delayed heal is worth it on its own)
+            {
+                const opsNT = c.stages[Math.min(si, c.stages.length - 1)] || [];
+                const nt = opsNT.find((o) => Array.isArray(o) && o[0] === "next_turn_ops");
+                if (nt && Array.isArray(nt[1])
+                    && nt[1].some((o2) => Array.isArray(o2) && o2[0] === "gain" && (o2[1] === "strength" || o2[1] === "temp_strength"))
+                    && g.hp >= g.maxHp * 0.6) {
+                    const atkNext = b.chords.some((c2) => {
+                        if (c2.locked)
+                            return false;
+                        const ch = Math.min(c2.max, c2.charge + 1);
+                        const n2 = BOT.nStages(c2);
+                        const s2 = n2 === 1 ? (ch >= c2.max ? 0 : -1) : Math.min(ch, n2) - 1;
+                        return s2 >= 0 && BOT.dealsDamage(c2, s2) && ch >= BOT.cycleCharge(b, g, c2);
+                    });
+                    if (!atkNext)
+                        return;
+                }
+            }
             // safe turn + a much stronger next stage -> hold the status card for it
             // (Fully committed pays the same self-damage at stage 1 or 2, but stage 2
             // adds a whole second debuff — charging one more turn is free value)
@@ -24337,6 +24359,11 @@ const BOT = {
         // in-turn order: lethal kill > buffs/debuffs > attacks > shields —
         // attacks first so a killed attacker never wastes a shield play
         const mk = (x) => ({ kind: "play", idx: x.idx, chord: x.c.name, slot: x.c.slot, stage: x.si, tgtId: x.tgtId });
+        // 1-charge compounding shield engines (Evolving Equipment) OPEN the turn
+        // (user design): they play every turn regardless — bank the growth before
+        // attacks can end the battle and skip the play
+        if (bestShield && bestShield.growOpener)
+            return mk(bestShield);
         if (bestStatus && bestStatus.vLethal)
             return mk(bestStatus); // a killing volley beats a plain kill: it grows forever
         if (bestDmg && bestDmg.lethal)
