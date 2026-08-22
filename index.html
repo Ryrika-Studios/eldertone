@@ -22271,7 +22271,7 @@ function makeStore(g, variant) {
         return { title: "Pet Shop", cards, relics: [], items: [], variant };
     }
     if (variant === "thrift_cards") {
-        return { title: "Thrift Shop", cards: randomCardChoices(g, 4).map((c) => ({ card: c, cost: 17 })), relics: [], items: [], variant };
+        return { title: "Thrift Shop", cards: randomCardChoices(g, 4).map((c) => ({ card: c, cost: c.lv === 2 ? 37 : 17 })), relics: [], items: [], variant };
     }
     if (variant === "thrift_fury") {
         return { title: "Thrift Shop", cards: [], relics: [], variant,
@@ -22293,7 +22293,7 @@ function makeStore(g, variant) {
     const fullSecs = ["armory", "daily", "care"];
     const secList = full ? fullSecs : [pick(fullSecs)];
     const cards = secList.includes("armory")
-        ? randomCardChoices(g, 4).map((c) => ({ card: c, cost: 50, sec: "armory" }))
+        ? randomCardChoices(g, 4).map((c) => ({ card: c, cost: c.lv === 2 ? 70 : 50, sec: "armory" }))
         : [];
     const items = [];
     if (secList.includes("armory")) {
