@@ -18409,18 +18409,18 @@ function startBattle(game, enemyNames, kindLabel) {
             // them mid-battle (self_cost_down, delirium, commitment, bite_hard), and
             // sharing the CARD_BY reference let those edits corrupt the card itself
             let stages = clone(c.st), txt = c.txt.slice();
-            if (s.name === "Enhancements" && s.extraUp) {
-                stages = clone(c.st).map((st2) => st2.map((o) => (o[0] === "gain" && o[1] === "strength" ? ["gain", "strength", o[2] + s.extraUp] : o)));
-                txt = c.txt.map((r) => r + " (+" + s.extraUp + ")");
-            }
-            if (s.bag) {
-                stages = bagApplyStages(stages, s); // grab-bag chord upgrades
-                txt = txt.map((r, si2) => r + bagRowSuffix(s, si2, stages.length));
-            }
             const maxCh = Math.max(1, c.c - (s.costMod || 0));
             while (stages.length > maxCh) {
                 stages.shift(); // lowered max charge sheds the weakest opening stage(s)
                 txt.shift(); //  so the ladder still ends at FULL charge
+            }
+            if (s.name === "Enhancements" && s.extraUp) {
+                stages = stages.map((st2) => st2.map((o) => (o[0] === "gain" && o[1] === "strength" ? ["gain", "strength", o[2] + s.extraUp] : o)));
+                txt = txt.map((r) => r + " (+" + s.extraUp + ")");
+            }
+            if (s.bag) {
+                stages = bagApplyStages(stages, s); // grab-bag chord upgrades
+                txt = txt.map((r, si2) => bagRewriteRow(r, s, si2, stages.length) + bagRowSuffix(s, si2, stages.length));
             }
             chords.push({ slot: L, name, lv, baseName: s.name, max: maxCh,
                 stages, txt, charge: 0, plays: 0, note,
@@ -22214,6 +22214,29 @@ function bagRowLabel(k, n) {
         return "healing +" + n;
     return k.charAt(0).toUpperCase() + k.slice(1) + " +" + n; // darkness/spellbound/discipline
 }
+function bagRewriteRow(row, entry, si, C) {
+    const bag = entry && entry.bag;
+    if (!bag)
+        return row;
+    const A = (k) => bagStageAdd(bag[k] || 0, si, C);
+    let r = row;
+    const bump = (re, add) => { if (add > 0)
+        r = r.replace(re, (m, n, rest) => (Number(n) + add) + rest); };
+    bump(/(\d+)(\s*(?:AOE\s+)?Damage)/gi, A("damage"));
+    bump(/(\d+)(\s*(?:AOE\s+)?Shield)/gi, A("shield"));
+    bump(/(\d+)(\s*(?:AOE\s+)?(?:Poison|Firewall))/gi, A("poisburn"));
+    bump(/(\d+)(\s*(?:AOE\s+)?Chilled)/gi, A("chilled"));
+    bump(/(\d+)(\s*(?:AOE\s+)?(?:Blind(?:ed)?|Dodge))/gi, A("blinddodge"));
+    bump(/(\d+)(\s*Entrenched)/gi, A("entrenched"));
+    bump(/(\d+)(\s*Enraged)/gi, A("enraged"));
+    bump(/(\d+)(\s*Strength)/gi, A("strength"));
+    bump(/(\d+)(\s*Darkness)/gi, A("darkness"));
+    bump(/(\d+)(\s*Spellbound)/gi, A("spellbound"));
+    bump(/(\d+)(\s*Discipline)/gi, A("discipline"));
+    if (A("heal") > 0)
+        r = r.replace(/(Heal\s+)(\d+)/gi, (m, pre, n) => pre + (Number(n) + A("heal")));
+    return r;
+}
 function bagRowSuffix(entry, si, C) {
     const bag = entry && entry.bag;
     if (!bag)
@@ -23231,7 +23254,7 @@ function grownRows(txt, entry) {
     if (gr)
         rows = rows.map((t, si) => t.replace(/Deal (\d+)/gi, (m, n) => "Deal " + (Number(n) + bagStageAdd(gr, si, rows.length))));
     if (entry && entry.bag)
-        rows = rows.map((t, si) => t + bagRowSuffix(entry, si, rows.length));
+        rows = rows.map((t, si) => bagRewriteRow(t, entry, si, rows.length) + bagRowSuffix(entry, si, rows.length));
     return rows;
 }
 function copyTextRobust(text, done) {
