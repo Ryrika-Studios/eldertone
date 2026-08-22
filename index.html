@@ -23876,8 +23876,12 @@ const BOT = {
     DL_HOLD: 0, // hard-hold crossing plays for a payload turn (measured -1.2pp; knob for experiments)
     SKIP_FURY_BUY: 0, // A/B knob: 1 = never buy the 350g furyMax-reduction daily deal
     BURN_W: 1, // firewall-value multiplier (apply-burn weight, burn persistence, burn_str)
-    chooseTarget(b, total) {
+    chooseTarget(b, total, dmgOf) {
         const alive = b.enemies.filter((e) => !e.dead);
+        // damage is PER-TARGET (Exposed/Armored/walls fold per enemy): when the
+        // caller provides a per-enemy preview, verify kills with it instead of
+        // the flat number computed against the current target
+        const dOf = dmgOf ? (e) => { const v = dmgOf(e); return v == null ? total : v; } : () => total;
         if (!alive.length)
             return null;
         const C = BOT.TGT_CFG;
@@ -23904,7 +23908,7 @@ const BOT = {
         // "acting against us now" includes a telegraphed team buff / lasting debuff
         const atkNow = (e) => (BOT.intent(e, b).attack > 0 || BOT.menace(e, b) >= 2 ? 1 : 0);
         const genNow = (e) => (e.isGeneral ? 1 : 0);
-        const kill = alive.filter((e) => total != null && total >= e.hp + e.shield).sort((x, y) => genNow(y) - genNow(x) || atkNow(y) - atkNow(x) || threat(y) - threat(x) || x.hp - y.hp);
+        const kill = alive.filter((e) => total != null && total + 10 >= e.hp + e.shield && dOf(e) >= e.hp + e.shield).sort((x, y) => genNow(y) - genNow(x) || atkNow(y) - atkNow(x) || threat(y) - threat(x) || x.hp - y.hp);
         if (kill.length)
             return kill[0];
         // big hits chip the summoner root; small plays keep clearing spawns
@@ -24019,7 +24023,31 @@ const BOT = {
                 return;
             }
             if (deals) {
-                const tgt = BOT.chooseTarget(b, dmg.total);
+                const dmgCache = {};
+                const dmgAt = (e) => {
+                    if (!e)
+                        return null;
+                    if (e.id === b.target)
+                        return dmg ? dmg.total : null;
+                    if (dmgCache[e.id] !== undefined)
+                        return dmgCache[e.id];
+                    const oldT = b.target;
+                    b.target = e.id;
+                    const d2 = BOT.dmg(b, g, c, si);
+                    b.target = oldT;
+                    return (dmgCache[e.id] = d2 ? d2.total : null);
+                };
+                const tgt = BOT.chooseTarget(b, dmg.total, dmgAt);
+                // the preview folded the OLD target's statuses — re-read it against
+                // the enemy we actually chose so lethal/chip/value math is exact
+                if (tgt && tgt.id !== b.target) {
+                    const oldT = b.target;
+                    b.target = tgt.id;
+                    const d3 = BOT.dmg(b, g, c, si);
+                    b.target = oldT;
+                    if (d3)
+                        dmg = d3;
+                }
                 // hydra wave gating: killing the wave's last head spawns the next wave —
                 // hold that kill until the deck is recharged (final wave excepted)
                 if (tgt && b.hydraStage >= 1 && b.hydraStage < 3 && dmg.total >= tgt.hp + tgt.shield
