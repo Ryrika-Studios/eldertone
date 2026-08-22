@@ -23994,6 +23994,19 @@ const BOT = {
                     value += pv * 2;
                     play = true;
                 }
+                // per-play compounding (Evolving Equipment): every play adds to all
+                // later plays this battle, so each play IS the charge — never idle it
+                const sg = ((JSON.stringify(c.stages[Math.min(si, c.stages.length - 1)] || []).match(/"self_shield_grow",(\d+)/) || [0, 0])[1]) * 1;
+                if (sg > 0) {
+                    value += shield + sg * 2.5;
+                    play = true;
+                }
+                // a 1-turn-charge card gains nothing by waiting — playing it every
+                // turn is free value (user doctrine)
+                if (c.max <= 1 && !play && shield > 0) {
+                    value = Math.max(value, shield * 0.8);
+                    play = true;
+                }
                 // Ethereal Cloak line: in Dark Lord form with a charged doubler ready,
                 // shield banked NOW gets doubled by the next decision's Cloak play
                 if (b.darkLord && shield > 0 && b.chords.some((c2) => c2 !== c && !c2.locked
@@ -24559,6 +24572,9 @@ const BOT = {
     STORE_PULL: 3, // max path-weight pull toward stores from banked gold
     FILL_PICK_W: 14, // card-pick bonus for filling an empty slot
     STORE_BAR: 0.15, // store-card synergy bar (normal)
+    STORE_DISPLACE_MARGIN: 1.2, // occupied-slot store buy must beat the displaced card by this
+    BAG_TGT_BAR: 1.6, // grab-bag buys need a target card at least this strong (synergy+power)
+    BAG_MAX_BUYS: 2, // grab bags per store visit
     STORE_FILL_BAR: -0.3, // store-card bar when it fills an empty slot
     STORE_RICH_BAR: 0.15, // store-card bar when 150g+ would remain after buying
     BANK_HP_GATE: 0, // no big-ticket banking below this HP fraction
@@ -25901,13 +25917,27 @@ const BOT = {
                     if (canClose())
                         s.closed = true;
                 } });
-                (s.cards || []).forEach((it, i) => { const fillsE = it.card && it.card.slot && !g.slots[it.card.slot]; const bar = fillsE ? BOT.STORE_FILL_BAR : (g.gold - P(it.cost) >= 150 ? BOT.STORE_RICH_BAR : BOT.STORE_BAR); if (!s.closed && !it.sold && g.gold >= P(it.cost) && g.gold - P(it.cost) >= bankFloor && BOT.synergy(it.card, g) >= bar) {
-                    g.gold -= P(it.cost);
-                    equipCard(g, it.card, true);
-                    s.cards[i].sold = true;
-                    if (canClose())
-                        s.closed = true;
-                } });
+                const buyCards = () => (s.cards || []).forEach((it, i) => {
+                    const fillsE = it.card && it.card.slot && !g.slots[it.card.slot];
+                    const bar = fillsE ? BOT.STORE_FILL_BAR : (g.gold - P(it.cost) >= 150 ? BOT.STORE_RICH_BAR : BOT.STORE_BAR);
+                    const sy = BOT.synergy(it.card, g);
+                    // an occupied-slot buy must clearly BEAT the card it benches — stocking
+                    // average cards that displace keepers wastes gold (user doctrine)
+                    let dispOk = true;
+                    if (!fillsE && it.card && it.card.slot && g.slots[it.card.slot]) {
+                        const cur = g.slots[it.card.slot];
+                        const cc = CARD_BY[cardKey(cur.name, cur.lv)];
+                        if (cc)
+                            dispOk = sy >= BOT.synergy(cc, g) + BOT.STORE_DISPLACE_MARGIN;
+                    }
+                    if (!s.closed && !it.sold && g.gold >= P(it.cost) && g.gold - P(it.cost) >= bankFloor && dispOk && sy >= bar) {
+                        g.gold -= P(it.cost);
+                        equipCard(g, it.card, true);
+                        s.cards[i].sold = true;
+                        if (canClose())
+                            s.closed = true;
+                    }
+                });
                 (s.items || []).forEach((it, i) => { if (s.closed || it.sold)
                     return; const t = it.t; if (g.gold < P(it.cost))
                     return; if (t === "heal" && it.repeat) {
@@ -25960,6 +25990,30 @@ const BOT = {
                             s.closed = true;
                     }
                     return;
+                } if (t === "bag") {
+                    // grab bag (45g, repeatable): a permanent stat rider on one card —
+                    // strong value ONLY on a clearly strong keeper; skip on mediocre decks
+                    let bagN = 0;
+                    while (!s.closed && bagN < BOT.BAG_MAX_BUYS && g.gold >= P(it.cost) && g.gold - P(it.cost) >= bankFloor) {
+                        const roll = bagRoll(g);
+                        if (!roll)
+                            break;
+                        const cand = bagTargets(g, roll.kind).map((t2) => {
+                            const e2 = t2.where === "slot" ? g.slots[t2.L] : g.reserves[t2.i];
+                            const cd2 = e2 && CARD_BY[cardKey(e2.name, e2.lv)];
+                            return { t2, e2, sc: (cd2 ? BOT.synergy(cd2, g) + BOT.cardPower(cd2) * 0.15 : 0) + (t2.where === "slot" ? 0.4 : 0) };
+                        }).sort((a2, b2) => b2.sc - a2.sc)[0];
+                        if (!cand || cand.sc < BOT.BAG_TGT_BAR)
+                            break; // picker cancel = no charge, same as a human backing out
+                        g.gold -= P(it.cost);
+                        bagApply(g, cand.t2, roll.kind, roll.n);
+                        bagN += 1;
+                        if (BOT.note)
+                            BOT.note("store: grab bag " + bagLabel(g, roll.kind, roll.n) + " \u2192 " + cand.e2.name + " (" + P(it.cost) + "g)");
+                        if (canClose())
+                            s.closed = true;
+                    }
+                    return;
                 } if (t === "upcard") {
                     // the 90g upgrade is the main late-game scaling — buy for the best target
                     const ts2 = upgradeTargets(g);
@@ -26003,6 +26057,7 @@ const BOT = {
                     if (canClose())
                         s.closed = true;
                 } });
+                buyCards(); // cards buy LAST: totems/upgrades/transmuter get gold first (user doctrine)
             }
             advanceNode(g);
             return g;
@@ -26765,16 +26820,27 @@ function EldertoneInner() {
                             if (canClose())
                                 s.closed = true;
                         } });
-                        (s.cards || []).forEach((it, i) => { const fillsE = it.card && it.card.slot && !g.slots[it.card.slot]; const bar = fillsE ? BOT.STORE_FILL_BAR : (g.gold - P(it.cost) >= 150 ? BOT.STORE_RICH_BAR : BOT.STORE_BAR); if (!s.closed && !it.sold && g.gold >= P(it.cost) && g.gold - P(it.cost) >= bankFloor && BOT.synergy(it.card, g) >= bar) {
-                            logDecision(g, "buy", { item: "card:" + it.card.n, cost: P(it.cost) });
-                            if (BOT.note)
-                                BOT.note("store: card " + it.card.n + " (" + P(it.cost) + "g)");
-                            g.gold -= P(it.cost);
-                            equipCard(g, it.card, true);
-                            s.cards[i].sold = true;
-                            if (canClose())
-                                s.closed = true;
-                        } });
+                        const buyCards = () => (s.cards || []).forEach((it, i) => {
+                            const fillsE = it.card && it.card.slot && !g.slots[it.card.slot];
+                            const bar = fillsE ? BOT.STORE_FILL_BAR : (g.gold - P(it.cost) >= 150 ? BOT.STORE_RICH_BAR : BOT.STORE_BAR);
+                            const sy = BOT.synergy(it.card, g);
+                            // an occupied-slot buy must clearly BEAT the card it benches — stocking
+                            // average cards that displace keepers wastes gold (user doctrine)
+                            let dispOk = true;
+                            if (!fillsE && it.card && it.card.slot && g.slots[it.card.slot]) {
+                                const cur = g.slots[it.card.slot];
+                                const cc = CARD_BY[cardKey(cur.name, cur.lv)];
+                                if (cc)
+                                    dispOk = sy >= BOT.synergy(cc, g) + BOT.STORE_DISPLACE_MARGIN;
+                            }
+                            if (!s.closed && !it.sold && g.gold >= P(it.cost) && g.gold - P(it.cost) >= bankFloor && dispOk && sy >= bar) {
+                                g.gold -= P(it.cost);
+                                equipCard(g, it.card, true);
+                                s.cards[i].sold = true;
+                                if (canClose())
+                                    s.closed = true;
+                            }
+                        });
                         (s.items || []).forEach((it, i) => { if (s.closed || it.sold)
                             return; const t = it.t; if (g.gold < P(it.cost))
                             return; if (t === "heal" && it.repeat) {
@@ -26827,6 +26893,30 @@ function EldertoneInner() {
                             s.closed = true;
                     }
                     return;
+                } if (t === "bag") {
+                    // grab bag (45g, repeatable): a permanent stat rider on one card —
+                    // strong value ONLY on a clearly strong keeper; skip on mediocre decks
+                    let bagN = 0;
+                    while (!s.closed && bagN < BOT.BAG_MAX_BUYS && g.gold >= P(it.cost) && g.gold - P(it.cost) >= bankFloor) {
+                        const roll = bagRoll(g);
+                        if (!roll)
+                            break;
+                        const cand = bagTargets(g, roll.kind).map((t2) => {
+                            const e2 = t2.where === "slot" ? g.slots[t2.L] : g.reserves[t2.i];
+                            const cd2 = e2 && CARD_BY[cardKey(e2.name, e2.lv)];
+                            return { t2, e2, sc: (cd2 ? BOT.synergy(cd2, g) + BOT.cardPower(cd2) * 0.15 : 0) + (t2.where === "slot" ? 0.4 : 0) };
+                        }).sort((a2, b2) => b2.sc - a2.sc)[0];
+                        if (!cand || cand.sc < BOT.BAG_TGT_BAR)
+                            break; // picker cancel = no charge, same as a human backing out
+                        g.gold -= P(it.cost);
+                        bagApply(g, cand.t2, roll.kind, roll.n);
+                        bagN += 1;
+                        if (BOT.note)
+                            BOT.note("store: grab bag " + bagLabel(g, roll.kind, roll.n) + " \u2192 " + cand.e2.name + " (" + P(it.cost) + "g)");
+                        if (canClose())
+                            s.closed = true;
+                    }
+                    return;
                 } if (t === "upcard") {
                     // the 90g upgrade is the main late-game scaling — buy for the best target
                     const ts2 = upgradeTargets(g);
@@ -26873,6 +26963,7 @@ function EldertoneInner() {
                             if (canClose())
                                 s.closed = true;
                         } });
+                        buyCards(); // cards buy LAST: totems/upgrades/transmuter get gold first (user doctrine)
                     }
                     advanceNode(g);
                 });
