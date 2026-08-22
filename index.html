@@ -18417,7 +18417,12 @@ function startBattle(game, enemyNames, kindLabel) {
                 stages = bagApplyStages(stages, s); // grab-bag chord upgrades
                 txt = txt.map((r, si2) => r + bagRowSuffix(s, si2, stages.length));
             }
-            chords.push({ slot: L, name, lv, baseName: s.name, max: Math.max(1, c.c - (s.costMod || 0)),
+            const maxCh = Math.max(1, c.c - (s.costMod || 0));
+            while (stages.length > maxCh) {
+                stages.shift(); // lowered max charge sheds the weakest opening stage(s)
+                txt.shift(); //  so the ladder still ends at FULL charge
+            }
+            chords.push({ slot: L, name, lv, baseName: s.name, max: maxCh,
                 stages, txt, charge: 0, plays: 0, note,
                 pDebuffCharge: flat.includes('"self_full_on_debuff"'),
                 pIdleGrow: (flat.match(/"charged_idle_grow",(\d+)/) || [0, 0])[1] * 1,
@@ -20998,6 +21003,10 @@ function heroTurnStart(b, g) {
             c.max -= c.pIdleCost;
             c.max = Math.max(1, c.max);
             c.charge = Math.min(c.charge, c.max);
+            while (c.stages.length > c.max) {
+                c.stages.shift();
+                c.txt.shift();
+            }
             log(b, c.name + " sharpens \u2014 max charge now " + c.max + ".");
         }
         c.wasFull = c.charge >= c.max;
@@ -23213,6 +23222,12 @@ class ErrorShield extends React.Component {
 function grownRows(txt, entry) {
     const gr = entry && entry.growth;
     let rows = txt;
+    const cd = entry && entry.name ? CARD_BY[cardKey(entry.name, entry.lv)] : null;
+    if (cd && entry.costMod && rows.length > 1) {
+        const maxCh = Math.max(1, cd.c - entry.costMod);
+        if (rows.length > maxCh)
+            rows = rows.slice(rows.length - maxCh);
+    }
     if (gr)
         rows = rows.map((t, si) => t.replace(/Deal (\d+)/gi, (m, n) => "Deal " + (Number(n) + bagStageAdd(gr, si, rows.length))));
     if (entry && entry.bag)
