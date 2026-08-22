@@ -22221,7 +22221,7 @@ function bagRewriteRow(row, entry, si, C) {
     const A = (k) => bagStageAdd(bag[k] || 0, si, C);
     let r = row;
     const bump = (re, add) => { if (add > 0)
-        r = r.replace(re, (m, n, rest) => (Number(n) + add) + rest); };
+        r = r.replace(re, (m, n, rest, off, whole) => /\b(?:adds?|plus)\s*$/i.test(whole.slice(0, off)) ? m : (Number(n) + add) + rest); };
     bump(/(\d+)(\s*(?:AOE\s+)?Damage)/gi, A("damage"));
     bump(/(\d+)(\s*(?:AOE\s+)?Shield)/gi, A("shield"));
     bump(/(\d+)(\s*(?:AOE\s+)?(?:Poison|Firewall))/gi, A("poisburn"));
@@ -22259,9 +22259,13 @@ function bagApplyStages(stages, entry) {
     if (!bag)
         return stages;
     const C = stages.length;
-    return stages.map((st2, si) => st2.map((o) => {
+    return stages.map((st2, si) => st2.map(function mapOp(o) {
         const A = (n) => bagStageAdd(n, si, C);
         const o2 = o.slice();
+        if (o2[0] === "cond" && Array.isArray(o2[2]))
+            return [o2[0], o2[1], o2[2].map(mapOp)];
+        if (o2[0] === "cond2")
+            return [o2[0], o2[1], Array.isArray(o2[2]) ? o2[2].map(mapOp) : o2[2], Array.isArray(o2[3]) ? o2[3].map(mapOp) : o2[3]];
         if (o2[0] === "damage" && bag.damage)
             o2[1] += A(bag.damage);
         else if (o2[0] === "gain" && o2[1] === "shield" && bag.shield)
