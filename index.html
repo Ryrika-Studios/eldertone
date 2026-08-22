@@ -24666,6 +24666,33 @@ const BOT = {
     // NEUTRAL-to-negative at 4k/arm (ON 1.2% vs OFF 1.4%) — the aggro archetype's
     // exposed/weaken themes already pull debuff cards; knob kept for re-sweeps.
     FURY_ENGINE_W: 0,
+    // value of a "Move a chord into the L slot" reward: equipping a strong
+    // reserve into an empty slot > displacing a weak occupant with a clearly
+    // better reserve. Slot-to-slot swaps carry no value; without a good reserve
+    // pick the reward is near-worthless (score 1).
+    transRewardScore(g, L) {
+        const occ = g.slots[L];
+        const occC = occ && CARD_BY[cardKey(occ.name, occ.lv)];
+        const occSy = occC ? BOT.synergy(occC, g) : 0;
+        let best = null, bs = -1e9;
+        (g.reserves || []).forEach((r, ri) => {
+            if (!r)
+                return;
+            const rc = CARD_BY[cardKey(r.name, r.lv)];
+            if (!rc)
+                return;
+            const v = occ ? BOT.synergy(rc, g) - occSy : BOT.synergy(rc, g);
+            if (v > bs) {
+                bs = v;
+                best = { ri, v };
+            }
+        });
+        if (!best)
+            return { s: 1, pick: null };
+        if (!occ)
+            return { s: 13 + Math.max(0, best.v) * 6, pick: best };
+        return best.v > 0.8 ? { s: 6 + best.v * 6, pick: best } : { s: 1, pick: null };
+    },
     chooseRewardIdx(g) {
         // v11.1: an uncommitted forced run MUST take the first persona-defining card
         // it sees — that card names the run's archetype
@@ -24691,20 +24718,30 @@ const BOT = {
                 const disp = d.card.slot && g.slots[d.card.slot];
                 const oldC = disp && CARD_BY[cardKey(disp.name, disp.lv)];
                 const gain = oldC ? Math.max(0, BOT.synergy(d.card, g) - BOT.synergy(oldC, g)) : BOT.synergy(d.card, g);
-                s = (fills ? 24 : 6) + gain * 13;
+                // a strong card is worth taking even into RESERVES — it becomes
+                // transmute/swap material for the rest of the run (user doctrine)
+                s = (fills ? 24 : 6) + gain * 13
+                    + (fills ? 0 : Math.max(0, Math.min(2.5, BOT.synergy(d.card, g))) * 4);
             }
             else if (d.t === "heal") {
-                // at 55% or less, healing beats any card/relic on offer
-                s = miss * 34 + (g.hp <= g.maxHp * 0.55 ? 40 : 0);
+                // healing scales with missing hp; a LOW-hp bonus keeps the bot
+                // alive, but clearly good cards still edge it out (user ladder)
+                s = miss * 26 + (g.hp <= g.maxHp * 0.55 ? 16 : 0);
             }
             else if (d.t === "relic")
                 s = 15;
             else if (d.t === "upcard" || d.t === "uprandom")
-                s = upgradeTargets(g).length ? 18 : 2;
-            else if (d.t === "boost")
-                s = 9;
+                s = upgradeTargets(g).length ? 15 : 2;
+            else if (d.t === "trans")
+                s = BOT.transRewardScore(g, d.L).s;
+            else if (d.t === "maxhp")
+                s = 7 + (d.n || 6) * 0.25;
+            else if (d.t === "fury")
+                s = 9; // permanent fury speedup — max-upgrade tier
             else if (d.t === "gold")
-                s = 3 + miss * 6;
+                s = 5 + miss * 2;
+            else if (d.t === "boost")
+                s = 2.5; // one-battle buffs rank LAST (user doctrine)
             else
                 s = 4;
             if (s > bs) {
@@ -25811,6 +25848,12 @@ const BOT = {
             }
             else
                 advanceNode(g2); };
+            // a trans REWARD (fixed target slot): equip the best reserve there
+            if (g.transTo) {
+                const plan = BOT.transRewardScore(g, g.transTo);
+                if (plan.pick)
+                    reserveToSlot(g, plan.pick.ri, g.transTo);
+            }
             g.transFrom = null;
             g.pendingPurchase = null;
             done(g);
@@ -26721,7 +26764,11 @@ function EldertoneInner() {
                     g2.returnTo = null;
                 }
                 else
-                    advanceNode(g2); }; g.transFrom = null; g.pendingPurchase = null; done(g); });
+                    advanceNode(g2); }; if (g.transTo) {
+                    const plan = BOT.transRewardScore(g, g.transTo);
+                    if (plan.pick)
+                        reserveToSlot(g, plan.pick.ri, g.transTo);
+                } g.transFrom = null; g.pendingPurchase = null; done(g); });
                 return;
             }
             if (scr === "upgrade") {
