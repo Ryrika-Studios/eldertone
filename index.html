@@ -24141,6 +24141,21 @@ const BOT = {
                     if (bestP >= BOT.FURY_CHIP_BAR)
                         fillsFury = { payoff: bestP };
                 }
+                // temp strength evaporates after this turn (user design): firing a
+                // partial NOW can beat waiting for a full charge WITHOUT the boost.
+                // Play iff dmg_now(boosted) > full dmg(unboosted) x charge/max — the
+                // right side is what restarting the cycle early costs the schedule.
+                let tempStrPlay = false;
+                {
+                    const ts = b.hero.st._tempStr || 0;
+                    if (ts > 0 && grow && c.charge < c.max) {
+                        b.hero.st._tempStr = 0;
+                        const dF = BOT.dmg(b, g, c, BOT.nStages(c) - 1);
+                        b.hero.st._tempStr = ts;
+                        if (dF && dmg.total > dF.total * (c.charge / c.max))
+                            tempStrPlay = true;
+                    }
+                }
                 let value = dmg.total, play = true;
                 if (furyFull) {
                     const bp = BOT.bestPotential(b, g, cfg);
@@ -24193,6 +24208,11 @@ const BOT = {
                         value = dmg.total;
                         play = !tgtShieldNow || dmg.total > tgt.shield;
                     }
+                }
+                else if (tempStrPlay) {
+                    // strike while the temporary strength is up
+                    value = dmg.total;
+                    play = !tgtShieldNow || dmg.total > tgt.shield;
                 }
                 else if (!tgtShieldNow && tgtShieldNext && (c.charge >= 2 || dmg.total >= 5)) {
                     // shield window closing: they're open NOW but will shield next turn.
