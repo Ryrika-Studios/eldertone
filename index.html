@@ -23854,6 +23854,7 @@ const BOT = {
     HYDRA_GATE: 0.55,
     // idle-growth (charged_idle_grow) hold rule: horizon = assumed battle length
     // in turns; W scales the hold-vs-play crossover (0 = old always-fire behavior)
+    CYCLE_HOLD: 1, // growing damage chords never fire below their dmg/turn-optimal stage (0 = old chip behavior)
     IDLE_HORIZON: 8,
     IDLE_HOLD_W: 1.5,
     // total health WE lose striking a walled enemy `hits` times: the wall deals its
@@ -24196,8 +24197,12 @@ const BOT = {
                     value = dmg.total;
                     play = true;
                 }
-                else if (grow && (waitGain * cfg.waitAggression > Math.max(dmg.total * 0.15, incoming * 0.5)
+                else if (grow && ((BOT.CYCLE_HOLD && c.charge < BOT.cycleCharge(b, g, c))
+                    || waitGain * cfg.waitAggression > Math.max(dmg.total * 0.15, incoming * 0.5)
                     || teamKillNext(tgt))) {
+                    // below the dmg/turn-optimal stage a partial play always LOSES
+                    // total damage — never chip (lethal and closing shield windows
+                    // were already handled above); user doctrine Aug 2026
                     play = false;
                     value = 0;
                 }
