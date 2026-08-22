@@ -24698,6 +24698,39 @@ const BOT = {
     // reserve into an empty slot > displacing a weak occupant with a clearly
     // better reserve. Slot-to-slot swaps carry no value; without a good reserve
     // pick the reward is near-worthless (score 1).
+    // reserves-full make-room: keep the better of occupant/incoming in the
+    // slot; the LOSER still replaces the weakest reserve when it clearly beats
+    // it (user doctrine — never auto-discard a card better than a held reserve)
+    resolveMakeRoom(g, pe) {
+        const disp = g.slots[pe.card.slot];
+        const oldC = disp && CARD_BY[cardKey(disp.name, disp.lv)];
+        const keepOld = !!(oldC && BOT.synergy(oldC, g) > BOT.synergy(pe.card, g) + 0.3);
+        const loser = keepOld
+            ? { name: pe.card.n, lv: pe.card.lv, costMod: 0, plays: 0, slot: pe.card.slot }
+            : disp ? { ...disp, slot: pe.card.slot } : null;
+        if (!keepOld)
+            g.slots[pe.card.slot] = { name: pe.card.n, lv: pe.card.lv, costMod: 0, plays: 0 };
+        let dropped = null;
+        if (loser) {
+            const lc = CARD_BY[cardKey(loser.name, loser.lv)];
+            const lsy = lc ? BOT.synergy(lc, g) : -1e9;
+            let wi = -1, wsy = 1e9;
+            (g.reserves || []).forEach((r, i) => {
+                if (!r) {
+                    if (wsy > -1e9) { wi = i; wsy = -1e9; }
+                    return;
+                }
+                const rc = CARD_BY[cardKey(r.name, r.lv)];
+                const sy = rc ? BOT.synergy(rc, g) : -1e9 + 1;
+                if (sy < wsy) { wsy = sy; wi = i; }
+            });
+            if (wi >= 0 && lsy > wsy + 0.3) {
+                dropped = g.reserves[wi] ? g.reserves[wi].name : null;
+                g.reserves[wi] = loser;
+            }
+        }
+        return { keepOld, loserName: loser && loser.name, dropped };
+    },
     transRewardScore(g, L) {
         const occ = g.slots[L];
         const occC = occ && CARD_BY[cardKey(occ.name, occ.lv)];
@@ -25722,10 +25755,7 @@ const BOT = {
         if (g.pendingEquip) {
             const pe = g.pendingEquip;
             g.pendingEquip = null;
-            const disp = g.slots[pe.card.slot];
-            const oldC = disp && CARD_BY[cardKey(disp.name, disp.lv)];
-            if (!(oldC && BOT.synergy(oldC, g) > BOT.synergy(pe.card, g) + 0.3))
-                g.slots[pe.card.slot] = { name: pe.card.n, lv: pe.card.lv, costMod: 0, plays: 0 };
+            BOT.resolveMakeRoom(g, pe);
             return g;
         }
         if (g.battle && g.battle.over && !g.battle.__simFlushed)
@@ -26625,13 +26655,11 @@ function EldertoneInner() {
             // global make-room modal can appear over any screen
             if (g.pendingEquip) {
                 mut((g) => { const pe = g.pendingEquip; const disp = g.slots[pe.card.slot]; g.pendingEquip = null;
-                    const oldC = disp && CARD_BY[cardKey(disp.name, disp.lv)];
-                    const keepOld = oldC && BOT.synergy(oldC, g) > BOT.synergy(pe.card, g) + 0.3;
-                    logDecision(g, "make_room", { discarded: keepOld ? pe.card.n + " (new)" : (disp ? disp.name : "?") + " (slot)", kept: keepOld ? disp.name : pe.card.n });
+                    const r = BOT.resolveMakeRoom(g, pe);
+                    logDecision(g, "make_room", { kept: r.keepOld ? (disp ? disp.name : "?") : pe.card.n, benched: r.dropped != null ? r.loserName : null, discarded: r.dropped != null ? r.dropped + " (reserve)" : r.loserName });
                     if (BOT.note)
-                        BOT.note(keepOld ? "kept " + disp.name + " over " + pe.card.n : "equipped " + pe.card.n + (disp ? " over " + disp.name : ""));
-                    if (!keepOld)
-                        g.slots[pe.card.slot] = { name: pe.card.n, lv: pe.card.lv, costMod: 0, plays: 0 }; });
+                        BOT.note((r.keepOld ? "kept " + (disp ? disp.name : "?") + " over " + pe.card.n : "equipped " + pe.card.n + (disp ? " over " + disp.name : ""))
+                            + (r.dropped != null ? " \u2014 benched it over reserve " + r.dropped : " \u2014 discarded")); });
                 return;
             }
             const scr = g.screen;
