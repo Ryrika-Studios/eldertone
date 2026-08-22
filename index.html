@@ -21817,10 +21817,15 @@ function randomCardChoices(g, n) {
     const seen = new Set([...Object.values(g.slots).filter(Boolean).map((s) => s.name),
         ...(g.reserves || []).filter(Boolean).map((r) => r.name)]);
     let guard = 0;
+    // offered cards roll Level 2: 10% in Nature, +5% per later biome
+    const lv2Chance = 0.10 + 0.05 * (g.biomeIdx || 0);
     while (out.length < n && guard++ < 200) {
         let c = pick(pool);
         if (seen.has(c.n) || out.some((o) => o.n === c.n))
             continue;
+        const up2 = CARD_BY[cardKey(c.n, 2)];
+        if (up2 && Math.random() < lv2Chance)
+            c = up2;
         if (c.slot === "X")
             c = { ...c, slot: pick("ABCDEFG".split("")) }; // X cards get a rolled slot before being shown
         out.push(c);
@@ -21901,7 +21906,7 @@ function drawRewardOptions(g, n) {
             return false;
         cardCount += 1;
         const occ = c.slot !== "X" ? g.slots[c.slot] : null;
-        opts.push({ def: { t: "card", card: c }, label: "Chord: " + dispName(c.n, c.slot) + " (" + c.slot + ")", sub: c.txt[c.txt.length - 1] + (occ ? " — replaces " + occ.name : "") });
+        opts.push({ def: { t: "card", card: c }, label: "Chord: " + dispName(c.n, c.slot) + (c.lv === 2 ? "+" : "") + " (" + c.slot + ")", sub: c.txt[c.txt.length - 1] + (occ ? " — replaces " + occ.name : "") });
         return true;
     };
     while (opts.length < n && guard++ < 200) {
