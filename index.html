@@ -23579,6 +23579,11 @@ const BOT = {
             return 0;
         const canAttack = !ctx || ctx.canAttack !== false;
         const threat = ctx && ctx.incoming != null ? ctx.incoming : 1;
+        // Blind/Weaken/Dodge are damage MITIGATION: when shield already covers the
+        // whole incoming hit they add nothing this turn (user design) — a card
+        // carrying them then plays only if its OTHER ops justify it (full Feint's
+        // damage still fires; a blind-only partial holds for the full charge)
+        const covered = threat > 0 && b.hero && (b.hero.shield || 0) >= threat;
         // offense buffs scale with the damage instances planned this turn:
         // 1 hit ->x1, 2 ->x1.5, 3 ->x2, 4 ->x2.5, 5+ ->x3 (Strength/Exposed pay per hit)
         const hits = ctx && ctx.hits != null ? ctx.hits : 1;
@@ -23594,7 +23599,7 @@ const BOT = {
                 // exposed pays off only if we attack this turn; weaken/blind only vs attackers
                 const w = { exposed: canAttack ? 1.2 * hitMult : 0.05, poison: 1.1,
                     burn: 1.0 * (BOT.BURN_W || 1),
-                    weaken: threat > 0 ? 1.0 : 0.05, blind: threat > 0 ? 0.9 : 0.05,
+                    weaken: threat > 0 && !covered ? 1.0 : 0.05, blind: threat > 0 && !covered ? 0.9 : 0.05,
                     acid: canAttack ? 1.5 : 0.8, // Corroded: Exposed that never decays
                     stun: threat > 0 ? 2.0 : 0.4 }[o[1]] || 0.6;
                 let av = (o[2] || 0) * w * (o[3] === true ? ec : 1);
@@ -23625,7 +23630,7 @@ const BOT = {
                 return dv;
             }
             if (k === "gain") {
-                const w = { strength: 2.0 * hitMult, dodge: 1.0, armored: 1.2, entrenched: 2.0, discipline: 0.9, enraged: 1.3, lifesteal: 1.5 }[o[1]] || 0.5;
+                const w = { strength: 2.0 * hitMult, dodge: covered ? 0.1 : 1.0, armored: 1.2, entrenched: 2.0, discipline: 0.9, enraged: 1.3, lifesteal: 1.5 }[o[1]] || 0.5;
                 let gv = (o[2] || 0) * w;
                 if (gv < 0 && !canAttack)
                     gv *= 0.2; // a self-debuff barely matters when we are not attacking (Beach vibes)
