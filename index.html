@@ -22457,6 +22457,12 @@ const CSS = `
 .et-eslot{width:30px;height:30px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#3c3c46,#101018);border:2px solid #6f7275;color:#f4f0e2;font-family:'Cormorant SC',serif;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;margin:2px auto -4px;position:relative;z-index:2;box-shadow:0 2px 4px rgba(0,0,0,.55)}
 .et-enemy.tgt .et-eslot{border-color:#ffd76a;color:#ffd76a;box-shadow:0 0 9px rgba(255,215,106,.85)}
 .et-esprite{font-size:42px;line-height:1.2;text-align:center;padding-top:2px}
+.et-encprev{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin:6px auto 16px;max-width:880px}
+.et-encfoe{background:#241b11;border:1px solid #6a5638;border-radius:10px;padding:12px 14px;width:200px;text-align:center}
+.et-encfoe .ef-name{font-weight:700;color:#e8c98a;margin-top:6px;font-family:'Cormorant SC',serif;font-size:17px}
+.et-encfoe .ef-hp{color:#e08a7a;font-size:13px;margin:1px 0 6px}
+.et-encfoe .ef-sp{font-size:11.5px;color:#cfc4a8;text-align:left;line-height:1.45}
+.et-encfoe .ef-sp b{color:#d8b97a;display:block;text-align:center;margin-bottom:2px}
 .et-egnomec{position:relative;width:54px;height:56px;margin:0 auto}
 .et-egnomec .egn-l{position:absolute;inset:0;font-size:46px;line-height:54px;text-align:center}
 .et-egnomec .egn-prop{position:absolute;right:-5px;bottom:-2px;font-size:20px}
@@ -22640,6 +22646,73 @@ const ZOMBIE_PART_VIEW = {
     "Zombie Head": { zone: "head", clip: "inset(0 27% 42% 20%)", fs: 74, cx: 0.46, cy: 0.29, r: 0 },
     "Zombie Leg": { leg: true },
 };
+const ENEMY_SPECIAL_DESC = {
+    Magpie: ["Coin Purse", "Drops a gold coin every time you damage it."],
+    "Gnome Village": ["The Village", "Summons gnome after gnome. Fell the village and every gnome flees."],
+    "Troll King": ["Enraged", "Spends a turn strengthening, and every direct hit that costs him health makes him stronger."],
+    Vineman: ["Vine Arms", "Regrows up to 3 Vine Arms that each attack every turn until destroyed."],
+    Zombie: ["Falling Apart", "As he takes damage his Arm, Leg and Head break off and fight on their own."],
+    "Growing Mass": ["Gorge & Slam", "Grows ever larger, then slams you for half the health it regrew."],
+    "Dwarf King": ["Boulder Toss", "Hurls boulders that fight beside him."],
+    Phoenix: ["Rebirth", "Every defeat leaves an egg — destroy it within 2 turns or the Phoenix returns."],
+    Salamander: ["Fire Spikes", "Periodically bristles with flame — striking it then burns you."],
+    Dragon: ["Take Flight", "Every third turn it flies out of reach and breathes fire."],
+    "Snow Golem": ["Chilling Blows", "Every hit it lands leaves you Weakened."],
+    "Ice Hedgehog": ["Burrowed In", "Starts entrenched, shielding itself every turn."],
+    "Sled Catapult": ["Crewed Weapon", "Devastating volleys — but only while a Sled Goblin crews it."],
+    "Ice Wraith": ["Ethereal", "Every hit against it deals only 1 damage. Whittle it down."],
+    "Ice Shell": ["Fury Drinker", "Every third turn it drinks your Fury and hoards the power."],
+    Blimp: ["Elf Crew", "Its Elf crew fights for it — when the last Elf falls, it bursts."],
+    Centaur: ["Piercing Strikes", "Every hit it lands leaves you Exposed."],
+    Siren: ["Cursed Melody", "Curses one of your chords — playing it costs health."],
+    "Sunguard Mage": ["Sunward Ward", "Shields the Sunguard Knight every turn."],
+    Butterfly: ["Flighty", "Stays only two rounds, then flutters away — another foe takes its place."],
+};
+function enemyPreview(name) {
+    if (ENEMY_SPECIAL_DESC[name])
+        return ENEMY_SPECIAL_DESC[name];
+    if (name.indexOf("Hydra ") === 0)
+        return ["Many Heads", "New heads rise as the old fall — slay all five to win."];
+    const def = ENEMIES[name];
+    if (!def || !def.moves)
+        return null;
+    let best = null, bestScore = -1, bestParts = null;
+    for (const mv of def.moves)
+        for (const p of mv[1]) {
+            const s = (p[0] === "summon" || p[0] === "summon_gnome") ? 6 : p[0] === "deb" ? 5 : p[0] === "CD" ? 4
+                : (p[0] === "buff" || p[0] === "buff_all" || p[0] === "buff_ally") ? 3
+                    : (p[0] === "heal_all" || p[0] === "heal_ally") ? 3 : p[0] === "LD" ? 2.5
+                        : p[0] === "S" ? 2 : (p[0] === "D" && mv[1].filter((x) => x[0] === "D").length > 1) ? 2.2 : 1;
+            if (s > bestScore) {
+                bestScore = s;
+                best = p;
+                bestParts = mv[1];
+            }
+        }
+    if (!best)
+        return null;
+    if (best[0] === "summon" || best[0] === "summon_gnome")
+        return ["Reinforcements", "Calls allies into the fight."];
+    if (best[0] === "deb") {
+        if (best[1] === "burn")
+            return ["Firewall", "Raises its own Firewall — your attacks against it burn you."];
+        const nm = { poison: ["Venomous Strike", "Poison"], weaken: ["Withering Curse", "Weakened"], blind: ["Blinding Attack", "Blind"], exposed: ["Exposing Jab", "Exposed"], stun: ["Stunning Blow", "Stun"] }[best[1]] || ["Dirty Tricks", best[1]];
+        return [nm[0], "Afflicts you with " + best[2] + " " + nm[1] + "."];
+    }
+    if (best[0] === "CD")
+        return ["Wind-Up", "Charges a massive blow that lands a turn or two later."];
+    if (best[0] === "buff" || best[0] === "buff_all" || best[0] === "buff_ally")
+        return ["War Cry", best[0] === "buff" ? "Strengthens itself as the fight goes on." : "Strengthens its allies."];
+    if (best[0] === "heal_all" || best[0] === "heal_ally")
+        return ["Mending", "Heals its side."];
+    if (best[0] === "LD")
+        return ["Draining Strike", "Its attacks heal it for the damage dealt."];
+    if (best[0] === "S")
+        return ["Defensive Shell", "Shields itself between attacks."];
+    if (bestParts && bestParts.filter((x) => x[0] === "D").length > 1)
+        return ["Flurry", "Strikes multiple times in a single turn."];
+    return ["Aggression", "A straightforward, hard-hitting attacker."];
+}
 const ENEMY_EMOJI = {
     Magpie: "\u{1F426}", Bruiser: "\u{1F479}", Assassin: "\u{1F5E1}\uFE0F", Snail: "\u{1F40C}",
     "Lizard Rider": "\u{1F98E}", Troll: "\u{1F9CC}", "Troll Hoard": "\u{1F9CC}", "Troll King": "\u{1F451}",
@@ -22788,6 +22861,45 @@ function TutArrow({ toSel, aim }) {
                 React.createElement("path", { d: "M0,0 L8,3.5 L0,7 Z", fill: "#ffd76a" }))),
         React.createElement("line", { x1: pts.x1, y1: pts.y1, x2, y2, stroke: "#ffd76a", strokeWidth: 3.5, strokeDasharray: "8 6", markerEnd: "url(#tutAH)", style: { filter: "drop-shadow(0 1px 3px rgba(0,0,0,.7))" } }));
 }
+function FoeSpriteView(en) {
+                                const kindCls = en.kind === "boss" ? " esp-boss" : en.kind === "elite" ? " esp-elite" : "";
+                                const em = ENEMY_EMOJI[en.name] || "\u{1F47E}";
+                                if (GNOME_ART[en.name]) {
+                                    const ga = GNOME_ART[en.name];
+                                    return React.createElement("div", { className: "et-esprite et-egnomec" + kindCls },
+                                        React.createElement("span", { className: "egn-l", style: { clipPath: GNOME_FACE } }, "🧙‍♂️"),
+                                        GNOME_ZONES.map((z, zi) => React.createElement("span", { key: zi, className: "egn-l", style: { clipPath: z, filter: ga.filter } }, "🧙‍♂️")),
+                                        React.createElement("span", { className: "egn-prop" }, ga.prop));
+                                }
+                                if (en.name === "Zombie")
+                                    return React.createElement("div", { className: "et-esprite et-ezomb" + kindCls },
+                                        ZOMBIE_LAYER_ORDER
+                                            .filter((z) => !(en.flags && en.flags[ZOMBIE_ZONES[z].gone]))
+                                            .map((z) => React.createElement("span", { key: z, className: "ez-glyph", style: { clipPath: ZOMBIE_ZONES[z].clip } }, "\u{1F9DF}")),
+                                        React.createElement("span", { key: "legL", className: "ez-leg ez-legL" }, "\u{1F9B5}"),
+                                        !(en.flags && en.flags.p1) && React.createElement("span", { key: "legR", className: "ez-leg ez-legR" }, "\u{1F9B5}"));
+                                if (ZOMBIE_PART_VIEW[en.name]) {
+                                    const zp = ZOMBIE_PART_VIEW[en.name];
+                                    if (zp.leg)
+                                        return React.createElement("div", { className: "et-esprite" + kindCls },
+                                            React.createElement("span", { style: { display: "inline-block", filter: ZOMBIE_LEG_FILTER, transform: "rotate(15deg)" } }, "\u{1F9B5}"));
+                                    return React.createElement("div", { className: "et-esprite et-ezomb" + kindCls },
+                                        React.createElement("span", { style: { position: "absolute", left: Math.round(29 - zp.cx * zp.fs) + "px", top: Math.round(27 - zp.cy * zp.fs) + "px", width: zp.fs + "px", height: zp.fs + "px", lineHeight: zp.fs + "px", fontSize: zp.fs + "px", textAlign: "center", clipPath: zp.clip || ZOMBIE_ZONES[zp.zone].clip, transform: zp.r ? "rotate(" + zp.r + "deg)" : undefined } }, "\u{1F9DF}"));
+                                }
+                                if (KING_ART[en.name])
+                                    return React.createElement("div", { className: "et-esprite et-eking" + kindCls },
+                                        React.createElement("span", { className: "ek-base" }, KING_ART[en.name].base),
+                                        React.createElement("span", { className: "ek-crown" }, "\u{1F451}"),
+                                        KING_ART[en.name].weapon ? React.createElement("span", { className: "ek-weapon" }, KING_ART[en.name].weapon) : null);
+                                if (GROUP_SPRITES.includes(en.name))
+                                    return React.createElement("div", { className: "et-esprite et-egroup" + kindCls },
+                                        React.createElement("span", { className: "eg-back eg-l" }, em),
+                                        React.createElement("span", { className: "eg-back eg-r" }, em),
+                                        React.createElement("span", { className: "eg-front" }, em));
+                                const tint = HYDRA_TINT[en.name];
+                                return React.createElement("div", { className: "et-esprite" + kindCls },
+                                    tint ? React.createElement("span", { style: { display: "inline-block", filter: tint } }, em) : em);
+                            }
 const MINI_POS = [45, 135, 0, 180]; // degrees on the ring, css coords (y down)
 // trigger every minion's resident effects once, outside the normal turn cadence
 // (Commitment's transformed chord, Crowd Funding's shield-pop surge)
@@ -27703,45 +27815,7 @@ function EldertoneInner() {
                             // "group" enemies render a cluster of three sprites.
                             // Bosses render larger, elites carry a violet aura, and
                             // hydra heads are tinted by their element.
-                            (() => {
-                                const kindCls = en.kind === "boss" ? " esp-boss" : en.kind === "elite" ? " esp-elite" : "";
-                                const em = ENEMY_EMOJI[en.name] || "\u{1F47E}";
-                                if (GNOME_ART[en.name]) {
-                                    const ga = GNOME_ART[en.name];
-                                    return React.createElement("div", { className: "et-esprite et-egnomec" + kindCls },
-                                        React.createElement("span", { className: "egn-l", style: { clipPath: GNOME_FACE } }, "🧙‍♂️"),
-                                        GNOME_ZONES.map((z, zi) => React.createElement("span", { key: zi, className: "egn-l", style: { clipPath: z, filter: ga.filter } }, "🧙‍♂️")),
-                                        React.createElement("span", { className: "egn-prop" }, ga.prop));
-                                }
-                                if (en.name === "Zombie")
-                                    return React.createElement("div", { className: "et-esprite et-ezomb" + kindCls },
-                                        ZOMBIE_LAYER_ORDER
-                                            .filter((z) => !(en.flags && en.flags[ZOMBIE_ZONES[z].gone]))
-                                            .map((z) => React.createElement("span", { key: z, className: "ez-glyph", style: { clipPath: ZOMBIE_ZONES[z].clip } }, "\u{1F9DF}")),
-                                        React.createElement("span", { key: "legL", className: "ez-leg ez-legL" }, "\u{1F9B5}"),
-                                        !(en.flags && en.flags.p1) && React.createElement("span", { key: "legR", className: "ez-leg ez-legR" }, "\u{1F9B5}"));
-                                if (ZOMBIE_PART_VIEW[en.name]) {
-                                    const zp = ZOMBIE_PART_VIEW[en.name];
-                                    if (zp.leg)
-                                        return React.createElement("div", { className: "et-esprite" + kindCls },
-                                            React.createElement("span", { style: { display: "inline-block", filter: ZOMBIE_LEG_FILTER, transform: "rotate(15deg)" } }, "\u{1F9B5}"));
-                                    return React.createElement("div", { className: "et-esprite et-ezomb" + kindCls },
-                                        React.createElement("span", { style: { position: "absolute", left: Math.round(29 - zp.cx * zp.fs) + "px", top: Math.round(27 - zp.cy * zp.fs) + "px", width: zp.fs + "px", height: zp.fs + "px", lineHeight: zp.fs + "px", fontSize: zp.fs + "px", textAlign: "center", clipPath: zp.clip || ZOMBIE_ZONES[zp.zone].clip, transform: zp.r ? "rotate(" + zp.r + "deg)" : undefined } }, "\u{1F9DF}"));
-                                }
-                                if (KING_ART[en.name])
-                                    return React.createElement("div", { className: "et-esprite et-eking" + kindCls },
-                                        React.createElement("span", { className: "ek-base" }, KING_ART[en.name].base),
-                                        React.createElement("span", { className: "ek-crown" }, "\u{1F451}"),
-                                        KING_ART[en.name].weapon ? React.createElement("span", { className: "ek-weapon" }, KING_ART[en.name].weapon) : null);
-                                if (GROUP_SPRITES.includes(en.name))
-                                    return React.createElement("div", { className: "et-esprite et-egroup" + kindCls },
-                                        React.createElement("span", { className: "eg-back eg-l" }, em),
-                                        React.createElement("span", { className: "eg-back eg-r" }, em),
-                                        React.createElement("span", { className: "eg-front" }, em));
-                                const tint = HYDRA_TINT[en.name];
-                                return React.createElement("div", { className: "et-esprite" + kindCls },
-                                    tint ? React.createElement("span", { style: { display: "inline-block", filter: tint } }, em) : em);
-                            })(),
+                            FoeSpriteView(en),
                             React.createElement("div", { className: "et-foename" },
                                 en.name,
                                 en.kind !== "normal" ? " \u2605" : ""),
@@ -28058,7 +28132,23 @@ function EldertoneInner() {
             React.createElement(DeckOverlay, null),
             React.createElement("h2", { className: "et-title", style: { textAlign: "center", color: "#e8c98a" } },
                 "Prepare for battle",
-                g.pendingEnc ? " — " + g.pendingEnc.names.join(", ") : ""),
+                g.pendingEnc && g.pendingEnc.kind !== "battle" ? " — " + (g.pendingEnc.kind === "elite" ? "ELITE" : "BOSS") : ""),
+            g.pendingEnc && React.createElement("div", { className: "et-encprev" }, (() => {
+                const counts = {};
+                g.pendingEnc.names.forEach((nm) => counts[nm] = (counts[nm] || 0) + 1);
+                return Object.keys(counts).map((nm, i) => {
+                    const def = ENEMIES[nm] || {};
+                    const hpR = def.biome && DATA.HP[def.biome] ? DATA.HP[def.biome][def.hp] : null;
+                    const sp = enemyPreview(nm);
+                    return React.createElement("div", { key: i, className: "et-encfoe" },
+                        FoeSpriteView({ name: nm, kind: def.kind || "normal", flags: {}, st: {} }),
+                        React.createElement("div", { className: "ef-name" }, nm + (counts[nm] > 1 ? " ×" + counts[nm] : "") + (def.kind && def.kind !== "normal" ? " ★" : "")),
+                        hpR && React.createElement("div", { className: "ef-hp" }, "❤ " + hpR[0] + "–" + hpR[1]),
+                        sp && React.createElement("div", { className: "ef-sp" },
+                            React.createElement("b", null, sp[0]),
+                            React.createElement("div", null, sp[1])));
+                });
+            })()),
             React.createElement("div", { className: "et-note" }, "Active chords"),
             React.createElement("div", { className: "et-grid" }, "ABCDEFG".split("").filter((L) => g.slots[L]).map((L) => {
                 const c = CARD_BY[cardKey(g.slots[L].name, g.slots[L].lv)];
