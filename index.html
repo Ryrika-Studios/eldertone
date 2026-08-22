@@ -23852,6 +23852,10 @@ const BOT = {
     MENACE_W: 1,
     // hydra wave gate: recharge to this avg chord charge before popping the next wave
     HYDRA_GATE: 0.55,
+    // idle-growth (charged_idle_grow) hold rule: horizon = assumed battle length
+    // in turns; W scales the hold-vs-play crossover (0 = old always-fire behavior)
+    IDLE_HORIZON: 8,
+    IDLE_HOLD_W: 1.5,
     // total health WE lose striking a walled enemy `hits` times: the wall deals its
     // full value each hit and only then falls 25% (w + .75w + .75^2 w + ...)
     wallRecoil(tgt, hits) {
@@ -24072,6 +24076,25 @@ const BOT = {
                     // current shield eats the whole hit — wait it out
                     play = false;
                     value = 0;
+                }
+                else if (c.pIdleGrow > 0) {
+                    // idle-growth engine (Burn Brighter): each turn parked at full
+                    // charge adds pIdleGrow to EVERY later play, so early idling
+                    // compounds. Never fire it partial; at full charge, hold while
+                    // one more idle turn is worth more than firing now. Its own
+                    // damage rises each idle turn, so the crossover always comes.
+                    const hz = BOT.IDLE_HORIZON != null ? BOT.IDLE_HORIZON : 9;
+                    const futurePlays = Math.max(0, Math.floor((hz - b.turn - 1) / Math.max(1, c.max)));
+                    const aoeN = /"damage",\s*\d+,\s*true/.test(jops) ? alive.length : 1;
+                    const holdGain = c.pIdleGrow * futurePlays * aoeN * (BOT.IDLE_HOLD_W != null ? BOT.IDLE_HOLD_W : 1);
+                    if (!full || holdGain > dmg.total) {
+                        play = false;
+                        value = 0;
+                    }
+                    else {
+                        value = dmg.total;
+                        play = !tgtShieldNow || dmg.total > tgt.shield;
+                    }
                 }
                 else if (!tgtShieldNow && tgtShieldNext && (c.charge >= 2 || dmg.total >= 5)) {
                     // shield window closing: they're open NOW but will shield next turn.
