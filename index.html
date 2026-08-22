@@ -23956,6 +23956,35 @@ const BOT = {
         const skip = (c) => c.locked || c.charge < 1 ||
             (JSON.stringify(c.stages).includes('"req_minion"') && b.minions.length === 0) ||
             (b.noTarget && /"damage|"dmg_|"drain_all_dmg"/.test(JSON.stringify(c.stages)));
+        // planned kill: the deck can't kill this target THIS turn but CAN next
+        // turn once everything charges — hold weak partial plays for the combo
+        // (user doctrine: charge into a 2-turn kill instead of 3 turns of chips)
+        let __teamDmg = null;
+        const teamKillNext = (tgt2) => {
+            if (!tgt2)
+                return false;
+            if (!__teamDmg) {
+                const sum = (extra) => {
+                    let s2 = 0;
+                    for (const c2 of b.chords) {
+                        if (c2.locked)
+                            continue;
+                        const n2 = BOT.nStages(c2);
+                        const ch = Math.min(c2.max, c2.charge + extra);
+                        const st2 = n2 === 1 ? (ch >= c2.max ? 0 : -1) : Math.min(ch, n2) - 1;
+                        if (st2 < 0 || !BOT.dealsDamage(c2, st2))
+                            continue;
+                        const d2 = BOT.dmg(b, g, c2, st2);
+                        if (d2)
+                            s2 += d2.total;
+                    }
+                    return s2;
+                };
+                __teamDmg = { now: sum(0), next: sum(1) };
+            }
+            const need = tgt2.hp + tgt2.shield;
+            return __teamDmg.now < need && __teamDmg.next >= need;
+        };
         // pass 1: damage and shield candidates
         let bestDmg = null, bestShield = null, bestStatus = null, plannedHits = 0;
         b.chords.forEach((c, idx) => {
@@ -24167,7 +24196,8 @@ const BOT = {
                     value = dmg.total;
                     play = true;
                 }
-                else if (grow && waitGain * cfg.waitAggression > Math.max(dmg.total * 0.15, incoming * 0.5)) {
+                else if (grow && (waitGain * cfg.waitAggression > Math.max(dmg.total * 0.15, incoming * 0.5)
+                    || teamKillNext(tgt))) {
                     play = false;
                     value = 0;
                 }
