@@ -23854,7 +23854,8 @@ const BOT = {
     HYDRA_GATE: 0.55,
     // idle-growth (charged_idle_grow) hold rule: horizon = assumed battle length
     // in turns; W scales the hold-vs-play crossover (0 = old always-fire behavior)
-    CYCLE_HOLD: 1, // growing damage chords never fire below their dmg/turn-optimal stage (0 = old chip behavior)
+    CYCLE_HOLD: 1,
+    FURY_CHIP_BAR: 8, // orb-filling chips need a charged payload of at least this much damage ready // growing damage chords never fire below their dmg/turn-optimal stage (0 = old chip behavior)
     IDLE_HORIZON: 8,
     IDLE_HOLD_W: 1.5,
     // total health WE lose striking a walled enemy `hits` times: the wall deals its
@@ -24120,6 +24121,26 @@ const BOT = {
                     if (nx)
                         waitGain = Math.max(0, nx.total - dmg.total);
                 }
+                // CYCLE_HOLD exception (user design): a below-cycle chip that FILLS
+                // the fury orb is worth it when a strong charged payload stands
+                // ready — the next damage play unleashes ×2 off the filled orb
+                let fillsFury = null;
+                if (!furyFull && heroDef(g).furyFx === "attack_x2"
+                    && g.fury < g.furyMax && g.fury + BOT.hitsOf(c, si) >= g.furyMax) {
+                    let bestP = 0;
+                    for (const c2 of b.chords) {
+                        if (c2 === c || c2.locked || c2.charge < c2.max)
+                            continue;
+                        const s2 = BOT.stageIdx(c2);
+                        if (s2 < 0 || !BOT.dealsDamage(c2, s2))
+                            continue;
+                        const d2 = BOT.dmg(b, g, c2, s2);
+                        if (d2 && d2.total > bestP)
+                            bestP = d2.total;
+                    }
+                    if (bestP >= BOT.FURY_CHIP_BAR)
+                        fillsFury = { payoff: bestP };
+                }
                 let value = dmg.total, play = true;
                 if (furyFull) {
                     const bp = BOT.bestPotential(b, g, cfg);
@@ -24141,6 +24162,12 @@ const BOT = {
                     const need = tgt.hp + tgt.shield;
                     const growKill = /"perm_on_kill"/.test(JSON.stringify(c.stages[Math.min(si, c.stages.length - 1)] || [])) ? 12 : 0;
                     value = 200 + growKill + BOT.intent(tgt, b).attack * 2 + need - Math.max(0, dmg.total - need) * 0.6;
+                    play = true;
+                }
+                else if (fillsFury) {
+                    // the unleash surplus (payload doubled) rides on this chip —
+                    // play it FIRST so the orb is full when the payload fires
+                    value = dmg.total + fillsFury.payoff;
                     play = true;
                 }
                 else if (chip && grow) {
