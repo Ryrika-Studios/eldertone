@@ -18266,6 +18266,8 @@ function heroDmgRedPct(b) {
 function intentLabel(b, en) {
     if (!en.intent)
         return "";
+    if ((en.st.stun || 0) > 0)
+        return "\u{1F4AB} Stunned"; // it will skip its next action
     const red = heroDmgRedPct(b);
     const eff = (v) => {
         let n = v + (en.st.strength || 0);
@@ -18310,6 +18312,10 @@ function intentTipLines(b, en) {
     if (!en.intent)
         return [];
     const lines = [];
+    if ((en.st.stun || 0) > 0) {
+        lines.push("\u{1F4AB} Stunned — it will skip its next action.");
+        return lines;
+    }
     if (en.intent.kind === "flee") {
         lines.push("↪ About to flutter away — another foe will take its place!");
         return lines;
@@ -23437,8 +23443,8 @@ const BOT = {
     intent(e, b) {
         const out = { attack: 0, charging: false, shield: 0 };
         const it = e.intent;
-        if (!it)
-            return out;
+        if (!it || (e.st && e.st.stun > 0))
+            return out; // stunned: its next action is skipped
         if (it.kind === "charge")
             out.charging = true;
         let hits = 0;
