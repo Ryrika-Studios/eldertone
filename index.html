@@ -21432,7 +21432,11 @@ function enemyPhase(b, g) {
             continue;
         }
         if (en.special === "dire_pack") { } // handled in lifesteal
-        if (en.special === "dwarf_boulders" && [2, 4, 6].includes(b.turn)) {
+        if (en.special === "dwarf_boulders" && [2, 4, 6].includes(b.turn)
+            && en.flags.boulderBrokeTurn !== b.turn) {
+            // splicing the emerging enemy shifts the King forward and the phase
+            // loop re-visits him — without this guard he cracked ALL boulders at once
+            en.flags.boulderBrokeTurn = b.turn;
             const bo = b.enemies.find((e) => e.name === "Boulder" && !e.dead);
             if (bo) {
                 bo.dead = true;
@@ -22457,11 +22461,14 @@ const CSS = `
 .et-field input,.et-field select{font-family:inherit;font-size:14px;padding:5px 8px;border-radius:6px;border:1px solid #a98f57;background:#fbf5e6;color:#2a2118;max-width:220px}
 .et-note{font-size:12.5px;color:#9d9078;font-style:italic;text-align:center;max-width:640px;margin:8px auto}
 .et-field-row{display:flex;gap:16px;align-items:flex-start;justify-content:center;flex-wrap:wrap;max-width:960px;margin:0 auto 12px}
-.et-hero{width:190px;text-align:center;flex-shrink:0}
-.et-hero-stage{position:relative;width:164px;height:164px;margin:0 auto}
+.et-hero{width:216px;text-align:center;flex-shrink:0}
+.et-hprow{display:flex;align-items:center;gap:6px;margin-top:4px}
+.et-hprow .et-herohp{flex:1;margin:0}
+.et-orbcol{flex-shrink:0;display:flex;flex-direction:column;align-items:center}
+.et-hero-stage{position:relative;width:204px;height:204px;margin:0 auto}
 .et-hero-sprite{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:62px}
 .et-hero-imgwrap{position:relative;display:inline-block}
-.et-hero-img{max-height:152px;max-width:152px;filter:drop-shadow(0 3px 5px rgba(0,0,0,.35))}
+.et-hero-img{max-height:200px;max-width:200px;filter:drop-shadow(0 3px 5px rgba(0,0,0,.35))}
 .et-hero-ringimg{position:absolute;inset:0;transition:opacity .45s;filter:none}
 .et-hero-ringimg.full{filter:drop-shadow(0 0 9px #ffd76a) brightness(1.18);animation:heroRingPulse 1.2s ease-in-out infinite}
 @keyframes heroRingPulse{0%,100%{filter:drop-shadow(0 0 9px #ffd76a) brightness(1.18)}50%{filter:drop-shadow(0 0 4px #ffd76a) brightness(1.05)}}
@@ -23126,7 +23133,7 @@ function HeroFigure({ g, b }) {
     const heads = groups.slice(0, 4);
     const extra = groups.length - heads.length;
     const pos = (deg) => {
-        const a = (deg * Math.PI) / 180, R = 70, C = 82;
+        const a = (deg * Math.PI) / 180, R = 88, C = 102;
         return { left: C + R * Math.cos(a) - 17, top: C + R * Math.sin(a) - 17 };
     };
     return (React.createElement("div", { className: "et-hero" },
@@ -23151,9 +23158,9 @@ function HeroFigure({ g, b }) {
         })(),
         React.createElement("div", { className: "et-hero-stage" },
             b.darkLord && React.createElement("div", { className: "et-mist" }),
-            !HERO_ART[hid] && React.createElement("svg", { width: "164", height: "164", style: { position: "absolute", inset: 0 } },
-                React.createElement("circle", { cx: "82", cy: "82", r: "70", fill: "none", stroke: stroke, strokeWidth: "5", strokeDasharray: "4 9", strokeLinecap: "round", style: { opacity: op, transition: "opacity .4s, stroke .4s", filter: full ? "drop-shadow(0 0 7px #ffd76a)" : "none" } }),
-                React.createElement("circle", { cx: "82", cy: "82", r: "62", fill: "none", stroke: stroke, strokeWidth: "2", style: { opacity: op * 0.65, transition: "opacity .4s, stroke .4s" } })),
+            !HERO_ART[hid] && React.createElement("svg", { width: "204", height: "204", style: { position: "absolute", inset: 0 } },
+                React.createElement("circle", { cx: "102", cy: "102", r: "88", fill: "none", stroke: stroke, strokeWidth: "5", strokeDasharray: "4 9", strokeLinecap: "round", style: { opacity: op, transition: "opacity .4s, stroke .4s", filter: full ? "drop-shadow(0 0 7px #ffd76a)" : "none" } }),
+                React.createElement("circle", { cx: "102", cy: "102", r: "78", fill: "none", stroke: stroke, strokeWidth: "2", style: { opacity: op * 0.65, transition: "opacity .4s, stroke .4s" } })),
             React.createElement("div", { className: "et-hero-sprite" },
                 HERO_ART[hid] ? React.createElement("span", { className: "et-hero-imgwrap" },
                     React.createElement("img", { className: "et-hero-img", src: HERO_ART[hid].body, alt: "" }),
@@ -23204,14 +23211,30 @@ function HeroFigure({ g, b }) {
                     React.createElement("b", null, m.name + (m.count > 1 ? " \u00d7" + m.count : "")),
                     " \u2014 ",
                     minionTipLines(m.m, g, b).join(" "))))))),
-        React.createElement("div", { className: "et-herohp" },
-            React.createElement("i", { style: { width: `${Math.max(0, (g.hp / g.maxHp) * 100)}%` } }),
-            React.createElement("span", null,
-                "\u2764\uFE0F",
-                " ",
-                g.hp,
-                "/",
-                g.maxHp)),
+        React.createElement("div", { className: "et-hprow" },
+            React.createElement("div", { className: "et-herohp" },
+                React.createElement("i", { style: { width: `${Math.max(0, (g.hp / g.maxHp) * 100)}%` } }),
+                React.createElement("span", null,
+                    "\u2764\uFE0F",
+                    " ",
+                    g.hp,
+                    "/",
+                    g.maxHp)),
+            React.createElement("div", { className: "et-orbcol" },
+                React.createElement("div", { key: "fury" + (b.furyBurstSeq || 0), className: "et-fury-orb" + (full ? " full" : "") + (b.furyBurstSeq ? " burst" : "") + tutGlow(g, "fury") },
+                    g.fury,
+                    "/",
+                    g.furyMax),
+                React.createElement("div", { className: "et-fury-label" },
+                    "\u2694",
+                    " FURY ",
+                    "\u2694"),
+                heroDef(g).furyCharge === "shield" && React.createElement(React.Fragment, null,
+                    React.createElement("div", { className: "et-dark-orb et-spell-orb" + (b.sorcerer ? " active" : (b.hero.st.spellbound || 0) >= (g.spellboundMax || 10) - 2 ? " near" : "") },
+                        b.hero.st.spellbound || 0,
+                        "/",
+                        g.spellboundMax || 10),
+                    React.createElement("div", { className: "et-fury-label" }, "\u2744 SPELLBOUND")))),
         React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 3, justifyContent: "center", marginTop: 5, minHeight: 20 } },
             b.hero.shield > 0 && React.createElement("span", { className: "et-badge" },
                 STATUS_ICONS.shield ? React.createElement("img", { className: "st-ico", src: STATUS_ICONS.shield, alt: "" }) : "\u{1F6E1}",
@@ -23231,21 +23254,7 @@ function HeroFigure({ g, b }) {
                     xs.push("PsnBomb " + P.poisonBomb);
                 return xs.length ? React.createElement("div", { className: "et-badges" }, xs.map((t) => React.createElement("span", { key: t, className: "et-badge" }, t))) : null;
             })()),
-        React.createElement("div", { key: "fury" + (b.furyBurstSeq || 0), className: "et-fury-orb" + (full ? " full" : "") + (b.furyBurstSeq ? " burst" : "") + tutGlow(g, "fury") },
-            g.fury,
-            "/",
-            g.furyMax),
-        React.createElement("div", { className: "et-fury-label" },
-            "\u2694",
-            " FURY ",
-            "\u2694"),
-
-        heroDef(g).furyCharge === "shield" && React.createElement(React.Fragment, null,
-            React.createElement("div", { className: "et-dark-orb et-spell-orb" + (b.sorcerer ? " active" : (b.hero.st.spellbound || 0) >= (g.spellboundMax || 10) - 2 ? " near" : "") },
-                b.hero.st.spellbound || 0,
-                "/",
-                g.spellboundMax || 10),
-            React.createElement("div", { className: "et-fury-label" }, "\u2744 SPELLBOUND"))));
+        null));
 }
 // segmented charge ring: max-charge number in center, one segment per charge point
 function ChargeRing({ charge, max }) {
