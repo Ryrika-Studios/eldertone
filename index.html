@@ -20639,10 +20639,6 @@ function playChord(b, g, idx) {
         return;
     }
     const stageIdx = c.stages.length === 1 ? (c.charge >= c.max ? 0 : -1) : Math.min(c.charge, c.stages.length) - 1;
-    if (c.cdTurns > 0) {
-        log(b, c.name + " is on cooldown (" + c.cdTurns + " turn" + (c.cdTurns > 1 ? "s" : "") + " left).");
-        return;
-    }
     if (c.charge < 1 || stageIdx < 0)
         return;
     if (JSON.stringify(c.stages).includes('"req_minion"') && b.minions.length === 0) {
@@ -21169,10 +21165,6 @@ function heroTurnStart(b, g) {
         b.over = "loss"; // stalemate cap
 }
 function endTurn(b, g) {
-    // cooldowns tick down as the hero's turn ends (a cd applied in the coming
-    // enemy phase blocks the WHOLE next hero turn)
-    b.chords.forEach((c) => { if (c.cdTurns > 0)
-        c.cdTurns -= 1; });
     if (b.noDmgAll)
         b.noDmgAll -= 1;
     if (b.over)
@@ -21565,19 +21557,27 @@ function enemyPhase(b, g) {
                 alive(b).forEach((e) => (e.hp = Math.min(e.maxHp, e.hp + p[1])));
             else if (k === "hero_stat")
                 b.hero.st[p[1]] = Math.max(0, (b.hero.st[p[1]] || 0) + p[2]);
-            else if (k === "snail_cd" || k === "lich_cd") {
-                // true COOLDOWN (Enemies Final sheet): the card keeps its charge but
-                // cannot be played; repeat hits stack +1 turn. Lich escalates 1/2/3.
-                let count = 1;
-                if (k === "lich_cd") {
-                    en.flags.lichUses = (en.flags.lichUses || 0) + 1;
-                    count = en.flags.lichUses <= 2 ? 1 : en.flags.lichUses <= 5 ? 2 : 3;
+            else if (k === "snail_cd") {
+                // Snail: remove ONE charge from a random card (yellow goop splat)
+                const cands = b.chords.filter((c) => !c.locked && c.charge > 0);
+                if (cands.length) {
+                    const c = pick(cands);
+                    c.charge -= 1;
+                    c.cardFx = { k: "goop", seq: (b.cardFxSeq = (b.cardFxSeq || 0) + 1) };
+                    log(b, en.name + " slimes " + c.name + " — it loses 1 charge!");
                 }
-                const cands = b.chords.filter((c) => !c.locked);
+            }
+            else if (k === "lich_cd") {
+                // Lich King: set a card's charge to 1; uses 1-2 → 1 card,
+                // 3-4 → 2 cards, 5+ → 3 cards (skeletal-hand strike)
+                en.flags.lichUses = (en.flags.lichUses || 0) + 1;
+                const count = en.flags.lichUses <= 2 ? 1 : en.flags.lichUses <= 4 ? 2 : 3;
+                const cands = b.chords.filter((c) => !c.locked && c.charge > 1);
                 for (let ci = 0; ci < count && cands.length; ci++) {
                     const c = cands.splice(Math.floor(Math.random() * cands.length), 1)[0];
-                    c.cdTurns = (c.cdTurns || 0) + 1;
-                    log(b, en.name + " slimes " + c.name + " — on cooldown for " + c.cdTurns + " turn" + (c.cdTurns > 1 ? "s" : "") + "!");
+                    c.charge = 1;
+                    c.cardFx = { k: "hand", seq: (b.cardFxSeq = (b.cardFxSeq || 0) + 1) };
+                    log(b, "A skeletal hand grasps " + c.name + " — its charge falls to 1!");
                 }
             }
             else if (k === "summon_gnome") {
@@ -22570,6 +22570,14 @@ const CSS = `
 .et-foe.et-dead{pointer-events:none;overflow:hidden;max-width:112px;animation:foeGone .45s ease .85s forwards}
 @keyframes foeGone{to{max-width:0;opacity:0}}
 .et-smoke{position:relative;height:80px;margin-top:46px}
+.cf-fx{position:absolute;inset:0;pointer-events:none;z-index:6;display:flex;align-items:flex-start;justify-content:center;overflow:hidden;border-radius:inherit}
+.cf-fx.goop .g{position:absolute;top:0;width:15px;height:15px;border-radius:50% 50% 60% 60%;background:radial-gradient(circle at 40% 35%,#fff3a0,#ffe95e 45%,#b89a08);box-shadow:0 0 6px #ffe95e88;animation:cfDrip .95s ease-in forwards;opacity:0}
+.cf-fx.goop .g:nth-child(1){left:44%}
+.cf-fx.goop .g:nth-child(2){left:28%;animation-delay:.09s;transform:scale(.7)}
+.cf-fx.goop .g:nth-child(3){left:62%;animation-delay:.17s;transform:scale(.55)}
+@keyframes cfDrip{0%{opacity:0;transform:translateY(-24px) scale(.6)}20%{opacity:1}65%{opacity:1;transform:translateY(46px) scale(1.1)}100%{opacity:0;transform:translateY(74px) scale(.85)}}
+.cf-fx.hand span{font-size:36px;line-height:1;margin-top:14px;filter:grayscale(1) brightness(1.75) drop-shadow(0 0 5px #aef);animation:cfGrab .95s ease-out forwards;opacity:0}
+@keyframes cfGrab{0%{opacity:0;transform:translateY(-30px) rotate(-18deg) scale(.6)}30%{opacity:1;transform:translateY(4px) rotate(0deg) scale(1.15)}55%{opacity:1;transform:translateY(8px) scale(.92)}100%{opacity:0;transform:translateY(12px) scale(1)}}
 .et-pf{position:absolute;left:50%;top:50%;width:28px;height:28px;border-radius:50%;opacity:0;background:radial-gradient(circle at 35% 35%, #f2efe9, #a8a29a 65%, rgba(140,135,128,0) 100%);animation:puffUp .85s ease-out forwards}
 .et-pf0{--dx:-24px;--dy:-10px;width:32px;height:32px}
 .et-pf1{--dx:20px;--dy:-16px;animation-delay:.06s}
@@ -23307,7 +23315,7 @@ function opsLabelLive(b, g, ops, mult) {
         return k.replace(/_/g, " ");
     }).join(", ");
 }
-function CardFace({ name, slot, lv, rows, activeIdx, extra, footer, onClick, ready, locked, style, ring, tipKeys, tipFlip, tipExtra }) {
+function CardFace({ name, slot, lv, rows, activeIdx, extra, footer, onClick, ready, locked, style, ring, tipKeys, tipFlip, tipExtra, fx }) {
     // class border color: strip battle decorations (✦ 🎵 🔥) before the card lookup
     const baseName = String(name).replace(/[\s✦🎵🔥]+$/u, "");
     const cCls = (CARD_BY[cardKey(baseName, lv)] || CARD_BY[cardKey(baseName, 1)] || {}).cls;
@@ -23315,6 +23323,9 @@ function CardFace({ name, slot, lv, rows, activeIdx, extra, footer, onClick, rea
     return (React.createElement("div", { className: "cf " + (cCls ? "cls-" + cCls + " " : "") + (isX ? "cls-x " : "") + (lv === 2 ? "lv2 " : "") + (ready ? "ready " : "") + (locked ? "locked" : ""), onClick: onClick, style: style },
         ring && React.createElement("span", { className: "cf-ring" },
             React.createElement(ChargeRing, { charge: ring.charge, max: ring.max })),
+        fx && React.createElement("div", { key: "fx" + fx.seq, className: "cf-fx " + fx.k },
+            fx.k === "hand" ? React.createElement("span", null, "\u270B")
+                : [0, 1, 2].map((i2) => React.createElement("i", { key: i2, className: "g" }))),
         ((tipKeys && tipKeys.length > 0) || (tipExtra && tipExtra.length > 0)) && (React.createElement("div", { className: "cf-tip" + (tipFlip ? " flip" : "") },
             React.createElement("div", { className: "cf-tip-h" }, "Keywords"),
             (tipKeys || []).map((k) => STATUS_INFO[k] ? (React.createElement("div", { key: k },
@@ -23969,7 +23980,7 @@ const BOT = {
         // the hold-the-orb logic only applies to heroes whose unleash doubles attacks
         const furyFull = g.fury >= g.furyMax && heroDef(g).furyFx === "attack_x2";
         const incoming = BOT.incoming(b);
-        const skip = (c) => c.locked || c.cdTurns > 0 || c.charge < 1 ||
+        const skip = (c) => c.locked || c.charge < 1 ||
             (JSON.stringify(c.stages).includes('"req_minion"') && b.minions.length === 0) ||
             (b.noTarget && /"damage|"dmg_|"drain_all_dmg"/.test(JSON.stringify(c.stages)));
         // planned kill: the deck can't kill this target THIS turn but CAN next
@@ -27523,7 +27534,7 @@ function EldertoneInner() {
                     const xm = xmeta(c.name, c.lv);
                     const single = xm ? true : c.stages.length === 1;
                     const stageIdx = (xm || single) ? (c.charge >= c.max ? 0 : -1) : Math.min(c.charge, c.stages.length) - 1;
-                    const playable = !b.over && !b.heroStunned && !b.choice && !c.locked && !(c.cdTurns > 0) && c.charge >= 1 && stageIdx >= 0;
+                    const playable = !b.over && !b.heroStunned && !b.choice && !c.locked && c.charge >= 1 && stageIdx >= 0;
                     if (playable)
                         mut((g2) => { logDecision(g2, "play", { chord: c.name, slot: c.slot, stage: stageIdx, via: "key" }); playChord(g2.battle, g2, i); afterActionUI(g2); logAfter(g2); });
                 }
@@ -28215,7 +28226,7 @@ function EldertoneInner() {
                     const single = xm ? true : c.stages.length === 1;
                     const stageIdx = (xm || single) ? (c.charge >= c.max ? 0 : -1) : Math.min(c.charge, c.stages.length) - 1;
                     const noTgt = b.noTarget && stageIdx >= 0 && !xm && /"damage|"dmg_|"drain_all_dmg"/.test(JSON.stringify(c.stages[Math.min(stageIdx, c.stages.length - 1)]));
-                    const playable = !b.over && !b.heroStunned && !b.choice && !c.locked && !(c.cdTurns > 0) && c.charge >= 1 && stageIdx >= 0 && !noTgt;
+                    const playable = !b.over && !b.heroStunned && !b.choice && !c.locked && c.charge >= 1 && stageIdx >= 0 && !noTgt;
                     const ready = c.charge >= c.max;
                     const sEntry = g.slots[c.slot];
                     const prog = (xm && xm.xk === "up" && sEntry ? " (" + (sEntry.plays || 0) + "/" + xm.th + ")" : "") +
@@ -28225,8 +28236,6 @@ function EldertoneInner() {
                         : r + (prog || ""));
                     const needsMinion = JSON.stringify(c.stages).includes('"req_minion"') && b.minions.length === 0;
                     let footer = playable && !needsMinion ? effDamagePreview(b, g, c, stageIdx) : null;
-                    if (c.cdTurns > 0)
-                        footer = "\u23F3 on cooldown \u2014 " + c.cdTurns + " turn" + (c.cdTurns > 1 ? "s" : "") + " left";
                     if (single && !ready)
                         footer = "needs full charge";
                     if (needsMinion)
@@ -28238,7 +28247,7 @@ function EldertoneInner() {
                     if (c.locked)
                         footer = "spent this battle";
                     return (React.createElement(CardFace, { key: i, tipKeys: statusesInText(c.txt), tipFlip: "EFG".includes(c.slot), tipExtra: /discipline|shuriken|stealth/i.test((c.txt || []).join(" ")) ? (() => { const vp = volleyPreviewDmg(b, g); return [["Shuriken volley", "currently " + vp.dmg + " AOE damage" + (vp.single ? " (vs this enemy)." : " (per-enemy effects like Exposed not included).")]]; })() : undefined, style: { gridColumn: Math.max(1, "ABCDEFG".indexOf(c.slot) + 1) }, name: dispName(c.name, c.slot) + (c.note ? " ✦" : "") + (b.sirenMark === i ? " 🎵" : "") +
-                            ((() => { const t = targetEnemy(b); return t && t.st.burn > 0 && JSON.stringify(c.stages).includes('"damage"'); })() ? " 🔥" : ""), slot: c.slot, lv: c.lv, rows: rows, activeIdx: stageIdx >= 0 ? Math.min(stageIdx, rows.length - 1) : null, ready: ready, locked: !playable, onClick: () => playable && mut((g) => { logDecision(g, "play", { chord: c.name, slot: c.slot, stage: stageIdx, via: "click" }); playChord(g.battle, g, i); afterActionUI(g); logAfter(g); }), ring: { charge: c.charge, max: c.max }, footer: footer }));
+                            ((() => { const t = targetEnemy(b); return t && t.st.burn > 0 && JSON.stringify(c.stages).includes('"damage"'); })() ? " 🔥" : ""), slot: c.slot, lv: c.lv, rows: rows, activeIdx: stageIdx >= 0 ? Math.min(stageIdx, rows.length - 1) : null, ready: ready, locked: !playable, fx: c.cardFx, onClick: () => playable && mut((g) => { logDecision(g, "play", { chord: c.name, slot: c.slot, stage: stageIdx, via: "click" }); playChord(g.battle, g, i); afterActionUI(g); logAfter(g); }), ring: { charge: c.charge, max: c.max }, footer: footer }));
                 })))));
     }
     // ---------- screen: totem choice (totem build: replaces rewards at node 4 and after bosses) ----------
