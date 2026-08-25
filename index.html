@@ -22462,9 +22462,10 @@ const CSS = `
 .et-note{font-size:12.5px;color:#9d9078;font-style:italic;text-align:center;max-width:640px;margin:8px auto}
 .et-field-row{display:flex;gap:16px;align-items:flex-start;justify-content:center;flex-wrap:wrap;max-width:960px;margin:0 auto 12px}
 .et-hero{width:216px;text-align:center;flex-shrink:0}
-.et-hprow{display:flex;align-items:center;gap:6px;margin-top:4px}
+.et-hprow{display:flex;align-items:center;gap:6px;margin-top:-26px;position:relative;z-index:0}
 .et-hprow .et-herohp{flex:1;margin:0}
-.et-orbcol{flex-shrink:0;display:flex;flex-direction:column;align-items:center}
+.et-orbcol{flex-shrink:0;display:flex;flex-direction:column;align-items:center;margin-right:-16px;position:relative;z-index:2}
+.et-hero-stage{z-index:1}
 .et-hero-stage{position:relative;width:204px;height:204px;margin:0 auto}
 .et-hero-sprite{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:62px}
 .et-hero-imgwrap{position:relative;display:inline-block}
@@ -23229,12 +23230,7 @@ function HeroFigure({ g, b }) {
                     "\u2694",
                     " FURY ",
                     "\u2694"),
-                heroDef(g).furyCharge === "shield" && React.createElement(React.Fragment, null,
-                    React.createElement("div", { className: "et-dark-orb et-spell-orb" + (b.sorcerer ? " active" : (b.hero.st.spellbound || 0) >= (g.spellboundMax || 10) - 2 ? " near" : "") },
-                        b.hero.st.spellbound || 0,
-                        "/",
-                        g.spellboundMax || 10),
-                    React.createElement("div", { className: "et-fury-label" }, "\u2744 SPELLBOUND")))),
+                null)),
         React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 3, justifyContent: "center", marginTop: 5, minHeight: 20 } },
             b.hero.shield > 0 && React.createElement("span", { className: "et-badge" },
                 STATUS_ICONS.shield ? React.createElement("img", { className: "st-ico", src: STATUS_ICONS.shield, alt: "" }) : "\u{1F6E1}",
