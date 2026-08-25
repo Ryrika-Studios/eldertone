@@ -20639,6 +20639,10 @@ function playChord(b, g, idx) {
         return;
     }
     const stageIdx = c.stages.length === 1 ? (c.charge >= c.max ? 0 : -1) : Math.min(c.charge, c.stages.length) - 1;
+    if (c.cdTurns > 0) {
+        log(b, c.name + " is on cooldown (" + c.cdTurns + " turn" + (c.cdTurns > 1 ? "s" : "") + " left).");
+        return;
+    }
     if (c.charge < 1 || stageIdx < 0)
         return;
     if (JSON.stringify(c.stages).includes('"req_minion"') && b.minions.length === 0) {
@@ -21165,6 +21169,10 @@ function heroTurnStart(b, g) {
         b.over = "loss"; // stalemate cap
 }
 function endTurn(b, g) {
+    // cooldowns tick down as the hero's turn ends (a cd applied in the coming
+    // enemy phase blocks the WHOLE next hero turn)
+    b.chords.forEach((c) => { if (c.cdTurns > 0)
+        c.cdTurns -= 1; });
     if (b.noDmgAll)
         b.noDmgAll -= 1;
     if (b.over)
@@ -21558,18 +21566,18 @@ function enemyPhase(b, g) {
             else if (k === "hero_stat")
                 b.hero.st[p[1]] = Math.max(0, (b.hero.st[p[1]] || 0) + p[2]);
             else if (k === "snail_cd" || k === "lich_cd") {
+                // true COOLDOWN (Enemies Final sheet): the card keeps its charge but
+                // cannot be played; repeat hits stack +1 turn. Lich escalates 1/2/3.
                 let count = 1;
                 if (k === "lich_cd") {
                     en.flags.lichUses = (en.flags.lichUses || 0) + 1;
                     count = en.flags.lichUses <= 2 ? 1 : en.flags.lichUses <= 5 ? 2 : 3;
                 }
-                for (let ci = 0; ci < count; ci++) {
-                    const cands = b.chords.filter((c) => c.charge > 0);
-                    if (!cands.length)
-                        break;
-                    const c = pick(cands);
-                    c.charge = 0;
-                    log(b, en.name + " drains " + c.name + "'s charge!");
+                const cands = b.chords.filter((c) => !c.locked);
+                for (let ci = 0; ci < count && cands.length; ci++) {
+                    const c = cands.splice(Math.floor(Math.random() * cands.length), 1)[0];
+                    c.cdTurns = (c.cdTurns || 0) + 1;
+                    log(b, en.name + " slimes " + c.name + " — on cooldown for " + c.cdTurns + " turn" + (c.cdTurns > 1 ? "s" : "") + "!");
                 }
             }
             else if (k === "summon_gnome") {
@@ -23961,7 +23969,7 @@ const BOT = {
         // the hold-the-orb logic only applies to heroes whose unleash doubles attacks
         const furyFull = g.fury >= g.furyMax && heroDef(g).furyFx === "attack_x2";
         const incoming = BOT.incoming(b);
-        const skip = (c) => c.locked || c.charge < 1 ||
+        const skip = (c) => c.locked || c.cdTurns > 0 || c.charge < 1 ||
             (JSON.stringify(c.stages).includes('"req_minion"') && b.minions.length === 0) ||
             (b.noTarget && /"damage|"dmg_|"drain_all_dmg"/.test(JSON.stringify(c.stages)));
         // planned kill: the deck can't kill this target THIS turn but CAN next
@@ -27515,7 +27523,7 @@ function EldertoneInner() {
                     const xm = xmeta(c.name, c.lv);
                     const single = xm ? true : c.stages.length === 1;
                     const stageIdx = (xm || single) ? (c.charge >= c.max ? 0 : -1) : Math.min(c.charge, c.stages.length) - 1;
-                    const playable = !b.over && !b.heroStunned && !b.choice && !c.locked && c.charge >= 1 && stageIdx >= 0;
+                    const playable = !b.over && !b.heroStunned && !b.choice && !c.locked && !(c.cdTurns > 0) && c.charge >= 1 && stageIdx >= 0;
                     if (playable)
                         mut((g2) => { logDecision(g2, "play", { chord: c.name, slot: c.slot, stage: stageIdx, via: "key" }); playChord(g2.battle, g2, i); afterActionUI(g2); logAfter(g2); });
                 }
@@ -28207,7 +28215,7 @@ function EldertoneInner() {
                     const single = xm ? true : c.stages.length === 1;
                     const stageIdx = (xm || single) ? (c.charge >= c.max ? 0 : -1) : Math.min(c.charge, c.stages.length) - 1;
                     const noTgt = b.noTarget && stageIdx >= 0 && !xm && /"damage|"dmg_|"drain_all_dmg"/.test(JSON.stringify(c.stages[Math.min(stageIdx, c.stages.length - 1)]));
-                    const playable = !b.over && !b.heroStunned && !b.choice && !c.locked && c.charge >= 1 && stageIdx >= 0 && !noTgt;
+                    const playable = !b.over && !b.heroStunned && !b.choice && !c.locked && !(c.cdTurns > 0) && c.charge >= 1 && stageIdx >= 0 && !noTgt;
                     const ready = c.charge >= c.max;
                     const sEntry = g.slots[c.slot];
                     const prog = (xm && xm.xk === "up" && sEntry ? " (" + (sEntry.plays || 0) + "/" + xm.th + ")" : "") +
@@ -28217,6 +28225,8 @@ function EldertoneInner() {
                         : r + (prog || ""));
                     const needsMinion = JSON.stringify(c.stages).includes('"req_minion"') && b.minions.length === 0;
                     let footer = playable && !needsMinion ? effDamagePreview(b, g, c, stageIdx) : null;
+                    if (c.cdTurns > 0)
+                        footer = "\u23F3 on cooldown \u2014 " + c.cdTurns + " turn" + (c.cdTurns > 1 ? "s" : "") + " left";
                     if (single && !ready)
                         footer = "needs full charge";
                     if (needsMinion)
