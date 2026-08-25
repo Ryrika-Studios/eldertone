@@ -17813,7 +17813,9 @@ const NODE_TEMPLATE = {
     8: [[100, "boss"]],
 };
 const G2 = () => [pick(["Red Gnome", "Yellow Gnome", "Gray Gnome"]), pick(["Red Gnome", "Yellow Gnome", "Gray Gnome"])];
-// NOTE: "Fire Fly" is not in Enemies_Final — substituted with Fire Imp (flagged)
+const FF = () => pick(["Red Wand Fairy", "Green Wand Fairy", "Yellow Wand Fairy"]);
+// "Fire Fly" (Enemies Final.xlsx) = the Wand Fairy trio: red burns on attack,
+// yellow charges big hits, green buffs the swarm — groups roll random colors
 const NORMAL_ENC = {
     N: {
         1: [[50, ["Snail"]], [50, "2gnomes"]],
@@ -17835,8 +17837,8 @@ const NORMAL_ENC = {
         1: [[50, ["Fire Imp", "Fire Imp"]], [50, ["Fireworks Vendor"]]],
         2: [[34, ["Fire Imp", "Fire Imp"]], [33, ["Fireworks Vendor"]], [33, ["Skeleton Warrior", "Skeleton Archer"]]],
         4: [[50, ["Glow Worm"]], [50, ["Fireworks Vendor", "Golem"]]],
-        5: [[34, ["Glow Worm"]], [33, ["Fire Imp", "Fire Imp", "Fire Imp"]], [33, ["Fire Imp", "Fire Imp"]]],
-        7: [[34, ["Glow Worm"]], [33, ["Fire Imp", "Fire Imp", "Fire Imp"]], [33, ["Fire Imp", "Fire Imp"]]],
+        5: [[34, ["Glow Worm"]], [33, "3fairies"], [33, "imp+2fairies"]],
+        7: [[34, ["Glow Worm"]], [33, "3fairies"], [33, "imp+2fairies"]],
         8: [[50, ["Dragon"]], [50, ["Chimera Lion", "Chimera Goat", "Chimera Snake"]]],
     },
     I: {
@@ -17852,7 +17854,7 @@ const NORMAL_ENC = {
         2: [[34, ["Blimp", "Elf", "Elf"]], [33, ["Troll Hoard", "Snow Golem"]], [33, ["Glow Worm", "Fireworks Vendor", "Fire Imp", "Fire Imp"]]],
         4: [[34, ["Centaur"]], [33, ["Troll Hoard", "Snow Golem"]], [33, ["Snail", "Mushroom", "Glow Worm"]]],
         5: [[50, ["Gryphon"]], [50, ["Centaur"]]],
-        7: [[50, ["Gryphon"]], [50, ["Centaur", "Butterfly"]]],
+        7: [[50, ["Siren"]], [50, ["Gryphon"]]],
         8: [[100, ["Hydra Nature Head"]]],
     },
 };
@@ -17865,6 +17867,10 @@ function rollNormalEnc(g, node) {
             names = G2();
         else if (names === "2gnomes+grub")
             names = [...G2(), "Grub"];
+        else if (names === "3fairies")
+            names = [FF(), FF(), FF()];
+        else if (names === "imp+2fairies")
+            names = ["Fire Imp", FF(), FF()];
         const key = JSON.stringify(names.slice().sort());
         if (key !== g.lastEnc || tries === 11) {
             g.lastEnc = key;
@@ -21749,8 +21755,8 @@ function mapNodeFace(g, n, t) {
     const hidden = (t === "event" || (t === "store" && n !== 6)) && n >= (g.node || 1);
     if (hidden)
         return { ic: "❓", label: "?" };
-    const icons = { battle: "⚔️", elite: "\u{1F480}", reward: "\u{1F381}", store: "\u{1F3EA}", boss: "\u{1F451}", event: "\u{1F3AD}" };
-    const names = { battle: "Battle", elite: "Elite battle", reward: "Rewards", store: "Store", event: "Event", boss: "Boss" };
+    const icons = { battle: "⚔️", elite: "\u{1F480}", reward: "\u{1F5FF}", store: "\u{1F3EA}", boss: "\u{1F451}", event: "\u{1F3AD}" };
+    const names = { battle: "Battle", elite: "Elite battle", reward: "Totem", store: "Store", event: "Event", boss: "Boss" };
     return { ic: icons[t] || "❓", label: names[t] || t };
 }
 function equipCard(g, card, interactive) {
@@ -28767,9 +28773,8 @@ function enterNode(g, laneIdx) {
         return;
     }
     if (t === "reward") {
-        // per the 8-node sheet: Nature's node 3 grants a TOTEM; later biomes'
-        // reward node is a free reward pick (bosses still award totem choices)
-        if (totemMode(g) && (g.biomeIdx || 0) === 0) {
+        // node 3 of EVERY biome is a totem choice (user design Aug 2026)
+        if (totemMode(g)) {
             g.totemOffer = drawTotemOffer(g);
             g.totemCtx = null;
             g.screen = "totemChoice";
