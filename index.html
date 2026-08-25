@@ -17801,76 +17801,64 @@ const EVENTS = [
     { id: "structF", name: "Structure F", loc: "any", flavor: "Far-fetched as it seems, this family's founders fabricated their foundations in the form of an F... and they have freebies!", options: [{ label: "Freebies sound good.", outcomes: [[100, [["free_cards", "F"]], "Take your pick."]] }] },
     { id: "structG", name: "Structure G", loc: "any", flavor: "Graciously, the groundskeeper of the giant G gaming and gambling group is giving out goodie bags.", options: [{ label: "Gosh golly gee!", outcomes: [[100, [["free_cards", "G"]], "Take your pick."]] }] },
 ];
-// ============================== INTERACTIONS v2 (Interactions.xlsx, Difficulty 1) ==============================
+// ============================== INTERACTIONS v3 (Interactions 8 nodes.xlsx, Difficulty 1) ==============================
 const NODE_TEMPLATE = {
     1: [[100, "battle"]],
     2: [[60, "battle"], [25, "event"], [15, "store"]],
-    3: [[60, "battle"], [25, "event"], [15, "store"]],
-    4: [[100, "reward"]],
+    3: [[100, "reward"]],
+    4: [[50, "battle"], [20, "event"], [10, "store"], [20, "elite"]],
     5: [[50, "battle"], [20, "event"], [10, "store"], [20, "elite"]],
-    6: [[50, "battle"], [20, "event"], [10, "store"], [20, "elite"]],
-    7: [[100, "store"]],
-    8: [[50, "battle"], [20, "event"], [10, "store"], [20, "elite"]],
-    9: [[50, "battle"], [20, "event"], [10, "store"], [20, "elite"]],
-    10: [[100, "boss"]],
+    6: [[100, "store"]],
+    7: [[50, "battle"], [20, "event"], [10, "store"], [20, "elite"]],
+    8: [[100, "boss"]],
 };
 const G2 = () => [pick(["Red Gnome", "Yellow Gnome", "Gray Gnome"]), pick(["Red Gnome", "Yellow Gnome", "Gray Gnome"])];
 // NOTE: "Fire Fly" is not in Enemies_Final — substituted with Fire Imp (flagged)
 const NORMAL_ENC = {
     N: {
         1: [[50, ["Snail"]], [50, "2gnomes"]],
-        2: [[30, ["Snail"]], [20, ["Bruiser"]], [20, ["Assassin"]], [30, "2gnomes"]],
-        3: [[20, ["Troll"]], [20, ["Bruiser"]], [20, ["Assassin"]], [20, ["Magpie"]], [20, ["Lizard Rider"]]],
-        5: [[35, ["Bruiser", "Assassin"]], [30, ["Magpie", "Snail"]], [35, ["Lizard Rider"]]],
-        6: [[25, ["Bruiser", "Assassin"]], [25, ["Troll Hoard"]], [25, ["Lizard Rider", "Troll"]], [25, ["Magpie"]]],
-        8: [[25, ["Bruiser", "Assassin"]], [25, ["Troll Hoard"]], [25, ["Lizard Rider", "Troll"]], [25, ["Magpie", "Snail"]]],
-        9: [[25, ["Bruiser", "Assassin"]], [25, ["Troll Hoard"]], [25, ["Lizard Rider", "Troll"]], [25, ["Magpie", "Snail"]]],
-        10: [[50, ["Troll King"]], [50, ["Vineman"]]],
+        2: [[34, ["Troll"]], [33, ["Magpie"]], [33, ["Lizard Rider"]]],
+        4: [[35, ["Bruiser", "Assassin"]], [30, ["Magpie", "Snail"]], [35, ["Lizard Rider"]]],
+        5: [[25, ["Bruiser", "Assassin"]], [25, ["Troll Hoard"]], [25, ["Lizard Rider", "Troll"]], [25, ["Magpie"]]],
+        7: [[25, ["Bruiser", "Assassin"]], [25, ["Troll Hoard"]], [25, ["Lizard Rider", "Troll"]], [25, ["Magpie", "Snail"]]],
+        8: [[50, ["Troll King"]], [50, ["Vineman"]]],
     },
     R: {
         1: [[50, ["Mushroom"]], [50, ["Grub Group"]]],
-        2: [[34, ["Mushroom"]], [33, ["Grub Group"]], [33, "2gnomes+grub"]],
-        3: [[34, ["Mushroom", "Assassin", "Bruiser"]], [33, ["Grub Group", "Mushroom"]], [33, "2gnomes+grub"]],
-        5: [[34, ["Mushroom", "Assassin", "Bruiser"]], [33, ["Grub Group", "Mushroom"]], [33, ["Skeleton Warrior", "Skeleton Archer"]]],
-        6: [[34, ["Grub Group", "Mushroom"]], [33, ["Golem"]], [33, ["Skeleton Warrior", "Skeleton Archer"]]],
-        8: [[50, ["Troll Hoard", "Grub Group"]], [50, ["Golem"]]],
-        9: [[50, ["Troll Hoard", "Grub Group"]], [50, ["Skeleton Archer", "Golem"]]],
-        10: [[50, ["Lich King"]], [50, ["Dwarf King"]]],
+        2: [[34, ["Mushroom", "Assassin", "Bruiser"]], [33, ["Grub Group", "Mushroom"]], [33, "2gnomes+grub"]],
+        4: [[34, ["Mushroom", "Assassin", "Bruiser"]], [33, ["Grub Group", "Mushroom"]], [33, ["Skeleton Warrior", "Skeleton Archer"]]],
+        5: [[34, ["Grub Group", "Mushroom"]], [33, ["Golem"]], [33, ["Skeleton Warrior", "Skeleton Archer"]]],
+        7: [[50, ["Troll Hoard", "Grub Group"]], [50, ["Golem"]]],
+        8: [[50, ["Lich King"]], [50, ["Dwarf King"]]],
     },
     F: {
         1: [[50, ["Fire Imp", "Fire Imp"]], [50, ["Fireworks Vendor"]]],
         2: [[34, ["Fire Imp", "Fire Imp"]], [33, ["Fireworks Vendor"]], [33, ["Skeleton Warrior", "Skeleton Archer"]]],
-        3: [[34, ["Fire Imp", "Fire Imp"]], [33, ["Fireworks Vendor", "Golem"]], [33, ["Skeleton Warrior", "Skeleton Archer"]]],
-        5: [[50, ["Glow Worm"]], [50, ["Fireworks Vendor", "Golem"]]],
-        6: [[34, ["Glow Worm"]], [33, ["Fire Imp", "Fire Imp", "Fire Imp"]], [33, ["Fire Imp", "Fire Imp"]]],
-        8: [[34, ["Glow Worm"]], [33, ["Fire Imp", "Fire Imp", "Fire Imp"]], [33, ["Fire Imp", "Fire Imp"]]],
-        9: [[50, ["Fireworks Vendor", "Glow Worm"]], [50, ["Fire Imp", "Fire Imp", "Fire Imp"]]],
-        10: [[50, ["Dragon"]], [50, ["Chimera Lion", "Chimera Goat", "Chimera Snake"]]],
+        4: [[50, ["Glow Worm"]], [50, ["Fireworks Vendor", "Golem"]]],
+        5: [[34, ["Glow Worm"]], [33, ["Fire Imp", "Fire Imp", "Fire Imp"]], [33, ["Fire Imp", "Fire Imp"]]],
+        7: [[34, ["Glow Worm"]], [33, ["Fire Imp", "Fire Imp", "Fire Imp"]], [33, ["Fire Imp", "Fire Imp"]]],
+        8: [[50, ["Dragon"]], [50, ["Chimera Lion", "Chimera Goat", "Chimera Snake"]]],
     },
     I: {
         1: [[50, ["Ice Hedgehog"]], [50, ["Snow Golem"]]],
-        2: [[50, ["Ice Hedgehog"]], [50, ["Snow Golem"]]],
-        3: [[34, ["Ice Troll Axeman", "Ice Troll Chieftain"]], [33, ["Fire Imp", "Snow Golem"]], [33, ["Glow Worm", "Ice Hedgehog"]]],
-        5: [[34, ["Ice Troll Axeman", "Ice Troll Chieftain"]], [33, ["Fire Imp", "Snow Golem"]], [33, ["Glow Worm", "Ice Hedgehog"]]],
-        6: [[50, ["Sled Catapult", "Sled Goblin", "Sled Goblin"]], [50, ["Snow Golem", "Ice Troll Axeman"]]],
-        8: [[50, ["Sled Catapult", "Sled Goblin", "Sled Goblin"]], [50, ["Snow Golem", "Ice Troll Axeman"]]],
-        9: [[50, ["Sled Catapult", "Sled Goblin", "Sled Goblin"]], [50, ["Ice Hedgehog", "Ice Hedgehog", "Snow Golem"]]],
-        10: [[50, ["Ice Shell"]], [50, ["Dire Wolf", "Dire Wolf"]]],
+        2: [[34, ["Ice Troll Axeman", "Ice Troll Chieftain"]], [33, ["Fire Imp", "Snow Golem"]], [33, ["Glow Worm", "Ice Hedgehog"]]],
+        4: [[34, ["Ice Troll Axeman", "Ice Troll Chieftain"]], [33, ["Fire Imp", "Snow Golem"]], [33, ["Glow Worm", "Ice Hedgehog"]]],
+        5: [[50, ["Sled Catapult", "Sled Goblin", "Sled Goblin"]], [50, ["Snow Golem", "Ice Troll Axeman"]]],
+        7: [[50, ["Sled Catapult", "Sled Goblin", "Sled Goblin"]], [50, ["Snow Golem", "Ice Troll Axeman"]]],
+        8: [[50, ["Ice Shell"]], [50, ["Dire Wolf", "Dire Wolf"]]],
     },
     C: {
         1: [[50, ["Blimp", "Elf", "Elf"]], [50, ["Butterfly"]]],
-        2: [[34, ["Blimp", "Elf", "Elf"]], [33, ["Butterfly"]], [33, ["Glow Worm", "Fireworks Vendor", "Fire Imp", "Fire Imp"]]],
-        3: [[34, ["Blimp", "Elf", "Elf"]], [33, ["Troll Hoard", "Snow Golem"]], [33, ["Glow Worm", "Fireworks Vendor", "Fire Imp", "Fire Imp"]]],
-        5: [[34, ["Centaur"]], [33, ["Troll Hoard", "Snow Golem"]], [33, ["Snail", "Mushroom", "Glow Worm"]]],
-        6: [[50, ["Siren"]], [50, ["Centaur"]]],
-        8: [[50, ["Siren"]], [50, ["Centaur", "Butterfly"]]],
-        9: [[50, ["Siren"]], [50, ["Centaur", "Butterfly"]]],
-        10: [[100, ["Hydra Nature Head"]]],
+        2: [[34, ["Blimp", "Elf", "Elf"]], [33, ["Troll Hoard", "Snow Golem"]], [33, ["Glow Worm", "Fireworks Vendor", "Fire Imp", "Fire Imp"]]],
+        4: [[34, ["Centaur"]], [33, ["Troll Hoard", "Snow Golem"]], [33, ["Snail", "Mushroom", "Glow Worm"]]],
+        5: [[50, ["Gryphon"]], [50, ["Centaur"]]],
+        7: [[50, ["Gryphon"]], [50, ["Centaur", "Butterfly"]]],
+        8: [[100, ["Hydra Nature Head"]]],
     },
 };
 function rollNormalEnc(g, node) {
     const biome = BIOMES[g.biomeIdx];
-    const rows = NORMAL_ENC[biome][node] || NORMAL_ENC[biome][3];
+    const rows = NORMAL_ENC[biome][node] || NORMAL_ENC[biome][4];
     for (let tries = 0; tries < 12; tries++) {
         let names = wpick(rows);
         if (names === "2gnomes")
@@ -21708,14 +21696,15 @@ function newGame(opts) {
     return g;
 }
 function planBiome(g) {
-    // Branching map: 1 battle -> split (2,3) -> 4 reward -> split (5,6) -> 7 store -> split (8,9) -> 10 boss.
+    // Branching map (8 nodes): 1 battle -> split 2 -> 3 reward (Nature: totem) ->
+    // split (4,5) -> 6 store -> split 7 -> 8 boss.
     // Each lane is a full alternative route satisfying the biome constraints on its own.
-    const SPLITS = [2, 3, 5, 6, 8, 9];
+    const SPLITS = [2, 4, 5, 7];
     const mkLane = () => {
         const lane = {};
         for (const n of SPLITS)
             lane[n] = wpick(NODE_TEMPLATE[n]);
-        const spots = [5, 6, 8, 9];
+        const spots = [4, 5, 7];
         let elites = spots.filter((n) => lane[n] === "elite");
         while (elites.length > 2) {
             lane[pick(elites)] = "battle";
@@ -21731,33 +21720,33 @@ function planBiome(g) {
             stores = SPLITS.filter((n) => lane[n] === "store");
         }
         // no wandering store before the player has seen the FIRST fixed store
-        // (node 7 of the Nature biome) — early Nature lane stores become battles
+        // (node 6 of the Nature biome) — early Nature lane stores become battles
         if ((g.biomeIdx || 0) === 0)
-            for (const n of [2, 3, 5, 6])
+            for (const n of [2, 4, 5])
                 if (lane[n] === "store")
                     lane[n] = "battle";
         if (!SPLITS.some((n) => lane[n] === "event")) {
             const cands = SPLITS.filter((n) => lane[n] === "battle");
-            lane[pick(cands.length ? cands : [2, 3])] = "event";
+            lane[pick(cands.length ? cands : [2])] = "event";
         }
         return lane;
     };
     const A = mkLane(), B = mkLane();
-    const plan = { 1: "battle", 4: "reward", 7: "store", 10: "boss" };
+    const plan = { 1: "battle", 3: "reward", 6: "store", 8: "boss" };
     for (const n of SPLITS)
         plan[n] = [A[n], B[n]];
     g.plan = plan;
     g.lanes = {};
-    g.elites = [5, 6, 8, 9].filter((n) => A[n] === "elite" || B[n] === "elite");
+    g.elites = [4, 5, 7].filter((n) => A[n] === "elite" || B[n] === "elite");
     g.lastEnc = null;
 }
-function laneSeg(n) { return n <= 3 ? 2 : n <= 6 ? 5 : 8; }
+function laneSeg(n) { return n <= 3 ? 2 : n <= 6 ? 4 : 7; }
 // Map display faces (Aug 2026, user design): events and the small lane stores show
 // as "?" until the player has moved past them — you pick your path blind. The fixed
 // node-7 store keeps its "Store" label. Revealed events show 🎭 so the mask's ❓
 // stays unambiguous.
 function mapNodeFace(g, n, t) {
-    const hidden = (t === "event" || (t === "store" && n !== 7)) && n >= (g.node || 1);
+    const hidden = (t === "event" || (t === "store" && n !== 6)) && n >= (g.node || 1);
     if (hidden)
         return { ic: "❓", label: "?" };
     const icons = { battle: "⚔️", elite: "\u{1F480}", reward: "\u{1F381}", store: "\u{1F3EA}", boss: "\u{1F451}", event: "\u{1F3AD}" };
@@ -21853,7 +21842,7 @@ function nodeType(g, node, laneIdx) {
         const li = laneIdx != null ? laneIdx : (g.lanes ? g.lanes[laneSeg(node)] : null);
         return p[li != null ? li : 0];
     }
-    return p || (node === 4 ? "reward" : node === 7 ? "store" : node === 10 ? "boss" : "battle");
+    return p || (node === 3 ? "reward" : node === 6 ? "store" : node === 8 ? "boss" : "battle");
 }
 function encounterFor(g) {
     const biome = BIOMES[g.biomeIdx];
@@ -21868,7 +21857,7 @@ function encounterFor(g) {
         return { names, kind: "elite" };
     }
     if (t === "boss") {
-        const names = wpick(NORMAL_ENC[biome][10]);
+        const names = wpick(NORMAL_ENC[biome][8]);
         return { names, kind: biome === "C" ? "hydra" : "boss" };
     }
     return { names: rollNormalEnc(g, g.node), kind: "battle" };
@@ -22326,11 +22315,11 @@ function makeStore(g, variant) {
         }).filter(Boolean);
         return { title: "Thrift Shop", cards: [], relics, items: [], variant };
     }
-    // Map stores: full store (Armory + Daily Deal + Care Center) at node 7,
+    // Map stores: full store (Armory + Daily Deal + Care Center) at node 6,
     // a single random section elsewhere. "free_one" event stores are always full.
     const SEC_TITLE = { armory: "Armory", daily: "Daily Deal", care: "Care Center" };
-    const full = g.node === 7 || variant === "free_one";
-    // Daily Deal is available from the FIRST store (Nature node 7) onward —
+    const full = g.node === 6 || variant === "free_one";
+    // Daily Deal is available from the FIRST store (Nature node 6) onward —
     // and since no store exists before that node, it is simply always offered
     const fullSecs = ["armory", "daily", "care"];
     const secList = full ? fullSecs : [pick(fullSecs)];
@@ -26091,7 +26080,7 @@ const BOT = {
             const bankFloor = bigT && g.gold >= P(bigT.cost) * 0.8 && g.hp >= g.maxHp * BOT.BANK_HP_GATE ? P(bigT.cost) : 0;
             if (s && !s.closed) {
                 // at 55% HP or less, healing outranks every other purchase
-                if (g.hp <= g.maxHp * (g.node >= 8 ? 0.9 : 0.55))
+                if (g.hp <= g.maxHp * (g.node >= 7 ? 0.9 : 0.55))
                     (() => {
                         // smart heal shopping: skip entirely under 5 missing HP; pick the cheaper
                         // cost-per-HP between the 5-HP repeatable and the full heal
@@ -26993,7 +26982,7 @@ function EldertoneInner() {
                     const bankFloor = bigT && g.gold >= P(bigT.cost) * 0.8 && g.hp >= g.maxHp * BOT.BANK_HP_GATE ? P(bigT.cost) : 0;
                     if (s && !s.closed) {
                         // heal-first: at 55% HP (90% near the boss) healing outranks all purchases
-                        if (g.hp <= g.maxHp * (g.node >= 8 ? 0.9 : 0.55))
+                        if (g.hp <= g.maxHp * (g.node >= 7 ? 0.9 : 0.55))
                             (() => {
                                 // smart heal shopping: skip entirely under 5 missing HP; pick the cheaper
                                 // cost-per-HP between the 5-HP repeatable and the full heal
@@ -27664,7 +27653,7 @@ function EldertoneInner() {
                             BIOME_NAME[saved.biome] || saved.biome,
                             " ",
                             saved.node,
-                            "/10 · ",
+                            "/8 · ",
                             saved.hp,
                             "/",
                             saved.maxHp,
@@ -27763,7 +27752,7 @@ function EldertoneInner() {
             BIOME_NAME[biome],
             " \u00B7 ",
             g.node,
-            "/10"),
+            "/" + (g.plan && g.plan[10] ? 10 : 8)),
         React.createElement("span", { className: "et-stat", style: { display: "flex", alignItems: "center", gap: 6 } },
             "HP ",
             React.createElement("span", { className: "et-hpbar" },
@@ -27929,8 +27918,8 @@ function EldertoneInner() {
                 BIOME_NAME[biome],
                 " · you are at ",
                 g.node,
-                "/10"),
-            React.createElement("div", { className: "et-map", style: { maxWidth: 560, margin: "10px auto 0" } }, Array.from({ length: 10 }, (_, i) => i + 1).map((n) => {
+                "/" + (g.plan && g.plan[10] ? 10 : 8)),
+            React.createElement("div", { className: "et-map", style: { maxWidth: 560, margin: "10px auto 0" } }, Array.from({ length: (g.plan && g.plan[10] ? 10 : 8) }, (_, i) => i + 1).map((n) => {
                 const p = g.plan[n];
                 if (Array.isArray(p)) {
                     const lane = g.lanes ? g.lanes[seg(n)] : null;
@@ -27970,7 +27959,7 @@ function EldertoneInner() {
             React.createElement("h2", { className: "et-title", style: { textAlign: "center", color: "#e8c98a", margin: "4px 0 12px" } },
                 BIOME_NAME[biome],
                 " \u2014 choose your path forward"),
-            React.createElement("div", { className: "et-map" }, Array.from({ length: 10 }, (_, i) => i + 1).map((n) => {
+            React.createElement("div", { className: "et-map" }, Array.from({ length: (g.plan && g.plan[10] ? 10 : 8) }, (_, i) => i + 1).map((n) => {
                 const p = g.plan && g.plan[n];
                 if (Array.isArray(p)) {
                     const seg = laneSeg(n);
@@ -28762,7 +28751,7 @@ function enterNode(g, laneIdx) {
         if (g.egg === 0)
             g.perm.minions.push("Dragon");
     }
-    // branching map: lock in the lane when entering a split segment (nodes 2, 5, 8)
+    // branching map: lock in the lane when entering a split segment (nodes 2, 4, 7)
     if (Array.isArray(g.plan && g.plan[g.node])) {
         const seg = laneSeg(g.node);
         if (!g.lanes)
@@ -28778,7 +28767,9 @@ function enterNode(g, laneIdx) {
         return;
     }
     if (t === "reward") {
-        if (totemMode(g)) {
+        // per the 8-node sheet: Nature's node 3 grants a TOTEM; later biomes'
+        // reward node is a free reward pick (bosses still award totem choices)
+        if (totemMode(g) && (g.biomeIdx || 0) === 0) {
             g.totemOffer = drawTotemOffer(g);
             g.totemCtx = null;
             g.screen = "totemChoice";
@@ -29255,7 +29246,7 @@ function advanceNode(g) {
     g.cardChoices = null;
     g.transTo = null;
     g.store = null;
-    if (g.node === 10) {
+    if (g.node >= (g.plan && g.plan[10] ? 10 : 8)) {
         if (g.biomeIdx === 4) {
             g.screen = "victory";
             if (!BOT.__simming && !g.arenaMode)
