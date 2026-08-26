@@ -17378,17 +17378,379 @@ function xmeta(name, lv) {
     const m = XMETA[name];
     if (!m)
         return null;
-    if (lv === 2 && XMETA_L2[name])
+    const ln = lvNum(lv);
+    if (ln === 3 && XMETA_L3[name])
+        return { ...m, n: XMETA_L3[name], pd: (m.pd || "").replace(String(m.n), String(XMETA_L3[name])) };
+    if (ln === 2 && XMETA_L2[name])
         return { ...m, n: XMETA_L2[name], pd: (m.pd || "").replace(String(m.n), String(XMETA_L2[name])) };
     return m;
 }
 const opsHas = (stages, test) => stages.some((s) => JSON.stringify(s).includes(test));
 const dispName = (name, slot) => (name && name.startsWith("X ")) ? name.slice(2) : name;
+// ============================== ITEM TEST BUILD (Aug 2026, from "Chords - Item test" + "Chord item Frequency" sheets) ==============================
+// Second playable version: cards are FOUND at Lv1/2/3 (no upgrades). ITEM_POOL = the curated sheet card list;
+// lv 3 defs generated from the sheet; "i1"/"i2" defs are item-mode-only variants where the sheet differs from the classic card.
+const ITEM_POOL = new Set(["A Pinch Of This...", "AED", "Abracadabra", "Absolutely Not!", "Accuracy", "Ace in the Hole", "Additive Effect", "Adjourn", "Adorn", "Advancing Technology", "After Effects", "Again!", "Aggressive Learning", "Agility", "All together", "Alliance", "Amber wand", "Ambivalent Planning", "Ample Arsenic", "An Apple a Day", "Analytical defense", "Ancient Medicine", "And Again", "Angelic Wrath", "Animal Magnetism", "Annihilate", "Anticlimactic", "Antique Cutlass", "Antivenom", "Anvil", "Ape", "Apex Predator", "Apoptosis", "Apothecary", "Apprentice", "Arcane Wind", "Armadillo", "Arsonist", "Attack", "Aurora", "Auto Defend", "Avalanche", "Avenge", "Average", "Back to You", "Bad intentions", "Badger", "Baffle", "Bag of Sand", "Bait", "Ball of Lightning", "Balls in the air", "BananaRang", "Band in Darkness", "Bandit", "Barn Door", "Barrage", "Barricade", "Bastion", "Bat (vampire)", "Battering Ram", "Battery charger", "Beach vibes", "Bear", "Beast mode", "Beat it", "Beautiful disaster", "Big Shot", "Bigger Shurikens", "Bigger is Better", "Bit of Both", "Bite Hard", "Bitter Cold", "Blade enhancements", "Blade of Venom", "Blast", "Blitz", "Block", "Block and Learn", "Bomb", "Bone Crusher", "Bookie", "Bookworm", "Boom", "Boost", "Borrow", "Bound in Ice", "Burn Brighter", "Burn powder", "Burning Blades", "Burning Knowledge", "Cabaret", "Calcium supplements", "Calm in Battle", "Can't touch this", "Can-Do Attitude", "Canary", "Candle", "Cannon", "Carpe Diem", "Cat", "Cat paw", "Celestial Pegasus", "Chain lightening", "Chain reaction", "Charm", "Cheat code", "Cheers", "Cheese trap", "Chill", "Chip Away", "Chop", "Chu Ko Nu", "Clouds Away", "Coat it All", "Coated shield", "Cold Fusion", "Cold Sharpened", "Cold Weather", "Collector", "Come Here", "Confrontational Behavior", "Conjugation", "Continual Improvement", "Control Your Fate", "Counter", "Creative accounting", "Crowd Control", "Crypt Robber", "Cut the Breaks", "Cutting through the Blackness", "Dagger Spray", "Dark Army", "Dark Lord Rising", "Darkness", "Dart", "Dart storm", "Dastardly potion", "David and Goliath", "Deal with the Devil", "Death wish", "Deathly Cold", "Decoy", "Defend", "Defensive Attacking", "Defensive formation", "Deficient Instructions", "Deflect", "Delete", "Delirium", "Dependable", "Depth of Magic", "Devour", "Diabolical", "Dice Roll", "Dig Deep", "Diminishing Returns", "Dink and Dunk", "Dino", "Dirty Dealing", "Discipline", "Distribution", "Don Quixote", "Don't Even Think About It", "Donkey", "Doomed", "Double trouble", "Downgrade", "Dragon", "Dream work; by Teamwork!", "Drink Up", "Drive by", "Due diligence", "Dungeon Master", "Dynamite", "Eagle", "Early symptoms", "Earnin It", "Eat up!", "Eccentricity", "Edgy", "Egg", "Electric shield", "Electric shock", "Elemental mastery", "Elephant", "Elusiveness", "Embers", "Emergency Protocol", "Employer benefits", "Enchanted Blade", "Enchanter", "Energy barrier", "Engineering", "Enhancements", "Enigmatic cold", "Enough!", "Ent", "Entangle", "Enthalpy", "Entropy", "Equal opportunity", "Equalizer", "Erratic leadership", "Ethereal Cloak", "Evasive maneuvering", "Everlasting Servitude", "Everlasting night", "Everybody plays", "Everybody's Doing It!", "Evil protection", "Evolving Equipment", "Excellent Craftsmanship", "Execute", "Explode", "Exponential energy", "Fade Away", "Fairy Friend", "Family Fun", "Famished", "Fast Recovery", "Faster!", "Fate is yours", "Fearless Allies", "Feint", "Fiend", "Fighter", "Final meal", "Fire Burn and Cauldron Bubble", "Fire Thrower", "Fireblast", "Firefall", "Firefox", "Firewall", "Fireworks", "Fishing in the Underworld", "Fizzle", "Flabbergast", "Flight of Metal", "Flood of Cold", "Flow of Power", "Flower Power", "Flush it Away", "Fly trap", "Focus", "Fog", "Foldable Blockade", "Follow Up", "Forced March", "Forced efficiency", "Fortify", "Fortitude", "Fortunate Leader", "Free Fall", "Frost", "Frost Shield", "Frostburn", "Fudge it", "Fully committed", "Future Planning", "Gadgets", "Galaxtic Fury", "Gale", "Gamble with Life", "Gamble with Steel", "Gang fight", "Garrote", "Gas", "Gateway to the Hereafter", "General George", "Get 'em", "Get Ready…", "Getaway", "Ghost", "Ghostly Shield", "Giddy up", "Glacial Force", "Glacial cold", "Glasses", "Glimmering Strike", "Glug Glug…", "Gnomes", "Go Away.", "Go for the Eyes", "Going… gone", "Goodnight", "Goop", "Gorgon", "Gotcha!", "Grail", "Grapeshot", "Grass Shield", "Gravedigger", "Growing pains", "Growth from adversity", "Guard for Hire", "Guiding light", "X Randomizer Disipline Edition TM", "X Randomizer Poison Edition TM", "X Randomizer: Minions", "X Upgrade: Chilled", "X Upgrade: Darkness", "X Upgrade: Dodger", "X Upgrade: Fire Mastery", "X Upgrade: Firewall", "X Upgrade: Magical Mastery", "X Upgrade: Poison Bomb", "X Upgrade: Potent Poisons", "X Upgrade: Protect", "X Upgrade: Pure Damage", "X Upgrade: Skeleton", "X Upgrade: Spellbound", "X Upgrade: Well Trained Minions"]);
+const ITEM_LV_FREQ = {"N": [[100, 0, 0], [80, 20, 0]], "R": [[70, 30, 0], [65, 25, 2]], "F": [[50, 30, 20], [40, 35, 25]], "I": [[20, 40, 40], [10, 40, 50]], "C": [[5, 40, 55], [0, 40, 60]]}; // biome -> [nodes 1-4, nodes 5-8] -> [lv1, lv2, lv3] weights
+const XMETA_L3 = {"X Upgrade: Dodger": 3, "X Upgrade: Poison Bomb": 8, "X Upgrade: Potent Poisons": 3, "X Upgrade: Fire Mastery": 3, "X Upgrade: Pure Damage": 3, "X Upgrade: Skeleton": 2, "X Upgrade: Chilled": 15, "X Upgrade: Protect": 16, "X Upgrade: Firewall": 12};
+const ITEM_CARDS = [
+    {"n": "AED", "lv": 3, "c": 3, "slot": "A", "cls": "common", "txt": ["Gain 7 Shield. If you take fatal damage, revive with 50% of your max health"], "st": [[["gain", "shield", 7], ["revive", 0.5]]]},
+    {"n": "Absolutely Not!", "lv": 3, "c": 1, "slot": "A", "cls": "common", "txt": ["Gain 11 Shield"], "st": [[["gain", "shield", 11]]]},
+    {"n": "Accuracy", "lv": 3, "c": 2, "slot": "A", "cls": "common", "txt": ["Gain 3 Strength"], "st": [[["gain", "strength", 3]]]},
+    {"n": "Ace in the Hole", "lv": 3, "c": 1, "slot": "A", "cls": "common", "txt": ["Deal 13 Damage, or gain 7 Shield if the front enemy is attacking"], "st": [[["cond2", "enemy_attacking", [["gain", "shield", 7]], [["damage", 13, false, 1]]]]]},
+    {"n": "Advancing Technology", "lv": 3, "c": 3, "slot": "A", "cls": "common", "txt": ["Deal 1 damage. If this defeates an enemy, permanently upgrade the damage by 4", "Deal 6 damage. If this defeates an enemy, permanently upgrade the damage by 4", "Deal 11 damage. If this defeates an enemy, permanently upgrade the damage by 4"], "st": [[["damage", 1, false, 1], ["perm_on_kill", 4]], [["damage", 6, false, 1], ["perm_on_kill", 4]], [["damage", 11, false, 1], ["perm_on_kill", 4]]]},
+    {"n": "After Effects", "lv": 3, "c": 1, "slot": "A", "cls": "common", "txt": ["Gain 6 Shield, if the last chord you played dealt damage, gain 10 Shield instead"], "st": [[["cond2", "last_dealt_damage", [["gain", "shield", 10]], [["gain", "shield", 6]]]]]},
+    {"n": "Agility", "lv": 3, "c": 2, "slot": "A", "cls": "common", "txt": ["Gain 3 Dodge", "Gain 7 Dodge. Gain 1 Armored for every attack Dodged last turn"], "st": [[["gain", "dodge", 3]], [["gain", "dodge", 7], ["armored_per_dodge", 1]]]},
+    {"n": "An Apple a Day", "lv": 3, "c": 1, "slot": "A", "cls": "common", "txt": ["Prevent the next Debuff"], "st": [[["gain", "debuff_block", 1]]]},
+    {"n": "Ancient Medicine", "lv": 3, "c": 3, "slot": "A", "cls": "common", "txt": ["Take 1 Damage, Heal 12 next turn"], "st": [[["self_damage", 1], ["heal", 12]]]},
+    {"n": "And Again", "lv": 3, "c": 3, "slot": "A", "cls": "common", "txt": ["The next time you unleash your Fury, the effect is quadrupled. Charging starts after your Fury is released"], "st": [[["fset", "unleash_mult", 4]]]},
+    {"n": "Angelic Wrath", "lv": 3, "c": 3, "slot": "A", "cls": "common", "txt": ["Gain 6 Firewall", "Gain 14 Firewall", "Gain 28 Firewall"], "st": [[["apply", "burn", 6, true]], [["apply", "burn", 14, true]], [["apply", "burn", 28, true]]]},
+    {"n": "Animal Magnetism", "lv": 3, "c": 2, "slot": "A", "cls": "common", "txt": ["Double the effect of all summoned Minions next turn"], "st": [[["flag", "minions_double_next", 1]]]},
+    {"n": "Anticlimactic", "lv": 3, "c": 4, "slot": "A", "cls": "common", "txt": ["Block the next incoming damage and gain 12 Firewall"], "st": [[["gain", "block", 1], ["apply", "burn", 12, false]]]},
+    {"n": "Antique Cutlass", "lv": 3, "c": 2, "slot": "A", "cls": "common", "txt": ["Deal 8 Damage, each replay reduces the damage by 3", "Deal 21 Damage, each replay reduces the damage by 3"], "st": [[["damage", 8, false, 1], ["replay_add", "damage", -3]], [["damage", 21, false, 1], ["replay_add", "damage", -3]]]},
+    {"n": "Antivenom", "lv": 3, "c": 2, "slot": "A", "cls": "common", "txt": ["Gain 4 Shield. Remove all debuffs", "Gain 10 Shield. Remove all debuffs"], "st": [[["gain", "shield", 4], ["remove_debuffs"]], [["gain", "shield", 10], ["remove_debuffs"]]]},
+    {"n": "Ape", "lv": 3, "c": 1, "slot": "A", "cls": "common", "txt": ["Minion. Deals 6 Damage and applies 2 Blinded to a random enemy each turn. Replaying adds 2 damage (Gain 2 Strength)"], "st": [[["summon", [["m_attack", 6, false, 1, null, "rand"], ["m_apply", "blind", 2, "rand"]]], ["replay_add", "damage", 2]]]},
+    {"n": "Armadillo", "lv": 3, "c": 3, "slot": "A", "cls": "common", "txt": ["Minion. Grants Entrenched 4. Play again to add 1 Entrenched 1"], "st": [[["summon", [["gain", "entrenched", 4]]]]]},
+    {"n": "Attack", "lv": 3, "c": 1, "slot": "A", "cls": "common", "txt": ["Deal 10 Damage to an enemy"], "st": [[["damage", 10, false, 1]]]},
+    {"n": "Auto Defend", "lv": 3, "c": 3, "slot": "A", "cls": "common", "txt": ["Gain 1 Armored and 7 Shield"], "st": [[["gain", "armored", 1], ["gain", "shield", 7]]]},
+    {"n": "Avenge", "lv": 3, "c": 2, "slot": "A", "cls": "common", "txt": ["Gain 8 Firewall"], "st": [[["apply", "burn", 8, false]]]},
+    {"n": "Average", "lv": 3, "c": 3, "slot": "A", "cls": "common", "txt": ["Deal 1 Damage, gain 1 Shield", "Deal 6 Damage, gain 6 Shield", "Deal 11 Damage, gain 11 Shield"], "st": [[["damage", 1, false, 1], ["gain", "shield", 1]], [["damage", 6, false, 1], ["gain", "shield", 6]], [["damage", 11, false, 1], ["gain", "shield", 11]]]},
+    {"n": "Back to You", "lv": 3, "c": 1, "slot": "B", "cls": "common", "txt": ["50% of the next damage you take is converted to Firewall"], "st": [[["flag", "damage_to_spikes", 50]]]},
+    {"n": "Badger", "lv": 3, "c": 2, "slot": "B", "cls": "common", "txt": ["Minion. Deals 5 Damage to a random enemy per turn. Deals 7 damage if you lost health the turn before. Replaying adds 1 damage (Gain 1 Strength)"], "st": [[["summon", [["m_attack", 5, false, 1, null, "rand"], ["m_dmg_if_hurt", 7]]], ["replay_add", "damage", 1]]]},
+    {"n": "Bag of Sand", "lv": 3, "c": 2, "slot": "B", "cls": "common", "txt": ["Apply 7 Blind"], "st": [[["apply", "blind", 7, false]]]},
+    {"n": "Balls in the air", "lv": 3, "c": 3, "slot": "B", "cls": "common", "txt": ["Deal 4 Damage 5 times to random enemies. Repeat every turn until you are damaged. Charging starts after you take damage"], "st": [[["damage", 4, false, 5], ["repeat_until_hit"]]]},
+    {"n": "BananaRang", "lv": 3, "c": 2, "slot": "B", "cls": "common", "txt": ["Deal 10 Damage", "Deal 10 Damage. Heal 4"], "st": [[["damage", 10, false, 1]], [["damage", 10, false, 1], ["heal", 4]]]},
+    {"n": "Bandit", "lv": 3, "c": 3, "slot": "B", "cls": "common", "txt": ["Deal 1 Damage", "Deal 6 Damage", "Deal 11 Damage. And steal 4 Gold"], "st": [[["damage", 1, false, 1]], [["damage", 6, false, 1]], [["damage", 11, false, 1], ["gain", "gold", 4]]]},
+    {"n": "Barrage", "lv": 3, "c": 1, "slot": "B", "cls": "common", "txt": ["Deal 2 AOE Damage every turn. Play again to add 2 damage"], "st": [[["summon", [["m_attack", 2, true, 1]]]]]},
+    {"n": "Barricade", "lv": 3, "c": 2, "slot": "B", "cls": "common", "txt": ["Gain 4 Shield. If your shield is empty, Gain 5 Shield instead", "Gain 11 Shield. If your shield is empty, Gain 14 Shield instead"], "st": [[["cond2", "shield_empty", [["gain", "shield", 5]], [["gain", "shield", 4]]]], [["cond2", "shield_empty", [["gain", "shield", 14]], [["gain", "shield", 11]]]]]},
+    {"n": "Bastion", "lv": 3, "c": 2, "slot": "B", "cls": "common", "txt": ["No characters can deal damage until the end of your next turn"], "st": [[["no_damage_all", 2]]]},
+    {"n": "Bat (vampire)", "lv": 3, "c": 2, "slot": "B", "cls": "common", "txt": ["Minion. Deals 3 Damage with Lifesteal. Lifesteal is passed to the hero. Replay to add 1 damage (Gain 1 Strength)"], "st": [[["summon", [["m_attack", 3, false, 1, "ls"]]], ["replay_add", "damage", 1]]]},
+    {"n": "Battery charger", "lv": 3, "c": 1, "slot": "B", "cls": "common", "txt": ["Gain 1 Entrenched"], "st": [[["gain", "entrenched", 1]]]},
+    {"n": "Beach vibes", "lv": 3, "c": 3, "slot": "B", "cls": "common", "txt": ["Lower yours, and all enemies Strength by 6 until the end of your next turn"], "st": [[["gain", "strength", -4], ["enemy_stat_all", "strength", -4]]]},
+    {"n": "Bear", "lv": 3, "c": 3, "slot": "B", "cls": "common", "txt": ["Minion. Deals 3 AOE Damage, and adds 1 Damage each turn. Replaying adds 2 Damage (Gain 3 Strength)"], "st": [[["summon", [["m_attack", 3, true, 1]]], ["replay_add", "damage", 2]]]},
+    {"n": "Beast mode", "lv": 3, "c": 2, "slot": "B", "cls": "common", "txt": ["Gain 2 Strength. Add 1 Firewall to your attacks"], "st": [[["gain", "strength", 2], ["flag", "attack_burn_battle", 1]]]},
+    {"n": "Beat it", "lv": 3, "c": 2, "slot": "B", "cls": "common", "txt": ["Apply 2 Exposed", "Apply 7 Exposed"], "st": [[["apply", "exposed", 2, false]], [["apply", "exposed", 7, false]]]},
+    {"n": "Beautiful disaster", "lv": 3, "c": 1, "slot": "B", "cls": "common", "txt": ["Take 4 Damage. Fully charge your Fury"], "st": [[["self_damage", 4], ["fury_pct", 100]]]},
+    {"n": "Bigger is Better", "lv": 3, "c": 3, "slot": "B", "cls": "common", "txt": ["Deal 20 Damage"], "st": [[["damage", 20, false, 1]]]},
+    {"n": "Blitz", "lv": 3, "c": 4, "slot": "B", "cls": "common", "txt": ["Your next chord is played four times"], "st": [[["next_chord_mult", 4]]]},
+    {"n": "Block", "lv": 3, "c": 1, "slot": "B", "cls": "common", "txt": ["Gain 8 Shield"], "st": [[["gain", "shield", 8]]]},
+    {"n": "Bomb", "lv": 3, "c": 1, "slot": "B", "cls": "common", "txt": ["Deal 6 Damage to an enemy. Deal 2 AOE Damage"], "st": [[["damage", 6, false, 1], ["damage", 2, true, 1]]]},
+    {"n": "Bookie", "lv": 3, "c": 2, "slot": "B", "cls": "common", "txt": ["33% chance to gain 3 gold, deal 13 AOE damage, or to do both"], "st": [[["pct_both", 33, [["gain", "gold", 3]], [["damage", 13, true, 1]]]]]},
+    {"n": "Bookworm", "lv": 3, "c": 2, "slot": "B", "cls": "common", "txt": ["Gain 7 Shield", "Gain 7 Shield. Gain 2 Armored and 3 Strength"], "st": [[["gain", "shield", 7]], [["gain", "shield", 7], ["gain", "armored", 2], ["gain", "strength", 3]]]},
+    {"n": "Boost", "lv": 3, "c": 2, "slot": "B", "cls": "common", "txt": ["This turn, gain 4 Strength", "This turn, gain 4 Strength. And 5 Armored"], "st": [[["temp_strength", 4]], [["temp_strength", 4], ["temp_armored", 5]]]},
+    {"n": "Borrow", "lv": 3, "c": 2, "slot": "B", "cls": "common", "txt": ["Drain an enemy's shield and apply it to yourself. If the enemy has no shield, gain 4 Shield"], "st": [[["drain_shield", 4], ["cond", "target_no_shield", [["gain", "shield", 4]]]]]},
+    {"n": "Burn Brighter", "lv": 3, "c": 2, "slot": "B", "cls": "common", "txt": ["Deal 6 AOE Damage. Every turn this is fully charged and not played, add 4 damage and firewall", "Deal 6 AOE Damage. Gain 7 Firewall. Every turn this is fully charged and not played, add 5 damage and firewall"], "st": [[["damage", 6, true, 1], ["charged_idle_grow", 4]], [["damage", 6, true, 1], ["apply", "burn", 7, true], ["charged_idle_grow", 5]]]},
+    {"n": "Canary", "lv": 3, "c": 1, "slot": "C", "cls": "common", "txt": ["Minion. Blocks 1 Debuff and disappears"], "st": [[["summon", [["m_debuff_block", 1]]]]]},
+    {"n": "Candle", "lv": 3, "c": 2, "slot": "C", "cls": "common", "txt": ["Gain 12 Firewall"], "st": [[["apply", "burn", 12, false]]]},
+    {"n": "Cannon", "lv": 3, "c": 1, "slot": "C", "cls": "common", "txt": ["Deal 4 Damage, Gain 4 Firewall"], "st": [[["damage", 4, false, 1], ["apply", "burn", 4, false]]]},
+    {"n": "Carpe Diem", "lv": 3, "c": 3, "slot": "C", "cls": "common", "txt": ["This turn, you deal 2x Damage"], "st": [[["fset", "dmg_out_mult", 2]]]},
+    {"n": "Cat", "lv": 3, "c": 2, "slot": "C", "cls": "common", "txt": ["Minion. Deals 1 Damage 4 times to the front enemy. Cat's attack is linked to your strength. Replay to gain 1 Strength"], "st": [[["summon", [["m_attack", 1, false, 4], ["m_str_link"]]], ["replay_ops", [["gain", "strength", 1]]]]]},
+    {"n": "Cat paw", "lv": 3, "c": 2, "slot": "C", "cls": "common", "txt": ["1 Damage 3 times", "2 Damage 3 times. 75% chance to trigger twice"], "st": [[["damage", 1, false, 3]], [["damage", 2, false, 3], ["flag_max", "double_pct", 75]]]},
+    {"n": "Cheat code", "lv": 3, "c": 1, "slot": "C", "cls": "common", "txt": ["Deal 9 AOE Damage"], "st": [[["damage", 9, true, 1]]]},
+    {"n": "Cheers", "lv": 3, "c": 2, "slot": "C", "cls": "common", "txt": ["Heal 4", "Heal 4. Apply 4 AOE poison"], "st": [[["heal", 4]], [["heal", 4], ["apply", "poison", 4, true]]]},
+    {"n": "Cheese trap", "lv": 3, "c": 5, "slot": "C", "cls": "common", "txt": ["Heal the enemy for 1, Stun them for 1 turn"], "st": [[["heal_enemy", 1], ["stun_target", 1]]]},
+    {"n": "Chip Away", "lv": 3, "c": 3, "slot": "C", "cls": "common", "txt": ["Apply 5 Exposed. Deal 2 Damage to a random enemy", "Apply 5 Exposed. Deal 7 Damage to a random enemy", "Apply 5 Exposed. Deal 14 Damage to a random enemy"], "st": [[["apply", "exposed", 5, false], ["damage", 2, false, 1]], [["apply", "exposed", 5, false], ["damage", 7, false, 1]], [["apply", "exposed", 5, false], ["damage", 14, false, 1]]]},
+    {"n": "Chop", "lv": 3, "c": 2, "slot": "C", "cls": "common", "txt": ["Deal 3 Damage and apply 1 Weaken", "Deal 9 Damage and apply 4 Weaken"], "st": [[["damage", 3, false, 1], ["apply", "weaken", 1, false]], [["damage", 9, false, 1], ["apply", "weaken", 4, false]]]},
+    {"n": "Collector", "lv": 3, "c": 2, "slot": "C", "cls": "common", "txt": ["Heal 5, Gain 3 Shield", "Heal 3, Gain 5 Shield. Gain 1 Strength and 1 Armored"], "st": [[["heal", 3], ["gain", "shield", 5]], [["heal", 3], ["gain", "shield", 5], ["gain", "strength", 1], ["gain", "armored", 1]]]},
+    {"n": "Come Here", "lv": 3, "c": 3, "slot": "C", "cls": "common", "txt": ["Deal 3 Damage", "Deal 8 Damage", "Deal 17 Damage. If the targeted enemy is behind another enemy, Stun the targeted enemy for 1 turn"], "st": [[["damage", 3, false, 1]], [["damage", 8, false, 1]], [["damage", 17, false, 1], ["cond", "multiple_enemies", [["stun_target", 1]]]]]},
+    {"n": "Confrontational Behavior", "lv": 3, "c": 1, "slot": "C", "cls": "common", "txt": ["Gain 3 Strength, Lose 1 Armored"], "st": [[["gain", "strength", 3], ["gain", "armored", -1]]]},
+    {"n": "Continual Improvement", "lv": 3, "c": 3, "slot": "C", "cls": "common", "txt": ["Deal 1 Damage", "Deal 5 Damage", "Deal 10 Damage. If fully charged when played, add 10 damage for this battle"], "st": [[["damage", 1, false, 1]], [["damage", 5, false, 1]], [["damage", 10, false, 1], ["self_dmg_grow", 10]]]},
+    {"n": "Control Your Fate", "lv": 3, "c": 2, "slot": "C", "cls": "common", "txt": ["Choose one: Deal 2 Damage, gain 3 Shield, or apply 5 AOE Weaken", "Choose one: Deal 15 Damage, gain 9 Shield, or apply 5 AOE Weaken"], "st": [[["choose", "pick", [[["damage", 5, false, 1]], [["gain", "shield", 3]], [["apply", "weaken", 2, true]]]]], [["choose", "pick", [[["damage", 15, false, 1]], [["gain", "shield", 9]], [["apply", "weaken", 5, true]]]]]]},
+    {"n": "Counter", "lv": 3, "c": 2, "slot": "C", "cls": "common", "txt": ["Gain 4 Shield. Gain 4 Shield if an enemy is attacking", "Gain 10 Shield. Gain 12 Shield if an enemy is attacking"], "st": [[["gain", "shield", 4], ["cond", "enemy_attacking", [["gain", "shield", 4]]]], [["gain", "shield", 10], ["cond", "enemy_attacking", [["gain", "shield", 12]]]]]},
+    {"n": "Creative accounting", "lv": 3, "c": 2, "slot": "C", "cls": "common", "txt": ["Gain 11 Shield. If your resulting shield is even, gain 7 Gold"], "st": [[["gain", "shield", 11], ["shield_div_gold", 2, 7]]]},
+    {"n": "Cut the Breaks", "lv": 3, "c": 1, "slot": "C", "cls": "common", "txt": ["Deal 14 Damage and loose 1 Health every turn until the battle ends. Play again to increase damage given by 3 and damage taken by 1"], "st": [[["recurring", [["damage", 14, false, 1], ["self_damage", 1]], 99]]]},
+    {"n": "Dart", "lv": 3, "c": 1, "slot": "D", "cls": "common", "txt": ["Apply 4 Poison"], "st": [[["apply", "poison", 4, false]]]},
+    {"n": "David and Goliath", "lv": 3, "c": 3, "slot": "D", "cls": "common", "txt": ["Deal 4 Damage", "Deal 9 Damage", "Deal 20 Damage. If the enemy has higher health than you, Stun them for 1 turn"], "st": [[["damage", 4, false, 1]], [["damage", 9, false, 1]], [["damage", 20, false, 1], ["cond", "target_higher_hp", [["stun_target", 1]]]]]},
+    {"n": "Death wish", "lv": 3, "c": 2, "slot": "D", "cls": "common", "txt": ["Your attacks Gain 2 Firewall this battle, gain 5 Strength and apply 5 Exposed to yourself every turn. Replay to deal 4 AOE Damage"], "st": [[["flag", "attack_burn_battle", 2], ["recurring", [["gain", "strength", 5], ["self_apply", "exposed", 5]], 99], ["replay_ops", [["damage", 4, true, 1]]]]]},
+    {"n": "Defend", "lv": 3, "c": 2, "slot": "D", "cls": "common", "txt": ["Gain 4 Shield", "Gain 12 Shield"], "st": [[["gain", "shield", 4]], [["gain", "shield", 12]]]},
+    {"n": "Defensive Attacking", "lv": 3, "c": 2, "slot": "D", "cls": "common", "txt": ["Deal 4 Damage. If the last chord played charged your shield, deal 4 more Damage", "Deal 10 Damage. If the last chord played charged your shield, deal 12 more Damage"], "st": [[["damage", 4, false, 1], ["cond", "last_gained_shield", [["damage", 4, false, 1]]]], [["damage", 10, false, 1], ["cond", "last_gained_shield", [["damage", 12, false, 1]]]]]},
+    {"n": "Deficient Instructions", "lv": 3, "c": 2, "slot": "D", "cls": "common", "txt": ["Randomly gain 6 Shield, deal 4 AOE Damage or gain 5 Firewall", "Randomly gain 11 Shield, deal 13 AOE Damage or gain 9 Firewall"], "st": [[["choose", "random", [[["gain", "shield", 4]], [["damage", 5, true, 1]], [["apply", "burn", 6, false]]]]], [["choose", "random", [[["gain", "shield", 11]], [["damage", 13, true, 1]], [["apply", "burn", 9, false]]]]]]},
+    {"n": "Deflect", "lv": 3, "c": 2, "slot": "D", "cls": "common", "txt": ["Apply 5 Weaken", "Apply 5 Weaken. Gain 5 Firewall"], "st": [[["apply", "weaken", 5, false]], [["apply", "weaken", 5, false], ["apply", "burn", 5, false]]]},
+    {"n": "Delete", "lv": 3, "c": 2, "slot": "D", "cls": "common", "txt": ["Remove all Debuffs and all enemy Buffs. Gain 5 Shield"], "st": [[["remove_debuffs"], ["gain", "shield", 5]]]},
+    {"n": "Diminishing Returns", "lv": 3, "c": 2, "slot": "D", "cls": "common", "txt": ["Gain 2 Shield, Deal 3 AOE Damage 5 times. Deals damage 1 less time after every play"], "st": [[["gain", "shield", 2], ["damage", 3, true, 5], ["self_times_grow", -1]]]},
+    {"n": "Dink and Dunk", "lv": 3, "c": 2, "slot": "D", "cls": "common", "txt": ["3 Damage", "9 Damage. If fully charged when played, add 4 damage for this battle"], "st": [[["damage", 3, false, 1]], [["damage", 9, false, 1], ["self_dmg_grow", 4]]]},
+    {"n": "Dino", "lv": 3, "c": 1, "slot": "D", "cls": "common", "txt": ["Minion. Applies 3 Blind to the front enemy and deals 1 Damage for each turn passed this battle. Replay to add 1 damage (Gain 1 Strength)"], "st": [[["summon", [["m_dino", 3, 1]]], ["replay_add", "damage", 1]]]},
+    {"n": "Don Quixote", "lv": 3, "c": 3, "slot": "D", "cls": "common", "txt": ["Deal 19 AOE Damage at the start of your next 3 turns, then Stun yourself for 1 turn"], "st": [[["recurring", [["damage", 19, true, 1]], 3], ["self_stun_after", 3]]]},
+    {"n": "Don't Even Think About It", "lv": 3, "c": 2, "slot": "D", "cls": "common", "txt": ["Apply 5 Weakened", "Apply 5 Weakened. Apply 8 Exposed"], "st": [[["apply", "weaken", 5, false]], [["apply", "weaken", 5, false], ["apply", "exposed", 8, false]]]},
+    {"n": "Donkey", "lv": 3, "c": 2, "slot": "D", "cls": "common", "txt": ["Minion. Randomly applies 5 AOE Weaken, deal 10 Damage to a random enemy, or gain 6 Shield. Replay to trigger twice this turn"], "st": [[["summon", [["m_choice", [[["apply", "weaken", 5, true]], [["damage", 10, false, 1]], [["gain", "shield", 6]]]]]], ["replay_proc"]]]},
+    {"n": "Doomed", "lv": 3, "c": 2, "slot": "D", "cls": "common", "txt": ["Apply 3 Exposed to an enemy every turn. Stacks when replayed"], "st": [[["recurring", [["apply", "exposed", 3, false]], 99]]]},
+    {"n": "Double trouble", "lv": 3, "c": 1, "slot": "D", "cls": "common", "txt": ["20% chance attacks trigger twice this battle. Play again to increase by 5%"], "st": [[["flag_step", "double_pct", 20, 5]]]},
+    {"n": "Downgrade", "lv": 3, "c": 1, "slot": "D", "cls": "common", "txt": ["Lower an enemy's Strength by 5 this turn"], "st": [[["enemy_stat", "strength", -5]]]},
+    {"n": "Dragon", "lv": 3, "c": 2, "slot": "D", "cls": "common", "txt": ["Minion. Applies 9 AOE Firewall every other turn. Replaying to increase by 3"], "st": [[["summon", [["m_apply", "burn", 9]]], ["replay_add", "auto", 3]]]},
+    {"n": "Dream work; by Teamwork!", "lv": 3, "c": 2, "slot": "D", "cls": "common", "txt": ["Gain 1 Shield and deal 2 AOE Damage. Repeat for each minion you control", "Gain 4 Shield and deal 6 AOE Damage. Repeat for each minion you control"], "st": [[["gain", "shield", 1], ["damage", 2, true, 1], ["repeat_minions"]], [["gain", "shield", 4], ["damage", 6, true, 1], ["repeat_minions"]]]},
+    {"n": "Drink Up", "lv": 3, "c": 2, "slot": "D", "cls": "common", "txt": ["Gain 5 Strength this turn"], "st": [[["temp_strength", 5]]]},
+    {"n": "Drive by", "lv": 3, "c": 2, "slot": "D", "cls": "common", "txt": ["Deal 3 Damage 3 times to random enemies. Apply 5 Weaken"], "st": [[["dmg_rand_tgt", 3, 3], ["apply", "weaken", 5, false]]]},
+    {"n": "Due diligence", "lv": 3, "c": 2, "slot": "D", "cls": "common", "txt": ["Apply 3 AOE Weakened", "Apply 3 AOE Weakened. Gain 9 Shield"], "st": [[["apply", "weaken", 3, true]], [["apply", "weaken", 3, true], ["gain", "shield", 9]]]},
+    {"n": "Dynamite", "lv": 3, "c": 1, "slot": "D", "cls": "common", "txt": ["In 3 turns, deal 20 AOE Damage"], "st": [[["delayed_damage", 20, true, 3]]]},
+    {"n": "Eagle", "lv": 3, "c": 2, "slot": "E", "cls": "common", "txt": ["Minion. Applies Exposed 5 to a random enemy each turn. Replay to gain 3 Strength"], "st": [[["summon", [["m_apply", "exposed", 5, "rand"]]], ["replay_ops", [["gain", "strength", 3]]]]]},
+    {"n": "Earnin It", "lv": 3, "c": 1, "slot": "E", "cls": "common", "txt": ["Deal 10 Damage. Gain 1 Gold"], "st": [[["damage", 10, false, 1], ["gain", "gold", 1]]]},
+    {"n": "Eat up!", "lv": 3, "c": 2, "slot": "E", "cls": "common", "txt": ["Heal 3", "Heal 7. Gain 3 Strength"], "st": [[["heal", 3]], [["heal", 7], ["gain", "strength", 3]]]},
+    {"n": "Eccentricity", "lv": 3, "c": 3, "slot": "E", "cls": "common", "txt": ["Deal 20 Damage. Each time this is played, it takes 1 less turn to fully charge"], "st": [[["damage", 20, false, 1], ["reduce_own_charge", 1]]]},
+    {"n": "Edgy", "lv": 3, "c": 2, "slot": "E", "cls": "common", "txt": ["Deal 1 Damage 5 times. If the target enemy is attacking, deal 1 Damage 6 times", "Deal 3 Damage 5 times. If the target enemy is attacking, deal 3 Damage 6 times"], "st": [[["damage", 1, false, 5], ["cond", "enemy_attacking", [["damage", 1, false, 6]]]], [["damage", 3, false, 5], ["cond", "enemy_attacking", [["damage", 3, false, 6]]]]]},
+    {"n": "Egg", "lv": 3, "c": 2, "slot": "E", "cls": "common", "txt": ["Deal 4 Damage to an enemy", "Deal 11 Damage to an enemy. Apply 4 AOE Weaken"], "st": [[["damage", 4, false, 1]], [["damage", 11, false, 1], ["apply", "weaken", 4, true]]]},
+    {"n": "Electric shield", "lv": 3, "c": 2, "slot": "E", "cls": "common", "txt": ["Gain 4 Shield", "Gain 10 Shield. Gain 3 Firewall"], "st": [[["gain", "shield", 4]], [["gain", "shield", 10], ["apply", "burn", 3, false]]]},
+    {"n": "Elephant", "lv": 3, "c": 2, "slot": "E", "cls": "common", "txt": ["Minion. Grants 1 Entrenched whiled active. Deals 3 Damage to the front enemy each turn Replaying adds 4 damage (Gain 3 Strength)"], "st": [[["summon", [["m_grant", "Entrenched", 1], ["m_attack", 3, false, 1]]], ["replay_add", "damage", 4]]]},
+    {"n": "Enough!", "lv": 3, "c": 4, "slot": "E", "cls": "common", "txt": ["Stop ALL enemies from attacking this turn"], "st": [[["stun_all", 1]]]},
+    {"n": "Ent", "lv": 3, "c": 3, "slot": "E", "cls": "common", "txt": ["Minion. Grants 2 Shield per turn. Replaying deals 5 Damage to the front enemy", "Minion. Grants 2 Shield per turn. Replaying deals 14 Damage to the front enemy", "Minion. Grants 2 Shield per turn. Replaying deals 27 Damage to the front enemy"], "st": [[["summon", [["m_shield", 2]]], ["replay_ops", [["damage", 5, false, 1]]]], [["summon", [["m_shield", 2]]], ["replay_ops", [["damage", 14, false, 1]]]], [["summon", [["m_shield", 2]]], ["replay_ops", [["damage", 27, false, 1]]]]]},
+    {"n": "Entangle", "lv": 3, "c": 4, "slot": "E", "cls": "common", "txt": ["Deal 12 Damage to an enemy this turn, and Stun them next turn"], "st": [[["damage", 12, false, 1], ["stun_target", 1]]]},
+    {"n": "Erratic leadership", "lv": 3, "c": 1, "slot": "E", "cls": "common", "txt": ["On your next turn, there is a 75% chance minions act three times, 25% not at all"], "st": [[["erratic_next", 75, 3]]]},
+    {"n": "Everybody plays", "lv": 3, "c": 1, "slot": "E", "cls": "common", "txt": ["Summon a random Minion"], "st": [[["summon_random"]]]},
+    {"n": "Everybody's Doing It!", "lv": 3, "c": 1, "slot": "E", "cls": "common", "txt": ["Apply 3 Blind to Yourself and gain 4 Strength this turn"], "st": [[["self_apply", "blind", 3], ["temp_strength", 4]]]},
+    {"n": "Evolving Equipment", "lv": 3, "c": 1, "slot": "E", "cls": "common", "txt": ["Gain 6 Shield. Add 1 shield each time this is played"], "st": [[["gain", "shield", 6], ["self_shield_grow", 1]]]},
+    {"n": "Excellent Craftsmanship", "lv": 3, "c": 2, "slot": "E", "cls": "common", "txt": ["Deal 3 Damage. Permanently add 3 damage if this card defeats an enemy", "Deal 9 Damage. Permanently add 3 damage if this card defeats an enemy"], "st": [[["damage", 3, false, 1], ["perm_on_kill", 3]], [["damage", 9, false, 1], ["perm_on_kill", 3]]]},
+    {"n": "Execute", "lv": 3, "c": 1, "slot": "E", "cls": "common", "txt": ["Deal 12 Damage, or 25 Damage if the target has less than 25% health"], "st": [[["damage_execute", 12, 25, 25]]]},
+    {"n": "Explode", "lv": 3, "c": 1, "slot": "E", "cls": "common", "txt": ["Unleash your Fury without loosing any charge"], "st": [[["fury_free"]]]},
+    {"n": "Fade Away", "lv": 3, "c": 3, "slot": "F", "cls": "common", "txt": ["Gain 1 Dodge", "Gain 5 Dodge", "Gain 10 Dodge"], "st": [[["gain", "dodge", 1]], [["gain", "dodge", 5]], [["gain", "dodge", 10]]]},
+    {"n": "Fairy Friend", "lv": 3, "c": 2, "slot": "F", "cls": "common", "txt": ["Minion. Heals for 7 every other turn. Replay to remove one random debuff"], "st": [[["summon", [["m_heal", 7]]], ["replay_ops", [["remove_one_debuff"]]]]]},
+    {"n": "Family Fun", "lv": 3, "c": 1, "slot": "F", "cls": "common", "txt": ["All minions attacks deal AOE Damage this turn"], "st": [[["flag", "minions_aoe_turn", 1]]]},
+    {"n": "Fearless Allies", "lv": 3, "c": 3, "slot": "F", "cls": "common", "txt": ["Sacrifice all active minions and gain 4 Entrenched for each. Must have at least one active minion"], "st": [[["sac_minions_entrench", 4], ["req_minion"]]]},
+    {"n": "Fighter", "lv": 3, "c": 2, "slot": "F", "cls": "common", "txt": ["Deal 2 Damage 3 times to random enemies", "Deal 5 Damage 3 times to random enemies"], "st": [[["damage", 2, false, 3]], [["damage", 5, false, 3]]]},
+    {"n": "Fireblast", "lv": 3, "c": 2, "slot": "F", "cls": "common", "txt": ["Deal 3 Damage and Gain 2 Firewall", "Deal 9 Damage and Gain 5 Firewall"], "st": [[["damage", 3, false, 1], ["apply", "burn", 2, false]], [["damage", 9, false, 1], ["apply", "burn", 5, false]]]},
+    {"n": "Firefox", "lv": 3, "c": 2, "slot": "F", "cls": "common", "txt": ["Minion. Gives the player 4 Firewall per turn. Replay to add 4 Firewall. Charge 2"], "st": [[["summon", [["m_apply", "burn", 4]]], ["replay_add", "burn", 4]]]},
+    {"n": "Firewall", "lv": 3, "c": 2, "slot": "F", "cls": "common", "txt": ["Gain 2 Firewall when an enemy attacks this battle. Replay to add 8 Firewall"], "st": [[["attacker_burn", 2], ["replay_add", "burn", 8]]]},
+    {"n": "Fireworks", "lv": 3, "c": 2, "slot": "F", "cls": "common", "txt": ["Deal 1 Damage. Apply 4 AOE Blind", "Deal 10 Damage. Apply 4 AOE Blind"], "st": [[["damage", 4, false, 1], ["apply", "blind", 1, true]], [["damage", 10, false, 1], ["apply", "blind", 4, true]]]},
+    {"n": "Flower Power", "lv": 3, "c": 1, "slot": "F", "cls": "common", "txt": ["Heal 3, Deal 8 AOE Damage"], "st": [[["heal", 3], ["damage", 8, true, 1]]]},
+    {"n": "Flush it Away", "lv": 3, "c": 2, "slot": "F", "cls": "common", "txt": ["Remove all debuffs. Gain 4 Shield"], "st": [[["remove_debuffs"], ["gain", "shield", 4]]]},
+    {"n": "Fly trap", "lv": 3, "c": 1, "slot": "F", "cls": "common", "txt": ["Minion. Deals 6 Damage to a random enemy each turn. Replay to add 2 damage (Gain 2 Strength)"], "st": [[["summon", [["m_attack", 6, false, 1, null, "rand"]]], ["replay_add", "damage", 2]]]},
+    {"n": "Fog", "lv": 3, "c": 2, "slot": "F", "cls": "common", "txt": ["Apply 2 AOE Blinded", "Apply 7 AOE Blinded"], "st": [[["apply", "blind", 2, true]], [["apply", "blind", 7, true]]]},
+    {"n": "Foldable Blockade", "lv": 3, "c": 3, "slot": "F", "cls": "common", "txt": ["Gain 2 Shield a turn for the next 3 turns", "Gain 4 Shield a turn for the next 3 turns", "Gain 8 Shield a turn for the next 3 turns"], "st": [[["recurring", [["gain", "shield", 2]], 3]], [["recurring", [["gain", "shield", 4]], 3]], [["recurring", [["gain", "shield", 8]], 3]]]},
+    {"n": "Follow Up", "lv": 3, "c": 1, "slot": "F", "cls": "common", "txt": ["Deal 6 damage. Deal 6 damage for every time Follow Up was played this battle"], "st": [[["damage", 6, false, 1], ["per_play", 6]]]},
+    {"n": "Fortify", "lv": 3, "c": 1, "slot": "F", "cls": "common", "txt": ["Gain 1 Armored"], "st": [[["gain", "armored", 1]]]},
+    {"n": "Fortitude", "lv": 3, "c": 2, "slot": "F", "cls": "common", "txt": ["Gain 3 Shield. Gain 4 shield instead if an enemy plans to attack", "Gain 8 Shield. Gain 10 shield instead if an enemy plans to attack"], "st": [[["gain", "shield", 3], ["cond", "enemy_attacking", [["gain", "shield", 4]]]], [["gain", "shield", 8], ["cond", "enemy_attacking", [["gain", "shield", 10]]]]]},
+    {"n": "Free Fall", "lv": 3, "c": 1, "slot": "F", "cls": "common", "txt": ["Deal 13 Damage, take 2 Damage"], "st": [[["damage", 13, false, 1], ["self_damage", 2]]]},
+    {"n": "Frost", "lv": 3, "c": 2, "slot": "F", "cls": "common", "txt": ["Deal 1 AOE Damage. Apply 4 AOE Weaken", "Deal 10 AOE Damage. Apply 4 AOE Weaken"], "st": [[["damage", 4, true, 1], ["apply", "weaken", 1, true]], [["damage", 10, true, 1], ["apply", "weaken", 4, true]]]},
+    {"n": "Fudge it", "lv": 3, "c": 4, "slot": "F", "cls": "common", "txt": ["Deal 50 AOE Damage. You can't use any chords next turn"], "st": [[["damage", 50, true, 1], ["flag", "no_chords_next", 1]]]},
+    {"n": "General George", "lv": 3, "c": 3, "slot": "G", "cls": "common", "txt": ["Gain 2 Shield for each active minion", "Gain 4 Shield for each active minion", "Gain 8 Shield for each active minion"], "st": [[["shield_per_special", 2, "active minion"]], [["shield_per_special", 4, "active minion"]], [["shield_per_special", 8, "active minion"]]]},
+    {"n": "Get 'em", "lv": 3, "c": 2, "slot": "G", "cls": "common", "txt": ["Apply 2 Exposed to an enemy", "Apply 5 Exposed to an enemy"], "st": [[["apply", "exposed", 2, false]], [["apply", "exposed", 5, false]]]},
+    {"n": "Get Ready…", "lv": 3, "c": 1, "slot": "G", "cls": "common", "txt": ["Double the next damage you deal"], "st": [[["next_chord_mult", 2]]]},
+    {"n": "Giddy up", "lv": 3, "c": 1, "slot": "G", "cls": "common", "txt": ["Gain 4 Strength. All enemies gain 1 Strength"], "st": [[["gain", "strength", 4], ["enemy_stat_all", "strength", 1]]]},
+    {"n": "Glasses", "lv": 3, "c": 3, "slot": "G", "cls": "common", "txt": ["Gain 1 Strength this turn and remove all Blinded debuffs", "Gain 4 Strength this turn and remove all Blinded debuffs", "Gain 9 Strength this turn and remove all Blinded debuffs"], "st": [[["temp_strength", 1], ["remove_debuffs"]], [["temp_strength", 4], ["remove_debuffs"]], [["temp_strength", 9], ["remove_debuffs"]]]},
+    {"n": "Glug Glug…", "lv": 3, "c": 1, "slot": "G", "cls": "common", "txt": ["Next turn gain 5 Health and 2 Strength"], "st": [[["next_turn_ops", [["heal", 5], ["gain", "strength", 2]]]]]},
+    {"n": "Gnomes", "lv": 3, "c": 1, "slot": "G", "cls": "common", "txt": ["Minion. Each play summons 1 gnome. After 3 gnomes are summoned they deal 70 Damage to the highest health enemy"], "st": [[["gnome_bomb", 3, 70]]]},
+    {"n": "Go Away.", "lv": 3, "c": 2, "slot": "G", "cls": "common", "txt": ["Gain 10 Shield. You cannot target enemies next turn", "Gain 25 Shield. You cannot target enemies next turn"], "st": [[["gain", "shield", 10], ["flag", "no_target_next", 1]], [["gain", "shield", 25], ["flag", "no_target_next", 1]]]},
+    {"n": "Going… gone", "lv": 3, "c": 4, "slot": "G", "cls": "common", "txt": ["Quadruple your Firewall"], "st": [[["mult_burn", 4]]]},
+    {"n": "Goodnight", "lv": 3, "c": 3, "slot": "G", "cls": "common", "txt": ["Stun all enemies at the start of your next turn"], "st": [[["delayed_stun", true]]]},
+    {"n": "Goop", "lv": 3, "c": 2, "slot": "G", "cls": "common", "txt": ["Apply 9 AOE Poison and 5 AOE Blinded"], "st": [[["apply", "poison", 9, true], ["apply", "blind", 5, true]]]},
+    {"n": "Gorgon", "lv": 3, "c": 3, "slot": "G", "cls": "common", "txt": ["Gain 13 Shield. Apply 3 AOE Blind"], "st": [[["gain", "shield", 13], ["apply", "blind", 3, true]]]},
+    {"n": "Gotcha!", "lv": 3, "c": 1, "slot": "G", "cls": "common", "txt": ["Apply Exposed 6 and deal 8 Damage to an enemy"], "st": [[["apply", "exposed", 6, false], ["damage", 8, false, 1]]]},
+    {"n": "Grail", "lv": 3, "c": 1, "slot": "G", "cls": "common", "txt": ["Heal 6"], "st": [[["heal", 6]]]},
+    {"n": "Grapeshot", "lv": 3, "c": 1, "slot": "G", "cls": "common", "txt": ["Deal 14 Damage to the front enemy, 8 Damage to all other enemies"], "st": [[["damage", 14, "front", 1], ["damage", 8, "notfront", 1]]]},
+    {"n": "Grass Shield", "lv": 3, "c": 2, "slot": "G", "cls": "common", "txt": ["Lower all enemies Strength by 1 this turn", "Lower all enemies Strength by 1 this turn. Gain 8 Shield"], "st": [[["enemy_stat_all_turn", "strength", -1]], [["enemy_stat_all_turn", "strength", -1], ["gain", "shield", 8]]]},
+    {"n": "Gravedigger", "lv": 3, "c": 3, "slot": "G", "cls": "common", "txt": ["Enemy looses 11 health in 3 turns", "Enemy looses 27 health in 3 turns", "Enemy looses 55 health in 3 turns"], "st": [[["delayed_damage", 11, false, 3]], [["delayed_damage", 27, false, 3]], [["delayed_damage", 55, false, 3]]]},
+    {"n": "Growing pains", "lv": 3, "c": 2, "slot": "G", "cls": "common", "txt": ["Give an enemy 1 Strength and Gain 16 Firewall"], "st": [[["enemy_stat", "strength", 1], ["apply", "burn", 16, false]]]},
+    {"n": "Abracadabra", "lv": 3, "c": 3, "slot": "A", "cls": "ice", "txt": ["Enter Sorcerer Form"], "st": [[["enter_sorcerer"]]]},
+    {"n": "Adjourn", "lv": 3, "c": 3, "slot": "A", "cls": "ice", "txt": ["Block the next attack. Lose 2 Strength until the end of your next turn"], "st": [[["gain", "block", 1], ["temp_str_penalty", 2]]]},
+    {"n": "Adorn", "lv": 3, "c": 1, "slot": "A", "cls": "ice", "txt": ["Gain 2 Entrenched"], "st": [[["gain", "entrenched", 2]]]},
+    {"n": "Analytical defense", "lv": 3, "c": 4, "slot": "A", "cls": "ice", "txt": ["Gain 3 Shield. Max charge falls by 1 each turn this is fully charged and not played", "Gain 9 Shield. Max charge falls by 1 each turn this is fully charged and not played", "Gain 17 Shield. Max charge falls by 1 each turn this is fully charged and not played", "Gain 26 Shield. Max charge falls by 1 each turn this is fully charged and not played"], "st": [[["gain", "shield", 3], ["charged_idle_costdown", 1]], [["gain", "shield", 9], ["charged_idle_costdown", 1]], [["gain", "shield", 17], ["charged_idle_costdown", 1]], [["gain", "shield", 26], ["charged_idle_costdown", 1]]]},
+    {"n": "Apoptosis", "lv": 3, "c": 2, "slot": "A", "cls": "ice", "txt": ["Apply 3 AOE Poison and 2 AOE Exposed", "Apply 8 AOE Poison and 5 AOE Exposed"], "st": [[["apply", "poison", 3, true], ["apply", "exposed", 2, true]], [["apply", "poison", 8, true], ["apply", "exposed", 5, true]]]},
+    {"n": "Apprentice", "lv": 3, "c": 2, "slot": "A", "cls": "ice", "txt": ["Minion. Grants 3 Firewall and 2 Spellbound each turn"], "st": [[["summon", [["m_apply", "burn", 3], ["m_gain_spell", 2]]]]]},
+    {"n": "Arcane Wind", "lv": 3, "c": 2, "slot": "A", "cls": "ice", "txt": ["Deal 4 AOE Damage and apply 2 AOE Weakened", "Deal 11 AOE Damage and apply 5 AOE Weakened"], "st": [[["damage", 4, true, 1], ["apply", "weaken", 2, true]], [["damage", 11, true, 1], ["apply", "weaken", 5, true]]]},
+    {"n": "Arsonist", "lv": 3, "c": 4, "slot": "A", "cls": "ice", "txt": ["Double your Firewall"], "st": [[["mult_burn", 2]]]},
+    {"n": "Aurora", "lv": 3, "c": 2, "slot": "A", "cls": "ice", "txt": ["Deal damage equal to your Shield"], "st": [[["damage_eq_shield"]]]},
+    {"n": "Avalanche", "lv": 3, "c": 1, "slot": "A", "cls": "ice", "txt": ["Deal 5 AOE Damage, plus 5 more for each Chilled enemy"], "st": [[["damage", 5, true, 1], ["dmg_aoe_per_chilled", 5]]]},
+    {"n": "Baffle", "lv": 3, "c": 2, "slot": "B", "cls": "ice", "txt": ["Deal 10 AOE Damage. 30% chance to stun each enemy hit"], "st": [[["damage_stun_pct", 10, 30, true]]]},
+    {"n": "Bait", "lv": 3, "c": 2, "slot": "B", "cls": "ice", "txt": ["Deal 10 Damage for every active minion"], "st": [[["damage_per_minion", 10]]]},
+    {"n": "Ball of Lightning", "lv": 3, "c": 2, "slot": "B", "cls": "ice", "txt": ["Deal 10 Damage. 30% chance to stun the enemy"], "st": [[["damage_stun_pct", 10, 30, false]]]},
+    {"n": "Big Shot", "lv": 3, "c": 4, "slot": "B", "cls": "ice", "txt": ["Damage an enemy for 30% of its max health"], "st": [[["damage_pct_hp", 30]]]},
+    {"n": "Bitter Cold", "lv": 3, "c": 2, "slot": "B", "cls": "ice", "txt": ["Gain 4 Shield and apply 2 Chilled", "Gain 10 Shield and apply 7 Chilled"], "st": [[["gain", "shield", 4], ["apply", "chilled", 2, false]], [["gain", "shield", 10], ["apply", "chilled", 7, false]]]},
+    {"n": "Blade enhancements", "lv": 3, "c": 2, "slot": "B", "cls": "ice", "txt": ["Gain 1 Strength. Deal 18 Damage if in Sorcerer Form"], "st": [[["gain", "strength", 1], ["cond", "in_sorcerer", [["damage", 18, false, 1]]]]]},
+    {"n": "Blast", "lv": 3, "c": 2, "slot": "B", "cls": "ice", "txt": ["Deal 5 AOE Damage", "Deal 14 AOE Damage"], "st": [[["damage", 5, true, 1]], [["damage", 14, true, 1]]]},
+    {"n": "Bound in Ice", "lv": 3, "c": 2, "slot": "B", "cls": "ice", "txt": ["Gain 2 Spellbound and apply 2 AOE Chilled", "Gain 7 Spellbound and apply 7 AOE Chilled"], "st": [[["gain", "spellbound", 2], ["apply", "chilled", 2, true]], [["gain", "spellbound", 7], ["apply", "chilled", 7, true]]]},
+    {"n": "Chain lightening", "lv": 3, "c": 2, "slot": "C", "cls": "ice", "txt": ["Deal 4 Damage, then 3 and 2 Damage to random enemies", "Deal 10 Damage, then 8 and 6 Damage to random enemies"], "st": [[["damage", 4, false, 1], ["dmg_rand_tgt", 3], ["dmg_rand_tgt", 2]], [["damage", 10, false, 1], ["dmg_rand_tgt", 8], ["dmg_rand_tgt", 6]]]},
+    {"n": "Chain reaction", "lv": 3, "c": 2, "slot": "C", "cls": "ice", "txt": ["Deal 2 Damage. Gain 2 Shield and 2 Spellbound", "Deal 7 Damage. Gain 6 Shield and 6 Spellbound"], "st": [[["damage", 2, false, 1], ["gain", "shield", 2], ["gain", "spellbound", 2]], [["damage", 7, false, 1], ["gain", "shield", 6], ["gain", "spellbound", 6]]]},
+    {"n": "Charm", "lv": 3, "c": 2, "slot": "C", "cls": "ice", "txt": ["Gain 2 Spellbound and 3 Firewall", "Gain 7 Spellbound and 8 Firewall"], "st": [[["gain", "spellbound", 2], ["apply", "burn", 3, false]], [["gain", "spellbound", 7], ["apply", "burn", 8, false]]]},
+    {"n": "Chill", "lv": 3, "c": 4, "slot": "C", "cls": "ice", "txt": ["Stun an enemy for 1 turn"], "st": [[["apply", "stun", 1, false]]]},
+    {"n": "Clouds Away", "lv": 3, "c": 2, "slot": "C", "cls": "ice", "txt": ["Gain 4 Shield", "Gain 11 Shield. Gain 1 Armored"], "st": [[["gain", "shield", 4]], [["gain", "shield", 11], ["gain", "armored", 1]]]},
+    {"n": "Cold Fusion", "lv": 3, "c": 4, "slot": "C", "cls": "ice", "txt": ["Gain 1 Shield", "Gain 5 Shield", "Gain 10 Shield", "Gain 15 Shield. Reduce full charge by 1"], "st": [[["gain", "shield", 1]], [["gain", "shield", 5]], [["gain", "shield", 10]], [["gain", "shield", 15], ["self_cost_down", 1]]]},
+    {"n": "Cold Sharpened", "lv": 3, "c": 1, "slot": "C", "cls": "ice", "txt": ["Deal 1 Damage for each stack of Chilled on an enemy"], "st": [[["damage_per_chilled", 1]]]},
+    {"n": "Cold Weather", "lv": 3, "c": 2, "slot": "C", "cls": "ice", "txt": ["Deal 3 Damage, gain 3 Shield, apply 2 Chilled", "Deal 8 Damage, gain 8 Shield, apply 7 Chilled"], "st": [[["damage", 3, false, 1], ["gain", "shield", 3], ["apply", "chilled", 2, false]], [["damage", 8, false, 1], ["gain", "shield", 8], ["apply", "chilled", 7, false]]]},
+    {"n": "Conjugation", "lv": 3, "c": 1, "slot": "C", "cls": "ice", "txt": ["The next time you deal damage, instead apply that much Poison and gain that much Firewall"], "st": [[["flag", "conj_next", 1]]]},
+    {"n": "Dastardly potion", "lv": 3, "c": 3, "slot": "D", "cls": "ice", "txt": ["Gain 6 Strength during your next turn"], "st": [[["str_next_turn", 6]]]},
+    {"n": "Deathly Cold", "lv": 3, "c": 2, "slot": "D", "cls": "ice", "txt": ["Deal 4 Damage and apply 3 Chilled", "Deal 12 Damage and apply 8 Chilled"], "st": [[["damage", 4, false, 1], ["apply", "chilled", 3, false]], [["damage", 12, false, 1], ["apply", "chilled", 8, false]]]},
+    {"n": "Decoy", "lv": 3, "c": 3, "slot": "D", "cls": "ice", "txt": ["Minion. Blocks 1 attack then fades"], "st": [[["summon", [["m_blockatk", 1]]]]]},
+    {"n": "Dependable", "lv": 3, "c": 2, "slot": "D", "cls": "ice", "txt": ["Gain 6 Shield", "Gain 17 Shield"], "st": [[["gain", "shield", 6]], [["gain", "shield", 17]]]},
+    {"n": "Depth of Magic", "lv": 3, "c": 1, "slot": "D", "cls": "ice", "txt": ["This turn, gain 2 Shield for every Spellbound you gain"], "st": [[["flag", "dom_turn", 2]]]},
+    {"n": "Diabolical", "lv": 3, "c": 2, "slot": "D", "cls": "ice", "txt": ["Fully charge your Fury; doubled if in Sorcerer Form"], "st": [[["cond", "in_sorcerer", [["flag", "unleash_mult", 2]]], ["fury_full"]]]},
+    {"n": "Dirty Dealing", "lv": 3, "c": 2, "slot": "D", "cls": "ice", "txt": ["Apply 3 Weakened. Apply 3 Poison per stack of Weakened on the target"], "st": [[["apply", "weaken", 3, false], ["poison_per_weaken", 3]]]},
+    {"n": "Distribution", "lv": 3, "c": 1, "slot": "D", "cls": "ice", "txt": ["Activate all minion effects"], "st": [[["proc_minions"]]]},
+    {"n": "Electric shock", "lv": 3, "c": 2, "slot": "E", "cls": "ice", "txt": ["Apply 7 Weakened. 35% chance to stun"], "st": [[["apply", "weaken", 7, false], ["stun_pct", 35]]]},
+    {"n": "Elemental mastery", "lv": 3, "c": 2, "slot": "E", "cls": "ice", "txt": ["Deal 4 AOE Damage and gain 3 Shield", "Deal 10 AOE Damage and gain 8 Shield"], "st": [[["damage", 4, true, 1], ["gain", "shield", 3]], [["damage", 10, true, 1], ["gain", "shield", 8]]]},
+    {"n": "Embers", "lv": 3, "c": 1, "slot": "E", "cls": "ice", "txt": ["Convert your Shield to Firewall"], "st": [[["shield_to_burn"]]]},
+    {"n": "Emergency Protocol", "lv": 3, "c": 2, "slot": "E", "cls": "ice", "txt": ["Gain 18 Shield, lose all Fury"], "st": [[["gain", "shield", 18], ["lose_all_fury"]]]},
+    {"n": "Enchanter", "lv": 3, "c": 2, "slot": "E", "cls": "ice", "txt": ["Gain 4 Spellbound", "Gain 10 Spellbound"], "st": [[["gain", "spellbound", 4]], [["gain", "spellbound", 10]]]},
+    {"n": "Energy barrier", "lv": 3, "c": 2, "slot": "E", "cls": "ice", "txt": ["Gain 3 Shield for each attacking enemy", "Gain 8 Shield for each attacking enemy"], "st": [[["shield_per_attacker", 3]], [["shield_per_attacker", 8]]]},
+    {"n": "Enigmatic cold", "lv": 3, "c": 2, "slot": "E", "cls": "ice", "txt": ["Apply 2 Chilled and gain 3 Firewall", "Apply 7 Chilled and gain 8 Firewall"], "st": [[["apply", "chilled", 2, false], ["apply", "burn", 3, false]], [["apply", "chilled", 7, false], ["apply", "burn", 8, false]]]},
+    {"n": "Enthalpy", "lv": 3, "c": 4, "slot": "E", "cls": "ice", "txt": ["Gain Shield equal to your Firewall"], "st": [[["shield_eq_burn"]]]},
+    {"n": "Fire Burn and Cauldron Bubble", "lv": 3, "c": 2, "slot": "F", "cls": "ice", "txt": ["Gain 3 Firewall and apply 3 AOE Poison", "Gain 8 Firewall and apply 8 AOE Poison"], "st": [[["apply", "burn", 3, false], ["apply", "poison", 3, true]], [["apply", "burn", 8, false], ["apply", "poison", 8, true]]]},
+    {"n": "Firefall", "lv": 3, "c": 2, "slot": "F", "cls": "ice", "txt": ["Gain 2 Firewall for each enemy", "Gain 6 Firewall for each enemy"], "st": [[["burn_per_enemy", 2]], [["burn_per_enemy", 6]]]},
+    {"n": "Fizzle", "lv": 3, "c": 1, "slot": "F", "cls": "ice", "txt": ["Destroy an enemy's Shield"], "st": [[["destroy_shield"]]]},
+    {"n": "Flood of Cold", "lv": 3, "c": 2, "slot": "F", "cls": "ice", "txt": ["Deal 4 AOE Damage and apply 1 AOE Chilled", "Deal 12 AOE Damage and apply 3 AOE Chilled"], "st": [[["damage", 4, true, 1], ["apply", "chilled", 1, true]], [["damage", 12, true, 1], ["apply", "chilled", 3, true]]]},
+    {"n": "Focus", "lv": 3, "c": 2, "slot": "F", "cls": "ice", "txt": ["Gain 4 Shield and 3 Spellbound", "Gain 10 Shield and 8 Spellbound"], "st": [[["gain", "shield", 4], ["gain", "spellbound", 3]], [["gain", "shield", 10], ["gain", "spellbound", 8]]]},
+    {"n": "Fortunate Leader", "lv": 3, "c": 2, "slot": "F", "cls": "ice", "txt": ["Gain 5 Shield for every active minion"], "st": [[["gain_per_minion", "shield", 5]]]},
+    {"n": "Frost Shield", "lv": 3, "c": 2, "slot": "F", "cls": "ice", "txt": ["Gain 5 Shield every time you play a chord this turn"], "st": [[["flag", "on_play_shield_turn", 5]]]},
+    {"n": "Frostburn", "lv": 3, "c": 1, "slot": "F", "cls": "ice", "txt": ["This turn, when you apply Chilled, gain that much Firewall"], "st": [[["flag", "frostburn_turn", 1]]]},
+    {"n": "Galaxtic Fury", "lv": 3, "c": 2, "slot": "G", "cls": "ice", "txt": ["Deal 4 AOE Damage. Gain 2 Spellbound per enemy hit", "Deal 11 AOE Damage. Gain 5 Spellbound per enemy hit"], "st": [[["damage", 4, true, 1], ["spell_per_enemy", 2]], [["damage", 11, true, 1], ["spell_per_enemy", 5]]]},
+    {"n": "Gale", "lv": 3, "c": 2, "slot": "G", "cls": "ice", "txt": ["Apply 4 AOE Chilled", "Apply 11 AOE Chilled"], "st": [[["apply", "chilled", 4, true]], [["apply", "chilled", 11, true]]]},
+    {"n": "Garrote", "lv": 3, "c": 3, "slot": "G", "cls": "ice", "txt": ["Deal 4 Damage. Gain 1 Shield per damage dealt", "Deal 11 Damage. Gain 1 Shield per damage dealt", "Deal 20 Damage. Gain 1 Shield per damage dealt"], "st": [[["damage_shield_gain", 4]], [["damage_shield_gain", 11]], [["damage_shield_gain", 20]]]},
+    {"n": "Glacial Force", "lv": 3, "c": 4, "slot": "G", "cls": "ice", "txt": ["Deal 4 Damage and apply 1 Chilled", "Deal 11 Damage and apply 3 Chilled", "Deal 19 Damage and apply 6 Chilled", "Deal 30 Damage and apply 9 Chilled"], "st": [[["damage", 4, false, 1], ["apply", "chilled", 1, false]], [["damage", 11, false, 1], ["apply", "chilled", 3, false]], [["damage", 19, false, 1], ["apply", "chilled", 6, false]], [["damage", 30, false, 1], ["apply", "chilled", 9, false]]]},
+    {"n": "Glacial cold", "lv": 3, "c": 2, "slot": "G", "cls": "ice", "txt": ["Apply 2 AOE Exposed and Chilled", "Apply 7 AOE Exposed and Chilled"], "st": [[["apply", "exposed", 2, true], ["apply", "chilled", 2, true]], [["apply", "exposed", 7, true], ["apply", "chilled", 7, true]]]},
+    {"n": "Glimmering Strike", "lv": 3, "c": 2, "slot": "G", "cls": "ice", "txt": ["Apply 2 Exposed, gain 2 Spellbound and deal 3 Damage", "Apply 5 Exposed, gain 5 Spellbound and deal 8 Damage"], "st": [[["apply", "exposed", 2, false], ["gain", "spellbound", 2], ["damage", 3, false, 1]], [["apply", "exposed", 5, false], ["gain", "spellbound", 5], ["damage", 8, false, 1]]]},
+    {"n": "Guiding light", "lv": 3, "c": 3, "slot": "G", "cls": "ice", "txt": ["Give your minions 8 Strength next turn"], "st": [[["minions_str_next", 8]]]},
+    {"n": "X Upgrade: Chilled", "lv": 3, "c": 2, "slot": "X", "cls": "ice", "txt": ["After this is played 12 times, remove it and apply 15 AOE Chilled to start each battle"], "st": []},
+    {"n": "X Upgrade: Firewall", "lv": 3, "c": 2, "slot": "X", "cls": "ice", "txt": ["After this is played 12 times, remove it and gain 12 Firewall at the start of each battle"], "st": []},
+    {"n": "X Upgrade: Magical Mastery", "lv": 3, "c": 1, "slot": "X", "cls": "ice", "txt": ["After this is played 12 times, remove it and permanently gain 1 extra Spellbound every time you gain Spellbound"], "st": []},
+    {"n": "X Upgrade: Protect", "lv": 3, "c": 2, "slot": "X", "cls": "ice", "txt": ["After this is played 12 times, remove it and gain 16 Shield at the start of each battle"], "st": []},
+    {"n": "X Upgrade: Spellbound", "lv": 3, "c": 1, "slot": "X", "cls": "ice", "txt": ["After this is played 12 times, remove it and gain 10 Spellbound on turn 2 of each battle"], "st": []},
+    {"n": "All together", "lv": 3, "c": 2, "slot": "A", "cls": "necro", "txt": ["Gain 2 Darkness per active minion", "Gain 5 Darkness per active minion"], "st": [[["gain_per_minion", "darkness", 2]], [["gain_per_minion", "darkness", 5]]]},
+    {"n": "Alliance", "lv": 3, "c": 3, "slot": "A", "cls": "necro", "txt": ["Deal 1 Damage 4 times to random enemies. Fully charges when you play a minion chord", "Deal 2 Damage 4 times to random enemies. Fully charges when you play a minion chord", "Deal 4 Damage 4 times to random enemies. Fully charges when you play a minion chord"], "st": [[["dmg_rand_tgt", 1, 4], ["alliance_mark"]], [["dmg_rand_tgt", 2, 4], ["alliance_mark"]], [["dmg_rand_tgt", 4, 4], ["alliance_mark"]]]},
+    {"n": "Amber wand", "lv": 3, "c": 4, "slot": "A", "cls": "necro", "txt": ["Deal 3 Damage with lifesteal", "Deal 4 Damage with lifesteal", "Deal 6 Damage with lifesteal", "Deal 9 Damage with lifesteal. Decrease full charge by 1 this battle"], "st": [[["damage_ls", 3, false, 1]], [["damage_ls", 4, false, 1]], [["damage_ls", 6, false, 1]], [["damage_ls", 9, false, 1], ["self_cost_down", 1]]]},
+    {"n": "Annihilate", "lv": 3, "c": 2, "slot": "A", "cls": "necro", "txt": ["Apply 1 Exposed", "Apply 4 Exposed. Each full-charge play adds 1 more Exposed for the rest of the battle"], "st": [[["apply", "exposed", 1, false]], [["apply", "exposed", 4, false], ["replay_add", "exposed", 1]]]},
+    {"n": "Anvil", "lv": 3, "c": 4, "slot": "A", "cls": "necro", "txt": ["Gain 3 Shield", "Gain 9 Shield", "Gain 16 Shield", "Gain 25 Shield"], "st": [[["gain", "shield", 3]], [["gain", "shield", 9]], [["gain", "shield", 16]], [["gain", "shield", 25]]]},
+    {"n": "Apex Predator", "lv": 3, "c": 2, "slot": "A", "cls": "necro", "txt": ["Deal 5 Damage. Attack twice if in Dark Lord Form", "Deal 14 Damage. Attack twice if in Dark Lord Form"], "st": [[["dmg_dl2", 5]], [["dmg_dl2", 14]]]},
+    {"n": "Bad intentions", "lv": 3, "c": 1, "slot": "B", "cls": "necro", "txt": ["Deal 6 AOE Damage with lifesteal, remove 1 charge from 2 random chords"], "st": [[["damage_ls", 6, true, 1], ["charge_random", 2, -1]]]},
+    {"n": "Band in Darkness", "lv": 3, "c": 2, "slot": "B", "cls": "necro", "txt": ["Deal 5 Damage 2 times. This battle, your minions share Dark Lord Form buffs when you ascend"], "st": [[["damage", 5, false, 2], ["fset", "dl_minion_buffs", 1]]]},
+    {"n": "Bit of Both", "lv": 3, "c": 2, "slot": "B", "cls": "necro", "txt": ["This turn, gain 3 Shield for each Darkness you gain"], "st": [[["bitofboth_arm", 3]]]},
+    {"n": "Bite Hard", "lv": 3, "c": 2, "slot": "B", "cls": "necro", "txt": ["Gain 4% lifesteal this battle", "Gain 10% lifesteal this battle"], "st": [[["gain_ls_battle", 4]], [["gain_ls_battle", 10]]]},
+    {"n": "Bone Crusher", "lv": 3, "c": 2, "slot": "B", "cls": "necro", "txt": ["Apply 2 AOE Exposed", "Apply 6 AOE Exposed"], "st": [[["apply", "exposed", 2, true]], [["apply", "exposed", 6, true]]]},
+    {"n": "Boom", "lv": 3, "c": 2, "slot": "B", "cls": "necro", "txt": ["Gain 2 Darkness. This battle, Dark Lord Form grants AOE attacks", "Gain 7 Darkness. This battle, Dark Lord Form grants AOE attacks"], "st": [[["gain", "darkness", 2], ["fset", "dl_aoe", 1]], [["gain", "darkness", 7], ["fset", "dl_aoe", 1]]]},
+    {"n": "Burn powder", "lv": 3, "c": 2, "slot": "B", "cls": "necro", "txt": ["Gain 3 Firewall", "Gain 8 Firewall. Apply 1 random debuff to all enemies"], "st": [[["apply", "burn", 3, false]], [["apply", "burn", 8, false], ["random_debuff_all", 1]]]},
+    {"n": "Calcium supplements", "lv": 3, "c": 2, "slot": "C", "cls": "necro", "txt": ["Add 3 damage to all Skeleton attacks this battle. Stacks with each play"], "st": [[["skel_atk_up", 3]]]},
+    {"n": "Calm in Battle", "lv": 3, "c": 2, "slot": "C", "cls": "necro", "txt": ["Gain 4 Darkness", "Gain 4 Darkness. Gain 4 Strength this turn"], "st": [[["gain", "darkness", 4]], [["gain", "darkness", 4], ["temp_strength", 4]]]},
+    {"n": "Can-Do Attitude", "lv": 3, "c": 3, "slot": "C", "cls": "necro", "txt": ["Boost your minions' attack and shield effects by 4 for the rest of the battle. Stacks"], "st": [[["minions_atk_up", 4], ["minions_shield_up", 4]]]},
+    {"n": "Crypt Robber", "lv": 3, "c": 3, "slot": "C", "cls": "necro", "txt": ["Gain 2 Shield", "Gain 4 Shield", "Gain 9 Shield. Summon a Skeleton minion"], "st": [[["gain", "shield", 2]], [["gain", "shield", 4]], [["gain", "shield", 9], ["summon_skel", 1]]]},
+    {"n": "Cutting through the Blackness", "lv": 3, "c": 1, "slot": "C", "cls": "necro", "txt": ["This battle, gain 1 Darkness whenever a minion deals unblocked damage. Replay to increase"], "st": [[["ctb_arm", 1]]]},
+    {"n": "Dark Army", "lv": 3, "c": 3, "slot": "D", "cls": "necro", "txt": ["Your next Fury unleash conjures 2 extra Skeletons. Stacks"], "st": [[["on_unleash", [["summon_skel", 2]]]]]},
+    {"n": "Dark Lord Rising", "lv": 3, "c": 3, "slot": "D", "cls": "necro", "txt": ["Ascend to Dark Lord Form"], "st": [[["ascend"]]]},
+    {"n": "Darkness", "lv": 3, "c": 1, "slot": "D", "cls": "necro", "txt": ["Gain 6 Darkness"], "st": [[["gain", "darkness", 6]]]},
+    {"n": "Deal with the Devil", "lv": 3, "c": 3, "slot": "D", "cls": "necro", "txt": ["Your minions gain 2 lifesteal per attack. Replaying adds 1 lifesteal"], "st": [[["devil_pact", 0, 2]]]},
+    {"n": "Defensive formation", "lv": 3, "c": 2, "slot": "D", "cls": "necro", "txt": ["Gain 2 Shield plus 1 Shield per active Skeleton", "Gain 7 Shield plus 1 Shield per active Skeleton"], "st": [[["gain", "shield", 2], ["gain_per_skel", "shield", 1]], [["gain", "shield", 7], ["gain_per_skel", "shield", 1]]]},
+    {"n": "Delirium", "lv": 3, "c": 2, "slot": "D", "cls": "necro", "txt": ["Take 2 damage. After 3 plays this becomes 'Deal 30 AOE Damage, Charge 1' this battle"], "st": [[["self_damage", 2], ["delirium", 3, 30]]]},
+    {"n": "Devour", "lv": 3, "c": 2, "slot": "D", "cls": "necro", "txt": ["Sacrifice a Skeleton and Heal 3", "Sacrifice a Skeleton and Heal 8"], "st": [[["sac_skel", [["heal", 3]]]], [["sac_skel", [["heal", 8]]]]]},
+    {"n": "Employer benefits", "lv": 3, "c": 2, "slot": "E", "cls": "necro", "txt": ["Gain 5 Shield per active minion"], "st": [[["gain_per_minion", "shield", 5]]]},
+    {"n": "Enchanted Blade", "lv": 3, "c": 4, "slot": "E", "cls": "necro", "txt": ["Your next attack gains 9% lifesteal", "Your next attack gains 25% lifesteal", "Your next attack gains 45% lifesteal", "Your next attack gains 70% lifesteal"], "st": [[["fset", "next_ls", 9]], [["fset", "next_ls", 25]], [["fset", "next_ls", 45]], [["fset", "next_ls", 70]]]},
+    {"n": "Entropy", "lv": 3, "c": 2, "slot": "E", "cls": "necro", "txt": ["The next time your Fury unleashes, deal 15 AOE Damage. Stacks"], "st": [[["on_unleash", [["damage", 15, true, 1]]]]]},
+    {"n": "Equalizer", "lv": 3, "c": 2, "slot": "E", "cls": "necro", "txt": ["Hero and enemies cannot attack next turn; minions are not affected"], "st": [[["equalize"]]]},
+    {"n": "Ethereal Cloak", "lv": 3, "c": 2, "slot": "E", "cls": "necro", "txt": ["Gain 9 Shield. If in Dark Lord Form, double your Shield"], "st": [[["gain", "shield", 9], ["dl_double_shield"]]]},
+    {"n": "Everlasting Servitude", "lv": 3, "c": 2, "slot": "E", "cls": "necro", "txt": ["Deal 12 damage to an enemy, if it dies this turn, summon a skeleton at the start of your next battle"], "st": [[["damage_skelnext", 12]]]},
+    {"n": "Everlasting night", "lv": 3, "c": 2, "slot": "E", "cls": "necro", "txt": ["Gain 3 Darkness at the start of each turn for the rest of the battle"], "st": [[["recurring", [["gain", "darkness", 3]], 99]]]},
+    {"n": "Evil protection", "lv": 3, "c": 2, "slot": "E", "cls": "necro", "txt": ["Gain 5 Shield for each different debuff on each enemy"], "st": [[["gain_per_enemy_debuff", "shield", 5]]]},
+    {"n": "Famished", "lv": 3, "c": 1, "slot": "F", "cls": "necro", "txt": ["Destroy a Skeleton, permanently gain 4 max health"], "st": [[["sac_skel", [["max_hp", 4]]]]]},
+    {"n": "Fate is yours", "lv": 3, "c": 1, "slot": "F", "cls": "necro", "txt": ["Choose One: Gain 5 Firewall, apply 6 AOE Poison, or apply 4 AOE Weakened"], "st": [[["choose", "pick", [[["apply", "burn", 5, false]], [["apply", "poison", 6, true]], [["apply", "weaken", 4, true]]]]]]},
+    {"n": "Fiend", "lv": 3, "c": 2, "slot": "F", "cls": "necro", "txt": ["Deal 3 Damage with lifesteal", "Deal 8 Damage with lifesteal"], "st": [[["damage_ls", 3, false, 1]], [["damage_ls", 8, false, 1]]]},
+    {"n": "Fishing in the Underworld", "lv": 3, "c": 2, "slot": "F", "cls": "necro", "txt": ["Summon a Skeleton"], "st": [[["summon_skel", 1]]]},
+    {"n": "Flow of Power", "lv": 3, "c": 2, "slot": "F", "cls": "necro", "txt": ["Deal 2 Damage, gain Darkness equal to the damage dealt", "Deal 7 Damage, gain Darkness equal to the damage dealt"], "st": [[["damage_gain_darkness", 2]], [["damage_gain_darkness", 7]]]},
+    {"n": "Forced March", "lv": 3, "c": 3, "slot": "F", "cls": "necro", "txt": ["Charge all other chords by 1. Take 1 damage for each affected chord"], "st": [[["charge_all_selfdmg", 1, 1]]]},
+    {"n": "Forced efficiency", "lv": 3, "c": 2, "slot": "F", "cls": "necro", "txt": ["Charge 1 random chords by 1", "Charge 4 random chords by 1"], "st": [[["charge_random", 1, 1]], [["charge_random", 4, 1]]]},
+    {"n": "Fully committed", "lv": 3, "c": 2, "slot": "F", "cls": "necro", "txt": ["Take 2 damage, apply 7 AOE Weakened", "Take 2 damage, apply 7 AOE Weakened. Apply 7 AOE Exposed"], "st": [[["self_damage", 2], ["apply", "weaken", 7, true]], [["self_damage", 2], ["apply", "weaken", 7, true], ["apply", "exposed", 7, true]]]},
+    {"n": "Gamble with Life", "lv": 3, "c": 2, "slot": "G", "cls": "necro", "txt": ["50% chance to lose 2 health or gain 20 Shield"], "st": [[["pct_choice", 50, [["self_damage", 2]], [["gain", "shield", 20]]]]]},
+    {"n": "Gang fight", "lv": 3, "c": 1, "slot": "G", "cls": "necro", "txt": ["Take 1 damage per active minion and deal 10 Damage to a random enemy for each"], "st": [[["self_damage_per_minion", 1], ["dmg_per_minion_rand", 10]]]},
+    {"n": "Gateway to the Hereafter", "lv": 3, "c": 2, "slot": "G", "cls": "necro", "txt": ["Take 1 damage, summon a Skeleton"], "st": [[["self_damage", 1], ["summon_skel", 1]]]},
+    {"n": "Ghost", "lv": 3, "c": 3, "slot": "G", "cls": "necro", "txt": ["Minion. Grants 30% damage reduction, +5% each replay (max 70%)"], "st": [[["summon", [["m_dmgred", 30]]], ["replay_add", "dmgred", 5]]]},
+    {"n": "Ghostly Shield", "lv": 3, "c": 2, "slot": "G", "cls": "necro", "txt": ["Gain 3 Shield", "Gain 9 Shield. Gain 4 Darkness"], "st": [[["gain", "shield", 3]], [["gain", "shield", 9], ["gain", "darkness", 4]]]},
+    {"n": "Growth from adversity", "lv": 3, "c": 2, "slot": "G", "cls": "necro", "txt": ["Until the start of your next turn, gain 6 Darkness each time you take damage"], "st": [[["gfa_arm", 6]]]},
+    {"n": "X Upgrade: Darkness", "lv": 3, "c": 1, "slot": "X", "cls": "necro", "txt": ["After this chord is played 12 times, remove it and gain 10 Darkness on the second turn of each battle (0/12)"], "st": []},
+    {"n": "X Upgrade: Skeleton", "lv": 3, "c": 1, "slot": "X", "cls": "necro", "txt": ["If this chord is played 12 times, remove it and start each battle with 2 Skeletons (0/12)"], "st": []},
+    {"n": "X Upgrade: Well Trained Minions", "lv": 3, "c": 1, "slot": "X", "cls": "necro", "txt": ["After this is played 12 times, remove it and permanently give all your minions +1 attack"], "st": []},
+    {"n": "A Pinch Of This...", "lv": 3, "c": 2, "slot": "A", "cls": "rogue", "txt": ["Deal 2 Damage and gain 2 Shield. Fully Charge whenever you apply a debuff", "Deal 5 Damage and gain 5 Shield. Fully Charge whenever you apply a debuff"], "st": [[["damage", 2, false, 1], ["gain", "shield", 2], ["self_full_on_debuff"]], [["damage", 5, false, 1], ["gain", "shield", 5], ["self_full_on_debuff"]]]},
+    {"n": "Additive Effect", "lv": 3, "c": 1, "slot": "A", "cls": "rogue", "txt": ["Gain 3 Strength this turn for each debuff on your enemies"], "st": [[["str_per_enemy_debuff", 3]]]},
+    {"n": "Again!", "lv": 3, "c": 2, "slot": "A", "cls": "rogue", "txt": ["Deal 2 Damage 4 times", "Deal 2 Damage 4 times. Gain 7 Discipline"], "st": [[["damage", 2, false, 4]], [["damage", 2, false, 4], ["gain", "discipline", 7]]]},
+    {"n": "Aggressive Learning", "lv": 3, "c": 1, "slot": "A", "cls": "rogue", "txt": ["Deal 4 AOE Damage. Gain 1 discipline for each damage dealt"], "st": [[["damage", 4, true, 1], ["flag", "on_damage_discipline", 1]]]},
+    {"n": "Ambivalent Planning", "lv": 3, "c": 1, "slot": "A", "cls": "rogue", "txt": ["50% chance to gain 11 Strength this turn, or apply 2 Blind to yourself"], "st": [[["pct_choice", 50, [["temp_strength", 11]], [["gain", "blind", 2]]]]]},
+    {"n": "Ample Arsenic", "lv": 3, "c": 2, "slot": "A", "cls": "rogue", "txt": ["Apply 1 poison to an enemy. Double the amount each time this is played", "Apply 4 poison to an enemy. Double the amount each time this is played"], "st": [[["apply", "poison", 1, false], ["self_amp_double"]], [["apply", "poison", 4, false], ["self_amp_double"]]]},
+    {"n": "Apothecary", "lv": 3, "c": 1, "slot": "A", "cls": "rogue", "txt": ["This turn, Gain 1 Firewall for every 1 Poison you inflict, and vice versa"], "st": [[["flag", "mirror_status", 1]]]},
+    {"n": "Barn Door", "lv": 3, "c": 2, "slot": "B", "cls": "rogue", "txt": ["Apply 3 Blind and 1 Blind for each time this chord was played this battle (max 5)"], "st": [[["blind_per_play", 3, 1, 5]]]},
+    {"n": "Battering Ram", "lv": 3, "c": 5, "slot": "B", "cls": "rogue", "txt": ["Deal 2 AOE Damage twice", "Deal 4 AOE Damage twice", "Deal 8 AOE Damage twice", "Deal 12 AOE Damage twice", "Deal 17 AOE Damage twice"], "st": [[["damage", 2, true, 2]], [["damage", 4, true, 2]], [["damage", 8, true, 2]], [["damage", 12, true, 2]], [["damage", 17, true, 2]]]},
+    {"n": "Bigger Shurikens", "lv": 3, "c": 2, "slot": "B", "cls": "rogue", "txt": ["Gain 2 Discipline", "Gain 5 Discipline. Add 3 Damage to your Stealth Form Shuriken attack this battle"], "st": [[["gain", "discipline", 2]], [["gain", "discipline", 5], ["shuriken_bonus", 3]]]},
+    {"n": "Blade of Venom", "lv": 3, "c": 2, "slot": "B", "cls": "rogue", "txt": ["Deal 3 damage, apply 1 poison", "Deal 9 damage, apply 2 poison"], "st": [[["damage", 3, false, 1], ["apply", "poison", 1, false]], [["damage", 9, false, 1], ["apply", "poison", 2, false]]]},
+    {"n": "Block and Learn", "lv": 3, "c": 2, "slot": "B", "cls": "rogue", "txt": ["Gain 3 Shield and 2 Discipline", "Gain 9 Shield and 7 Discipline"], "st": [[["gain", "shield", 3], ["gain", "discipline", 2]], [["gain", "shield", 9], ["gain", "discipline", 7]]]},
+    {"n": "Burning Blades", "lv": 3, "c": 2, "slot": "B", "cls": "rogue", "txt": ["Your attacks Gain 3 Firewall this turn", "Your attacks Gain 6 Firewall this turn"], "st": [[["flag", "attack_burn_turn", 3]], [["flag", "attack_burn_turn", 6]]]},
+    {"n": "Burning Knowledge", "lv": 3, "c": 2, "slot": "B", "cls": "rogue", "txt": ["Gain 1 Firewall to an enemy for each point of Discipline you currently have"], "st": [[["burn_per_discipline", 1]]]},
+    {"n": "Cabaret", "lv": 3, "c": 2, "slot": "C", "cls": "rogue", "txt": ["Apply 3 AOE Blind", "Apply 7 AOE Blind. Gain 2 Gold"], "st": [[["apply", "blind", 3, true]], [["apply", "blind", 7, true], ["gain", "gold", 2]]]},
+    {"n": "Can't touch this", "lv": 3, "c": 2, "slot": "C", "cls": "rogue", "txt": ["Gain 1 Shield and 4 Dodge", "Gain 10 Shield and 4 Dodge"], "st": [[["gain", "shield", 4], ["gain", "dodge", 1]], [["gain", "shield", 10], ["gain", "dodge", 4]]]},
+    {"n": "Celestial Pegasus", "lv": 3, "c": 1, "slot": "C", "cls": "rogue", "txt": ["Minion. Deals 12 AOE damage on summoning. Apply 3 Dodge per turn. Replay to deal 12 AOE Damage"], "st": [[["summon", [["m_burst", 12], ["m_dodge", 3]]], ["replay_ops", [["damage", 12, true, 1]]]]]},
+    {"n": "Chu Ko Nu", "lv": 3, "c": 2, "slot": "C", "cls": "rogue", "txt": ["Deal 2 Damage 4 times. Add 1 more attack for this battle"], "st": [[["damage", 2, false, 4], ["self_times_grow", 1]]]},
+    {"n": "Coat it All", "lv": 3, "c": 2, "slot": "C", "cls": "rogue", "txt": ["All attacks this battle apply 4 Poison. Replaying adds 4 poison"], "st": [[["flag", "attack_poison_battle", 4], ["replay_add", "poison", 4]]]},
+    {"n": "Coated shield", "lv": 3, "c": 2, "slot": "C", "cls": "rogue", "txt": ["Gain 1 Shield, apply 3 Poison to the front enemy", "Gain 8 Shield, apply 3 Poison to the front enemy"], "st": [[["gain", "shield", 3], ["apply", "poison", 1, false]], [["gain", "shield", 8], ["apply", "poison", 3, false]]]},
+    {"n": "Crowd Control", "lv": 3, "c": 2, "slot": "C", "cls": "rogue", "txt": ["Deal 3 AOE Damage", "Deal 9 AOE Damage"], "st": [[["damage", 3, true, 1]], [["damage", 9, true, 1]]]},
+    {"n": "Dagger Spray", "lv": 3, "c": 2, "slot": "D", "cls": "rogue", "txt": ["—", "Every time you deal damage this turn, deal 4 AOE Damage"], "st": [[], [["flag", "on_damage_aoe_turn", 4]]]},
+    {"n": "Dart storm", "lv": 3, "c": 2, "slot": "D", "cls": "rogue", "txt": ["Apply 3 Poison 4 times"], "st": [[["apply", "poison", 3, false], ["apply", "poison", 3, false], ["apply", "poison", 3, false], ["apply", "poison", 3, false]]]},
+    {"n": "Dice Roll", "lv": 3, "c": 1, "slot": "D", "cls": "rogue", "txt": ["Fully charge and play a random chord"], "st": [[["charge_all_one"]]]},
+    {"n": "Dig Deep", "lv": 3, "c": 2, "slot": "D", "cls": "rogue", "txt": ["After 4 turns, deal 16 AOE Damage each turn this battle. Replay to add 2 damage (Gain 2 Strength)"], "st": [[["recurring_delayed", [["damage", 16, true, 1]], 4], ["replay_add", "damage", 2]]]},
+    {"n": "Discipline", "lv": 3, "c": 2, "slot": "D", "cls": "rogue", "txt": ["Gain 4 discipline", "Gain 12 discipline"], "st": [[["gain", "discipline", 4]], [["gain", "discipline", 12]]]},
+    {"n": "Dungeon Master", "lv": 3, "c": 1, "slot": "D", "cls": "rogue", "txt": ["Gain 4 Shield for every fully charged chord"], "st": [[["shield_per_special", 4, "fully charged chord"]]]},
+    {"n": "Early symptoms", "lv": 3, "c": 3, "slot": "E", "cls": "rogue", "txt": ["Apply 1 Poison", "Apply 3 Poison", "Apply 6 Poison. Trigger an enemies Poison twice"], "st": [[["apply", "poison", 1, false]], [["apply", "poison", 3, false]], [["apply", "poison", 6, false], ["trigger_poison"], ["trigger_poison"]]]},
+    {"n": "Elusiveness", "lv": 3, "c": 2, "slot": "E", "cls": "rogue", "txt": ["Gain 4 Discipline every time an enemy attacks this turn"], "st": [[["flag", "on_enemy_attack_discipline", 4]]]},
+    {"n": "Engineering", "lv": 3, "c": 4, "slot": "E", "cls": "rogue", "txt": ["Deal 5 Damage", "Deal 12 Damage", "Deal 18 Damage", "Deal 25 Damage. Lower full charge by 1"], "st": [[["damage", 5, false, 1]], [["damage", 12, false, 1]], [["damage", 18, false, 1]], [["damage", 25, false, 1], ["reduce_own_charge", 1]]]},
+    {"n": "Enhancements", "lv": 3, "c": 2, "slot": "E", "cls": "rogue", "txt": ["Gain 2 Strength", "Gain 2 Strength and 5 Dodge"], "st": [[["gain", "strength", 2]], [["gain", "strength", 2], ["gain", "dodge", 5]]]},
+    {"n": "Equal opportunity", "lv": 3, "c": 2, "slot": "E", "cls": "rogue", "txt": ["Gain 2 Firewall and 2 Poison", "Gain 7 Firewall and 7 Poison"], "st": [[["apply", "burn", 2, false], ["apply", "poison", 2, false]], [["apply", "burn", 7, false], ["apply", "poison", 7, false]]]},
+    {"n": "Evasive maneuvering", "lv": 3, "c": 2, "slot": "E", "cls": "rogue", "txt": ["Gain 2 Dodge. Deal 2 Damage every time you dodge an attack this turn", "Gain 5 Dodge. Deal 5 Damage every time you dodge an attack this turn"], "st": [[["gain", "dodge", 2], ["flag", "on_dodge_damage", 2]], [["gain", "dodge", 5], ["flag", "on_dodge_damage", 5]]]},
+    {"n": "Exponential energy", "lv": 3, "c": 2, "slot": "E", "cls": "rogue", "txt": ["Deal 1 damage 3 times. Add 1 time for each play", "Deal 3 damage 3 times. Add 1 time for each play"], "st": [[["damage", 1, false, 3], ["self_times_grow", 1]], [["damage", 3, false, 3], ["self_times_grow", 1]]]},
+    {"n": "Fast Recovery", "lv": 3, "c": 2, "slot": "F", "cls": "rogue", "txt": ["Charge all other chords by 1"], "st": [[["charge_all", 1]]]},
+    {"n": "Faster!", "lv": 3, "c": 2, "slot": "F", "cls": "rogue", "txt": ["Gain 1 Dodge and 2 Discipline", "Gain 3 Dodge and 7 Discipline"], "st": [[["gain", "dodge", 1], ["gain", "discipline", 2]], [["gain", "dodge", 3], ["gain", "discipline", 7]]]},
+    {"n": "Feint", "lv": 3, "c": 2, "slot": "F", "cls": "rogue", "txt": ["Deal 5 Damage. Gain 1 Dodge", "Deal 13 Damage. Gain 4 Dodge"], "st": [[["damage", 5, false, 1], ["gain", "dodge", 1]], [["damage", 13, false, 1], ["gain", "dodge", 4]]]},
+    {"n": "Final meal", "lv": 3, "c": 2, "slot": "F", "cls": "rogue", "txt": ["Apply 3 Poison", "Apply 8 Poison"], "st": [[["apply", "poison", 3, false]], [["apply", "poison", 8, false]]]},
+    {"n": "Fire Thrower", "lv": 3, "c": 2, "slot": "F", "cls": "rogue", "txt": ["Gain 3 Firewall 3 times. Your Strength effects this card"], "st": [[["burn_str", 3, 3]]]},
+    {"n": "Flabbergast", "lv": 3, "c": 2, "slot": "F", "cls": "rogue", "txt": ["Apply 3 Blind. Deal 2 Damage 4 times"], "st": [[["apply", "blind", 3, false], ["damage", 2, false, 4]]]},
+    {"n": "Flight of Metal", "lv": 3, "c": 2, "slot": "F", "cls": "rogue", "txt": ["Use your Stealth form Shruiken attack on an enemy"], "st": [[["stealth_now"]]]},
+    {"n": "Future Planning", "lv": 3, "c": 2, "slot": "F", "cls": "rogue", "txt": ["Your next attack deals 3 more damage", "Your next attack deals 9 more damage"], "st": [[["gain", "strength", 3]], [["gain", "strength", 9]]]},
+    {"n": "Gadgets", "lv": 3, "c": 2, "slot": "G", "cls": "rogue", "txt": ["Deal 6 Damage", "Deal 6 Damage. Gain 6 Shield and 6 Discipline"], "st": [[["damage", 6, false, 1]], [["damage", 6, false, 1], ["gain", "shield", 6], ["gain", "discipline", 6]]]},
+    {"n": "Gamble with Steel", "lv": 3, "c": 2, "slot": "G", "cls": "rogue", "txt": ["50% chance to add 6, or remove 2 of your Strength"], "st": [[["pct_choice", 50, [["gain", "strength", 6]], [["gain", "strength", -2]]]]]},
+    {"n": "Gas", "lv": 3, "c": 2, "slot": "G", "cls": "rogue", "txt": ["Apply 2 AOE Poison every turn this battle", "Apply 5 AOE Poison every turn this battle"], "st": [[["summon", [["m_apply", "poison", 2, "all"]]]], [["summon", [["m_apply", "poison", 5, "all"]]]]]},
+    {"n": "Getaway", "lv": 3, "c": 2, "slot": "G", "cls": "rogue", "txt": ["Apply 1 Blinded and deal 4 Damage to each attacking enemy", "Apply 3 Blinded and deal 12 Damage to each attacking enemy"], "st": [[["apply", "blind", 1, "attackers"], ["damage", 4, "attackers", 1]], [["apply", "blind", 3, "attackers"], ["damage", 12, "attackers", 1]]]},
+    {"n": "Go for the Eyes", "lv": 3, "c": 2, "slot": "G", "cls": "rogue", "txt": ["Deal 3 Damage and apply 2 Blind", "Deal 9 Damage and apply 5 Blind"], "st": [[["damage", 3, false, 1], ["apply", "blind", 2, false]], [["damage", 9, false, 1], ["apply", "blind", 5, false]]]},
+    {"n": "Guard for Hire", "lv": 3, "c": 2, "slot": "G", "cls": "rogue", "txt": ["Randomly gain between 1 and 24 Shield"], "st": [[["shield_range", 1, 24]]]},
+    {"n": "X Upgrade: Dodger", "lv": 3, "c": 1, "slot": "X", "cls": "rogue", "txt": ["After playing this chord 12 times, remove it and gain 3 permanent Dodge"], "st": []},
+    {"n": "X Upgrade: Fire Mastery", "lv": 3, "c": 2, "slot": "X", "cls": "rogue", "txt": ["After this is played 12 times, remove it and permanently gain 3 extra Firewall every time you gain Firewall"], "st": []},
+    {"n": "X Upgrade: Poison Bomb", "lv": 3, "c": 1, "slot": "X", "cls": "rogue", "txt": ["After this chord is played 12 times, remove it and apply 8 AOE Poison at the start of each battle"], "st": []},
+    {"n": "X Upgrade: Potent Poisons", "lv": 3, "c": 2, "slot": "X", "cls": "rogue", "txt": ["After this is played 12 times, remove it and permanently apply 3 extra Poison every time you inflict Poison"], "st": []},
+    {"n": "X Upgrade: Pure Damage", "lv": 3, "c": 2, "slot": "X", "cls": "rogue", "txt": ["If this chord is played 12 times, permanently gain 3 Strength and remove it (0/12)"], "st": []},
+    {"n": "Candle", "lv": "i1", "c": 2, "slot": "C", "cls": "common", "txt": ["Gain 6 Firewall"], "st": [[["apply", "burn", 6, false]]]},
+    {"n": "Fudge it", "lv": "i1", "c": 4, "slot": "F", "cls": "common", "txt": ["Deal 30 AOE Damage. You can't use any chords next turn"], "st": [[["damage", 30, true, 1], ["flag", "no_chords_next", 1]]]},
+    {"n": "Fudge it", "lv": "i2", "c": 4, "slot": "F", "cls": "common", "txt": ["Deal 40 AOE Damage. You can't use any chords next turn"], "st": [[["damage", 40, true, 1], ["flag", "no_chords_next", 1]]]},
+    {"n": "Famished", "lv": "i1", "c": 3, "slot": "F", "cls": "necro", "txt": ["Destroy a Skeleton, permanently gain 2 max health"], "st": [[["sac_skel", [["max_hp", 2]]]]]},
+    {"n": "Famished", "lv": "i2", "c": 2, "slot": "F", "cls": "necro", "txt": ["Destroy a Skeleton, permanently gain 3 max health"], "st": [[["sac_skel", [["max_hp", 3]]]]]},
+    {"n": "Ethereal Cloak", "lv": "i1", "c": 3, "slot": "E", "cls": "necro", "txt": ["Gain 4 Shield. If in Dark Lord Form, double your Shield"], "st": [[["gain", "shield", 4], ["dl_double_shield"]]]},
+    {"n": "Ethereal Cloak", "lv": "i2", "c": 2, "slot": "E", "cls": "necro", "txt": ["Gain 6 Shield. If in Dark Lord Form, double your Shield"], "st": [[["gain", "shield", 6], ["dl_double_shield"]]]},
+    {"n": "Entropy", "lv": "i1", "c": 2, "slot": "E", "cls": "necro", "txt": ["The next time your Fury unleashes, deal 8 AOE Damage. Stacks"], "st": [[["on_unleash", [["damage", 8, true, 1]]]]]},
+    {"n": "Entropy", "lv": "i2", "c": 2, "slot": "E", "cls": "necro", "txt": ["The next time your Fury unleashes, deal 10 AOE Damage. Stacks"], "st": [[["on_unleash", [["damage", 10, true, 1]]]]]},
+    {"n": "Bigger Shurikens", "lv": "i1", "c": 2, "slot": "B", "cls": "rogue", "txt": ["Gain 1 Discipline", "Gain 3 Discipline. Add 1 Damage to your Stealth Form Shuriken attack this battle"], "st": [[["gain", "discipline", 1]], [["gain", "discipline", 3], ["shuriken_bonus", 1]]]},
+    {"n": "Bigger Shurikens", "lv": "i2", "c": 2, "slot": "B", "cls": "rogue", "txt": ["Gain 1 Discipline", "Gain 4 Discipline. Add 2 Damage to your Stealth Form Shuriken attack this battle"], "st": [[["gain", "discipline", 1]], [["gain", "discipline", 4], ["shuriken_bonus", 2]]]},
+    {"n": "Battering Ram", "lv": "i1", "c": 5, "slot": "B", "cls": "rogue", "txt": ["Deal 1 AOE Damage twice", "Deal 3 AOE Damage twice", "Deal 6 AOE Damage twice", "Deal 9 AOE Damage twice", "Deal 13 AOE Damage twice"], "st": [[["damage", 1, true, 2]], [["damage", 3, true, 2]], [["damage", 6, true, 2]], [["damage", 9, true, 2]], [["damage", 13, true, 2]]]},
+    {"n": "Battering Ram", "lv": "i2", "c": 5, "slot": "B", "cls": "rogue", "txt": ["Deal 1 AOE Damage twice", "Deal 4 AOE Damage twice", "Deal 7 AOE Damage twice", "Deal 11 AOE Damage twice", "Deal 15 AOE Damage twice"], "st": [[["damage", 1, true, 2]], [["damage", 4, true, 2]], [["damage", 7, true, 2]], [["damage", 11, true, 2]], [["damage", 15, true, 2]]]},
+    {"n": "Enhancements", "lv": "i1", "c": 2, "slot": "E", "cls": "rogue", "txt": ["Gain 1 Strength", "Gain 1 Strength and 2 Dodge"], "st": [[["gain", "strength", 1]], [["gain", "strength", 1], ["gain", "dodge", 2]]]},
+    {"n": "Enhancements", "lv": "i2", "c": 2, "slot": "E", "cls": "rogue", "txt": ["Gain 1 Strength", "Gain 1 Strength and 4 Dodge"], "st": [[["gain", "strength", 1]], [["gain", "strength", 1], ["gain", "dodge", 4]]]},
+    {"n": "A Pinch Of This...", "lv": "i2", "c": 2, "slot": "A", "cls": "rogue", "txt": ["Deal 1 Damage and gain 1 Shield. Fully Charge whenever you apply a debuff", "Deal 4 Damage and gain 4 Shield. Fully Charge whenever you apply a debuff"], "st": [[["damage", 1, false, 1], ["gain", "shield", 1], ["self_full_on_debuff"]], [["damage", 4, false, 1], ["gain", "shield", 4], ["self_full_on_debuff"]]]},
+    {"n": "Flight of Metal", "lv": "i1", "c": 4, "slot": "F", "cls": "rogue", "txt": ["Use your Stealth form Shruiken attack on an enemy"], "st": [[["stealth_now"]]]},
+    {"n": "Flight of Metal", "lv": "i2", "c": 3, "slot": "F", "cls": "rogue", "txt": ["Use your Stealth form Shruiken attack on an enemy"], "st": [[["stealth_now"]]]},
+    {"n": "X Upgrade: Pure Damage", "lv": "i2", "c": 2, "slot": "X", "cls": "rogue", "txt": ["If this chord is played 12 times, permanently gain 2 Strength and remove it (0/12)"], "st": []},
+    {"n": "X Upgrade: Fire Mastery", "lv": "i2", "c": 2, "slot": "X", "cls": "rogue", "txt": ["After this is played 12 times, remove it and permanently gain 2 extra Firewall every time you gain Firewall"], "st": []},
+];
+ITEM_CARDS.forEach((c) => CARDS.push(c));
 const cardKey = (n, lv) => n + "|" + lv;
 const CARD_BY = {};
 CARDS.forEach((c) => (CARD_BY[cardKey(c.n, c.lv)] = c));
 const EXCLUDED_FROM_POOLS = new Set(["Eldertone"]);
 const L1_POOL = CARDS.filter((c) => c.lv === 1 && !EXCLUDED_FROM_POOLS.has(c.n));
+// ---- Item Test build helpers (second playable version; cards are FOUND at levels, never upgraded) ----
+function itemMode(g) { return !!(g && g.itemMode); }
+function lvNum(lv) { return typeof lv === "string" ? (parseInt(lv.slice(1), 10) || 1) : (lv || 1); }
+function lvMark(lv) { const n = lvNum(lv); return n >= 3 ? "++" : n === 2 ? "+" : ""; }
+function rollItemLv(g) {
+    const w = (ITEM_LV_FREQ[BIOMES[g.biomeIdx || 0]] || ITEM_LV_FREQ.N)[(g.node || 1) <= 4 ? 0 : 1];
+    let r = Math.random() * (w[0] + w[1] + w[2]);
+    if ((r -= w[0]) < 0) return 1;
+    if ((r -= w[1]) < 0) return 2;
+    return 3;
+}
+// def for a card found at level lv in the item build — "i" item variants win; falls back down-level
+function itemDefFor(name, lv) {
+    for (let l = lv; l >= 1; l--) {
+        const d = CARD_BY[cardKey(name, "i" + l)] || CARD_BY[cardKey(name, l)];
+        if (d) return d;
+    }
+    return CARD_BY[cardKey(name, 1)];
+}
+function totemPoolIds(g) { return itemMode(g) ? TOTEM_IDS.filter((id) => id !== "Evasion") : TOTEM_IDS; }
 // ---- Heroes: each defines starting stats, card pools, and a UNIQUE Fury ----
 // furyCharge: what fills the orb · furyFx: what an unleash does
 const HEROES = {
@@ -17403,7 +17765,13 @@ const HEROES = {
         furyDesc: "Icy Shell charges every time he gains Shield. When the orb fills, an Ice Shard crystallizes on its own \u2014 each shard grants +1 Armored while it stands." },
 };
 function heroDef(g) { return HEROES[(g && g.heroId) || "rogue"] || HEROES.rogue; }
-function heroPool(g) { const ps = heroDef(g).pools; return L1_POOL.filter((c) => ps.includes(c.cls)); }
+function heroPool(g) {
+    const ps = heroDef(g).pools;
+    let p = L1_POOL.filter((c) => ps.includes(c.cls));
+    if (itemMode(g)) // item build: only the curated sheet pool, and item ("i1") variants where they exist
+        p = p.filter((c) => ITEM_POOL.has(c.n)).map((c) => itemDefFor(c.n, 1));
+    return p;
+}
 const ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const wpick = (pairs) => {
@@ -20754,7 +21122,7 @@ function playChord(b, g, idx) {
     ctx.executed = [];
     b.playsThisTurn = (b.playsThisTurn || 0) + 1;
     b.lastPlayed = c.name;
-    log(b, "You play " + c.name + (c.lv === 2 ? "+" : "") + " (" + (stageIdx + 1) + "/" + c.stages.length + ").");
+    log(b, "You play " + c.name + lvMark(c.lv) + " (" + (stageIdx + 1) + "/" + c.stages.length + ").");
     let repeats = 1;
     // any shield-granting op counts: gain shield, shield_range, shield_per_special…
     const grantsShield = /"shield/.test(JSON.stringify(ops));
@@ -21712,6 +22080,7 @@ function newGame(opts) {
         slots: { A: null, B: null, C: null, D: null, E: null, F: null, G: null },
         reserves: [null, null],
         relics: [], totems: [], gameMode: opts.gameMode || "relics", boosts: [], transTokens: 0,
+        itemMode: !!opts.itemMode, // Item Test build: found-level cards, no upgrades
         heroId: opts.hero || "rogue",
         perm: { strength: 0, armored: 0, dodge: 0, poisonBomb: 0, counter: 0, poisonBonus: 0, burnBonus: 0, minions: [] },
         seenEvents: [], egg: 0, lastEnc: null, plan: null, event: null, eventWin: null,
@@ -21720,7 +22089,7 @@ function newGame(opts) {
         battleCount: 0,
     };
     opts.deck.forEach((name) => {
-        const c = CARD_BY[cardKey(name, 1)];
+        const c = g.itemMode ? itemDefFor(name, 1) : CARD_BY[cardKey(name, 1)];
         if (c)
             equipCard(g, c, false);
     });
@@ -21854,14 +22223,22 @@ function randomCardChoices(g, n) {
         ...(g.reserves || []).filter(Boolean).map((r) => r.name)]);
     let guard = 0;
     // offered cards roll Level 2: 10% in Nature, +5% per later biome
+    // (item build: the level is rolled from the ITEM_LV_FREQ table instead — Lv1/2/3 by biome + node)
     const lv2Chance = 0.10 + 0.05 * (g.biomeIdx || 0);
     while (out.length < n && guard++ < 200) {
         let c = pick(pool);
         if (seen.has(c.n) || out.some((o) => o.n === c.n))
             continue;
-        const up2 = CARD_BY[cardKey(c.n, 2)];
-        if (up2 && Math.random() < lv2Chance)
-            c = up2;
+        if (itemMode(g)) {
+            const d = itemDefFor(c.n, rollItemLv(g));
+            if (d)
+                c = d;
+        }
+        else {
+            const up2 = CARD_BY[cardKey(c.n, 2)];
+            if (up2 && Math.random() < lv2Chance)
+                c = up2;
+        }
         if (c.slot === "X")
             c = { ...c, slot: pick("ABCDEFG".split("")) }; // X cards get a rolled slot before being shown
         out.push(c);
@@ -21906,6 +22283,8 @@ function battleGoldReward(kind) {
     return ri(51, 70);
 }
 function upgradeTargets(g) {
+    if (itemMode(g))
+        return []; // item build: cards are never upgraded
     return "ABCDEFG".split("").filter((L) => g.slots[L] &&
         ((g.slots[L].lv === 1 && CARD_BY[cardKey(g.slots[L].name, 2)]) || g.slots[L].name === "Enhancements" || g.slots[L].name === "Gaining Steam"));
 }
@@ -21919,6 +22298,8 @@ function upgradeSlot(g, L) {
         s.extraUp = (s.extraUp || 0) + 1; // upgrades infinitely
 }
 function upgradeReserveTargets(g) {
+    if (itemMode(g))
+        return [];
     return [0, 1].filter((i) => g.reserves[i] &&
         ((g.reserves[i].lv === 1 && CARD_BY[cardKey(g.reserves[i].name, 2)]) || g.reserves[i].name === "Enhancements" || g.reserves[i].name === "Gaining Steam"));
 }
@@ -21942,13 +22323,13 @@ function drawRewardOptions(g, n) {
             return false;
         cardCount += 1;
         const occ = c.slot !== "X" ? g.slots[c.slot] : null;
-        opts.push({ def: { t: "card", card: c }, label: "Chord: " + dispName(c.n, c.slot) + (c.lv === 2 ? "+" : "") + " (" + c.slot + ")", sub: c.txt[c.txt.length - 1] + (occ ? " — replaces " + occ.name : "") });
+        opts.push({ def: { t: "card", card: c }, label: "Chord: " + dispName(c.n, c.slot) + lvMark(c.lv) + " (" + c.slot + ")", sub: c.txt[c.txt.length - 1] + (occ ? " — replaces " + occ.name : "") });
         return true;
     };
     while (opts.length < n && guard++ < 200) {
-        const o = totemMode(g)
-            ? wpick(REWARD_POOL.filter((e) => e[1].t !== "relic"))
-            : wpick(REWARD_POOL);
+        const rpool = REWARD_POOL.filter((e) => (!totemMode(g) || e[1].t !== "relic") &&
+            (!itemMode(g) || (e[1].t !== "upcard" && e[1].t !== "uprandom"))); // item build: no upgrade rewards
+        const o = wpick(rpool);
         if (o.t === "card") {
             if (cardCount < n)
                 pushCard();
@@ -22059,7 +22440,7 @@ function gainTotem(g, id) {
 }
 function drawTotemOffer(g) {
     const owned = (g.totems || []).map((t) => t.id);
-    const pool = TOTEM_IDS.filter((id) => !owned.includes(id));
+    const pool = totemPoolIds(g).filter((id) => !owned.includes(id));
     const offer = [];
     while (offer.length < 2 && pool.length)
         offer.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
@@ -22358,7 +22739,7 @@ function bagApplyStages(stages, entry) {
 }
 function makeStore(g, variant) {
     if (variant === "pet_shop") {
-        const minions = CARDS.filter((c) => c.lv === 2 && !XMETA[c.n] && heroDef(g).pools.includes(c.cls) && JSON.stringify(c.st).includes('"summon"'));
+        const minions = CARDS.filter((c) => c.lv === 2 && !XMETA[c.n] && heroDef(g).pools.includes(c.cls) && (!itemMode(g) || ITEM_POOL.has(c.n)) && JSON.stringify(c.st).includes('"summon"'));
         const owned = new Set([...Object.values(g.slots).filter(Boolean).map((s) => s.name),
             ...(g.reserves || []).filter(Boolean).map((r) => r.name)]);
         const cards = [];
@@ -22367,12 +22748,17 @@ function makeStore(g, variant) {
             const c = pick(minions);
             if (!c || owned.has(c.n) || cards.some((x) => x.card.n === c.n))
                 continue;
-            cards.push({ card: c, cost: 20 });
+            let cd = c, cost = 20;
+            if (itemMode(g)) { // pet shop stays premium: found level is at least 2
+                cd = itemDefFor(c.n, Math.max(2, rollItemLv(g))) || c;
+                cost = 20 + (lvNum(cd.lv) >= 3 ? 10 : 0);
+            }
+            cards.push({ card: cd, cost });
         }
         return { title: "Pet Shop", cards, relics: [], items: [], variant };
     }
     if (variant === "thrift_cards") {
-        return { title: "Thrift Shop", cards: randomCardChoices(g, 4).map((c) => ({ card: c, cost: c.lv === 2 ? 37 : 17 })), relics: [], items: [], variant };
+        return { title: "Thrift Shop", cards: randomCardChoices(g, 4).map((c) => ({ card: c, cost: 17 + 20 * (lvNum(c.lv) - 1) })), relics: [], items: [], variant };
     }
     if (variant === "thrift_fury") {
         return { title: "Thrift Shop", cards: [], relics: [], variant,
@@ -22394,12 +22780,13 @@ function makeStore(g, variant) {
     const fullSecs = ["armory", "daily", "care"];
     const secList = full ? fullSecs : [pick(fullSecs)];
     const cards = secList.includes("armory")
-        ? randomCardChoices(g, 4).map((c) => ({ card: c, cost: c.lv === 2 ? 70 : 50, sec: "armory" }))
+        ? randomCardChoices(g, 4).map((c) => ({ card: c, cost: 50 + 20 * (lvNum(c.lv) - 1), sec: "armory" }))
         : [];
     const items = [];
     if (secList.includes("armory")) {
         items.push({ t: "transmuter", cost: 80, sec: "armory" });
-        items.push({ t: "upcard", cost: 90, sec: "armory" });
+        if (!itemMode(g)) // item build: no card upgrades for sale
+            items.push({ t: "upcard", cost: 90, sec: "armory" });
     }
     if (secList.includes("daily")) {
         const deals = [];
@@ -22408,7 +22795,7 @@ function makeStore(g, variant) {
         if (totemMode(g)) {
             if ((g.totems || []).some((t) => t.lv < 5))
                 deals.push({ t: "totemUp", cost: 295, sec: "daily" });
-            if ((g.totems || []).length < 3 && TOTEM_IDS.some((id) => !(g.totems || []).some((t) => t.id === id)))
+            if ((g.totems || []).length < 3 && totemPoolIds(g).some((id) => !(g.totems || []).some((t) => t.id === id)))
                 deals.push({ t: "totemNew", cost: 280, sec: "daily" });
         }
         if (deals.length)
@@ -22676,6 +23063,7 @@ const CSS = `
 .cf.cls-x{animation:xShimmer 2.6s linear infinite}
 @keyframes xShimmer{0%{border-color:#9a9a9a;box-shadow:0 0 6px rgba(255,215,106,.25)}33%{border-color:#ffd76a;box-shadow:0 0 9px rgba(255,215,106,.5)}66%{border-color:#b620ff;box-shadow:0 0 9px rgba(182,32,255,.45)}100%{border-color:#9a9a9a;box-shadow:0 0 6px rgba(255,215,106,.25)}}
 .cf.lv2{outline:1px solid rgba(255,215,106,.6);outline-offset:-3px}
+.cf.lv3{outline:2px double rgba(255,215,106,.95);outline-offset:-3px;box-shadow:0 0 7px rgba(255,215,106,.35)}
 .et-biome-R .et-scenebg{filter:hue-rotate(85deg) saturate(.75) brightness(.88)}
 .et-biome-F .et-scenebg{filter:hue-rotate(-25deg) saturate(1.25) sepia(.25) brightness(.95)}
 .et-biome-I .et-scenebg{filter:hue-rotate(150deg) saturate(.65) brightness(1.12)}
@@ -23383,7 +23771,7 @@ function CardFace({ name, slot, lv, rows, activeIdx, extra, footer, onClick, rea
     const baseName = String(name).replace(/[\s✦🎵🔥]+$/u, "");
     const cCls = (CARD_BY[cardKey(baseName, lv)] || CARD_BY[cardKey(baseName, 1)] || {}).cls;
     const isX = /^(★ )?X /.test(String(name)); // X-cards shimmer instead of the grey fallback
-    return (React.createElement("div", { className: "cf " + (cCls ? "cls-" + cCls + " " : "") + (isX ? "cls-x " : "") + (lv === 2 ? "lv2 " : "") + (ready ? "ready " : "") + (locked ? "locked" : ""), onClick: onClick, style: style },
+    return (React.createElement("div", { className: "cf " + (cCls ? "cls-" + cCls + " " : "") + (isX ? "cls-x " : "") + (lvNum(lv) >= 3 ? "lv3 " : lvNum(lv) === 2 ? "lv2 " : "") + (ready ? "ready " : "") + (locked ? "locked" : ""), onClick: onClick, style: style },
         ring && React.createElement("span", { className: "cf-ring" },
             React.createElement(ChargeRing, { charge: ring.charge, max: ring.max })),
         fx && React.createElement("div", { key: "fx" + fx.seq, className: "cf-fx " + fx.k },
@@ -23404,7 +23792,7 @@ function CardFace({ name, slot, lv, rows, activeIdx, extra, footer, onClick, rea
             bagSlots && React.createElement("span", { className: "cf-bagslot" + (bagSlots[0] ? " filled" : "") }, React.createElement(BagSlotIcon, { k: bagSlots[0] })),
             React.createElement("h4", null,
                 name,
-                lv === 2 ? "+" : ""),
+                lvMark(lv)),
             bagSlots && React.createElement("span", { className: "cf-bagslot" + (bagSlots[1] ? " filled" : "") }, React.createElement(BagSlotIcon, { k: bagSlots[1] }))),
         (() => { const a = cardArt(baseName, lv); return React.createElement("div", { className: "cf-art", style: { background: "linear-gradient(180deg,hsl(" + a.h + ",30%,30%),hsl(" + a.h + ",28%,15%))" } }, a.e); })(),
         React.createElement("div", { className: "cf-rows" }, rows.map((r, i) => (React.createElement("div", { key: i, className: "cf-row " + (i === activeIdx ? "active" : i > (activeIdx == null ? -1 : activeIdx) ? "next" : "") }, r)))),
@@ -25891,7 +26279,7 @@ const BOT = {
             const deck = [];
             for (const L of "ABCDEFG")
                 if (g.slots[L])
-                    deck.push(dispName(g.slots[L].name, L) + (g.slots[L].lv === 2 ? "+" : ""));
+                    deck.push(dispName(g.slots[L].name, L) + lvMark(g.slots[L].lv));
             (ST.winDecks = ST.winDecks || []).push({ deck,
                 totems: (g.totems || []).map((t) => t.id + " L" + t.lv),
                 persona: g.__persona || null });
@@ -25944,7 +26332,7 @@ const BOT = {
             e.maxLv = Math.max(e.maxLv, lv); };
         for (const L of "ABCDEFG")
             if (g.slots[L])
-                touch(ST.cards, dispName(g.slots[L].name, L) + (g.slots[L].lv === 2 ? "+" : ""));
+                touch(ST.cards, dispName(g.slots[L].name, L) + lvMark(g.slots[L].lv));
         for (const t of (g.totems || []))
             touch(ST.totems, t.id, t.lv);
         for (const id of (g.relics || []))
@@ -26265,7 +26653,7 @@ const BOT = {
                     }
                     return;
                 } if (t === "totemNew") {
-                    const unowned = TOTEM_IDS.filter((id) => !(g.totems || []).some((x) => x.id === id));
+                    const unowned = totemPoolIds(g).filter((id) => !(g.totems || []).some((x) => x.id === id));
                     if (unowned.length && (g.totems || []).length < 3) {
                         g.gold -= P(it.cost);
                         const nid = unowned.sort((a, b2) => BOT.totemOfferScore(g, b2) - BOT.totemOfferScore(g, a))[0];
@@ -26373,7 +26761,7 @@ const BOT = {
     simRunOne(menuCfg, ST, cfg) {
         BOT.__simming = true;
         try {
-            let g = newGame({ maxHp: menuCfg.maxHp, furyMax: menuCfg.furyMax, deck: menuCfg.deck, gameMode: menuCfg.gameMode, hero: menuCfg.hero });
+            let g = newGame({ maxHp: menuCfg.maxHp, furyMax: menuCfg.furyMax, deck: menuCfg.deck, gameMode: menuCfg.gameMode, hero: menuCfg.hero, itemMode: menuCfg.itemMode });
             let steps = 0;
             const inject = menuCfg.inject ? { atScore: menuCfg.inject.atScore, cards: menuCfg.inject.cards, done: false } : null;
             while (g && steps++ < 3000) {
@@ -26685,11 +27073,12 @@ function EldertoneInner() {
     const [showDeck, setShowDeck] = useState(false);
     const [showMap, setShowMap] = useState(false);
     const [heroSel, setHeroSel] = useState("rogue");
+    const [verSel, setVerSel] = useState("classic"); // game version: classic run or the Item Test build
     const [maxHp, setMaxHp] = useState(75);
     const [furyMax, setFuryMax] = useState(7);
     const heroSelDef = HEROES[heroSel] || { name: "Random", pools: ["common", "rogue", "necro", "ice"],
         furyDesc: "A random hero — health, Fury and starting chords are rolled fresh when the run begins." };
-    const startNames = useMemo(() => Array.from(new Set(L1_POOL.filter((c) => heroSelDef.pools.includes(c.cls)).map((c) => c.n))).sort(), [heroSel]);
+    const startNames = useMemo(() => Array.from(new Set(L1_POOL.filter((c) => heroSelDef.pools.includes(c.cls) && (verSel !== "item" || ITEM_POOL.has(c.n))).map((c) => c.n))).sort(), [heroSel, verSel]);
     const [d1, setD1] = useState("Feint");
     const [d2, setD2] = useState("Attack");
     const [d3, setD3] = useState("Defend");
@@ -26706,7 +27095,7 @@ function EldertoneInner() {
     };
     const randomizeDeck = () => {
         // pick 3 random starting chords, preferring 3 different slots so none start benched
-        const shuffled = L1_POOL.filter((c) => heroSelDef.pools.includes(c.cls)).sort(() => Math.random() - 0.5);
+        const shuffled = L1_POOL.filter((c) => heroSelDef.pools.includes(c.cls) && (verSel !== "item" || ITEM_POOL.has(c.n))).sort(() => Math.random() - 0.5);
         const picked = [];
         const slotsUsed = new Set();
         for (const c of shuffled) {
@@ -26721,7 +27110,7 @@ function EldertoneInner() {
             picked.push(c);
         }
         while (picked.length < 3)
-            picked.push(pick(L1_POOL.filter((c) => heroSelDef.pools.includes(c.cls))));
+            picked.push(pick(L1_POOL.filter((c) => heroSelDef.pools.includes(c.cls) && (verSel !== "item" || ITEM_POOL.has(c.n)))));
         setD1(picked[0].n);
         setD2(picked[1].n);
         setD3(picked[2].n);
@@ -26826,7 +27215,7 @@ function EldertoneInner() {
             window.__eldertoneTestOpts = (testBiome > 0 || testArena || anySlot || tt.length) ? { biome: testBiome, arena: testArena, slots: sl, totems: tt } : null;
     }
     const botCfgRef = useRef({});
-    botCfgRef.current = { maxHp, furyMax, deck: [d1, d2, d3], gameMode: LOCKED_MODE || gameModeSel, hero: heroSel };
+    botCfgRef.current = { maxHp, furyMax, deck: [d1, d2, d3], gameMode: LOCKED_MODE || gameModeSel, hero: heroSel, itemMode: verSel === "item" };
     const botStateRef = useRef({ mode: "off", step: false, speed: 350, runs: 0, wins: 0, losses: 0, lastNode: 0, actions: 0, timer: null });
     useEffect(() => {
         if (!botEnabled)
@@ -26838,7 +27227,7 @@ function EldertoneInner() {
             // start / loop new runs automatically
             if (!g) {
                 const cf = botCfgRef.current;
-                const ng = newGame({ maxHp: cf.maxHp, furyMax: cf.furyMax, deck: cf.deck, gameMode: cf.gameMode, hero: cf.hero });
+                const ng = newGame({ maxHp: cf.maxHp, furyMax: cf.furyMax, deck: cf.deck, gameMode: cf.gameMode, hero: cf.hero, itemMode: cf.itemMode });
                 logDecision(ng, "run_start", { deck: cf.deck, maxHp: cf.maxHp, furyMax: cf.furyMax, gameMode: ng.gameMode });
                 S.actions = 0;
                 setGame(ng);
@@ -27170,7 +27559,7 @@ function EldertoneInner() {
                     }
                     return;
                 } if (t === "totemNew") {
-                    const unowned = TOTEM_IDS.filter((id) => !(g.totems || []).some((x) => x.id === id));
+                    const unowned = totemPoolIds(g).filter((id) => !(g.totems || []).some((x) => x.id === id));
                     if (unowned.length && (g.totems || []).length < 3) {
                         g.gold -= P(it.cost);
                         const nid = unowned.sort((a, b2) => BOT.totemOfferScore(g, b2) - BOT.totemOfferScore(g, a))[0];
@@ -27626,6 +28015,12 @@ function EldertoneInner() {
                     React.createElement("select", { value: heroSel, onChange: (e) => pickHero(e.target.value) }, [...Object.keys(HEROES).map((h) => React.createElement("option", { key: h, value: h }, HEROES[h].name)), React.createElement("option", { key: "random", value: "random" }, "🎲 Random")])),
                 React.createElement("div", { className: "et-note", style: { fontSize: 11.5, margin: "2px 0 6px" } }, heroSelDef.furyDesc),
                 React.createElement("div", { className: "et-field" },
+                    React.createElement("label", null, "Version"),
+                    React.createElement("select", { value: verSel, onChange: (e) => setVerSel(e.target.value) },
+                        React.createElement("option", { value: "classic" }, "Classic"),
+                        React.createElement("option", { value: "item" }, "Item Test"))),
+                verSel === "item" ? React.createElement("div", { className: "et-note", style: { fontSize: 11.5, margin: "2px 0 6px" } }, "Item Test: chords are FOUND at Level 1–3 (deeper biomes find higher levels) and can never be upgraded. Grab Bags still buff cards. No Evasion totem in this build.") : null,
+                React.createElement("div", { className: "et-field" },
                     React.createElement("label", null, "Max health"),
                     React.createElement("input", { type: "number", value: maxHp, onChange: (e) => setMaxHp(+e.target.value || 75) })),
                 React.createElement("div", { className: "et-field" },
@@ -27709,7 +28104,7 @@ function EldertoneInner() {
                                 "\u26a1",
                                 " simulations. Single battle jumps straight into the chosen fight and the run ends when it does.")))),
                     React.createElement("button", { className: "et-btn", onClick: () => {
-                            const ng = newGame({ maxHp, furyMax, deck: [d1, d2, d3], gameMode: LOCKED_MODE || gameModeSel, hero: heroSel });
+                            const ng = newGame({ maxHp, furyMax, deck: [d1, d2, d3], gameMode: LOCKED_MODE || gameModeSel, hero: heroSel, itemMode: verSel === "item" });
                             logDecision(ng, "run_start", { deck: [d1, d2, d3], maxHp, furyMax, gameMode: ng.gameMode, hero: heroSel });
                             setGame(ng);
                         } }, "Begin the run"),
@@ -28088,7 +28483,7 @@ function EldertoneInner() {
             })),
             React.createElement("div", { className: "et-note" },
                 "Chords: ",
-                "ABCDEFG".split("").filter((L) => g.slots[L]).map((L) => L + ": " + dispName(g.slots[L].name, L) + (g.slots[L].lv === 2 ? "+" : "")).join(" · ") || "none"),
+                "ABCDEFG".split("").filter((L) => g.slots[L]).map((L) => L + ": " + dispName(g.slots[L].name, L) + lvMark(g.slots[L].lv)).join(" · ") || "none"),
             Object.keys(g.perm).some((k) => g.perm[k] > 0) && (React.createElement("div", { className: "et-note", style: { color: "#c9a24b" } },
                 "Mastered: ",
                 Object.keys(g.perm).filter((k) => g.perm[k] > 0).map((k) => k + " +" + g.perm[k]).join(" · "))),
@@ -28448,7 +28843,7 @@ function EldertoneInner() {
                     "ABCDEFG".split("").filter((k) => g.slots[k] && k !== L).map((k) => (React.createElement("div", { key: k, className: "et-panel et-pick", style: { cursor: "pointer" }, onClick: () => mut((g) => { doTransmute(g, k, L); done(g); }) },
                         React.createElement("h4", null,
                             dispName(g.slots[k].name, k),
-                            g.slots[k].lv === 2 ? "+" : "",
+                            lvMark(g.slots[k].lv),
                             " ",
                             React.createElement("span", { style: { color: "#8d6d2c" } },
                                 "(",
@@ -28459,7 +28854,7 @@ function EldertoneInner() {
                     g.reserves.map((r, ri) => r && (React.createElement("div", { key: "r" + ri, className: "et-panel et-pick", style: { cursor: "pointer" }, onClick: () => mut((g) => { reserveToSlot(g, ri, L); done(g); }) },
                         React.createElement("h4", null,
                             dispName(r.name, L),
-                            r.lv === 2 ? "+" : "",
+                            lvMark(r.lv),
                             " ",
                             React.createElement("span", { style: { color: "#8d6d2c" } },
                                 "(reserve \u2192 ",
@@ -28479,7 +28874,7 @@ function EldertoneInner() {
                 !fromL && "ABCDEFG".split("").filter((k) => g.slots[k]).map((k) => (React.createElement("div", { key: k, className: "et-panel et-pick", style: { cursor: "pointer" }, onClick: () => mut((g) => (g.transFrom = k)) },
                     React.createElement("h4", null,
                         dispName(g.slots[k].name, k),
-                        g.slots[k].lv === 2 ? "+" : "",
+                        lvMark(g.slots[k].lv),
                         " ",
                         React.createElement("span", { style: { color: "#8d6d2c" } },
                             "(",
@@ -28488,7 +28883,7 @@ function EldertoneInner() {
                 !fromL && g.reserves.map((r, ri) => r && (React.createElement("div", { key: "r" + ri, className: "et-panel et-pick", style: { cursor: "pointer" }, onClick: () => mut((g) => (g.transFrom = "R" + ri)) },
                     React.createElement("h4", null,
                         dispName(r.name, r.slot),
-                        r.lv === 2 ? "+" : "",
+                        lvMark(r.lv),
                         " ",
                         React.createElement("span", { style: { color: "#8d6d2c" } }, "(reserve)"))))),
                 fromL && "ABCDEFG".split("").filter((k) => k !== fromL).map((k) => (React.createElement("div", { key: k, className: "et-panel et-pick", style: { cursor: "pointer" }, onClick: () => mut((g) => {
@@ -28781,7 +29176,7 @@ function EldertoneInner() {
                         }) },
                         React.createElement("h4", null, "\u{1F5FF} " + t.id + " L" + t.lv + " → L" + (t.lv + 1)),
                         React.createElement("div", { className: "fx" }, totemDesc(t.id, t.lv + 1)))))
-                    : TOTEM_IDS.filter((id) => !(g.totems || []).some((t) => t.id === id)).map((id) => (React.createElement("div", { key: id, className: "et-panel et-pick", style: { cursor: "pointer", borderColor: "#8a6d3b" }, onClick: () => mut((g) => {
+                    : totemPoolIds(g).filter((id) => !(g.totems || []).some((t) => t.id === id)).map((id) => (React.createElement("div", { key: id, className: "et-panel et-pick", style: { cursor: "pointer", borderColor: "#8a6d3b" }, onClick: () => mut((g) => {
                             const pk = g.store.totemPick;
                             if (!pk || g.gold < pk.cost || (g.totems || []).length >= 3)
                                 return;
@@ -28809,7 +29204,7 @@ function EldertoneInner() {
                             logDecision(g, "buy", { item: "bag:" + pk.kind + "+" + pk.n, cost: pk.cost });
                             g.store.bagPick = null;
                         }) },
-                        React.createElement("h4", null, dispName(entry.name, cd ? cd.slot : "") + (entry.lv === 2 ? "+" : "") + (t.where === "res" ? " (reserve)" : " (" + t.L + ")")),
+                        React.createElement("h4", null, dispName(entry.name, cd ? cd.slot : "") + lvMark(entry.lv) + (t.where === "res" ? " (reserve)" : " (" + t.L + ")")),
                         React.createElement("div", { className: "fx" }, (bagDesc(g, entry) || "no grab-bag upgrades yet") + " \u2192 " + bagLabel(g, bp.kind, bp.n)));
                 })),
                 React.createElement("div", { style: { textAlign: "center", marginTop: 10 } },
@@ -28909,6 +29304,8 @@ function eventReqOk(g, req) {
     return { ok: true };
 }
 function upgradeMinionTargets(g) {
+    if (itemMode(g))
+        return [];
     return "ABCDEFG".split("").filter((L) => {
         const s = g.slots[L];
         if (!s || s.lv !== 1 || !CARD_BY[cardKey(s.name, 2)])
@@ -28993,19 +29390,30 @@ function runEventFx(g, fx) {
         else if (k === "egg")
             g.egg = f[1];
         else if (k === "upgrade_random") {
-            for (let i = 0; i < f[1]; i++) {
-                const ts = upgradeTargets(g);
+            if (itemMode(g)) { // item build has no upgrades — the magic pays out in gold instead
+                g.gold += 25 * (f[1] || 1);
+                g.__itemUpgSub = 25 * (f[1] || 1);
+            }
+            else
+                for (let i = 0; i < f[1]; i++) {
+                    const ts = upgradeTargets(g);
+                    if (ts.length)
+                        upgradeSlot(g, pick(ts));
+                }
+        }
+        else if (k === "upgrade_minion") {
+            if (itemMode(g)) {
+                g.gold += 25;
+                g.__itemUpgSub = 25;
+            }
+            else {
+                const ts = upgradeMinionTargets(g);
                 if (ts.length)
                     upgradeSlot(g, pick(ts));
             }
         }
-        else if (k === "upgrade_minion") {
-            const ts = upgradeMinionTargets(g);
-            if (ts.length)
-                upgradeSlot(g, pick(ts));
-        }
         else if (k === "upgrade_choice")
-            redirect = { t: "upgrade" };
+            redirect = itemMode(g) ? { t: "reward" } : { t: "upgrade" };
         else if (k === "lose_chord_pick")
             redirect = { t: "losepick", n: f[1] };
         else if (k === "replace_all") {
@@ -29013,10 +29421,11 @@ function runEventFx(g, fx) {
                 const s = g.slots[L];
                 if (!s)
                     return;
-                const cand = heroPool(g).filter((c) => c.slot === L && c.n !== s.name && !XMETA[c.n] && (s.lv === 1 || CARD_BY[cardKey(c.n, 2)]));
+                const cand = heroPool(g).filter((c) => c.slot === L && c.n !== s.name && !XMETA[c.n] && (itemMode(g) || s.lv === 1 || CARD_BY[cardKey(c.n, 2)]));
                 if (cand.length) {
                     const nc = pick(cand);
-                    g.slots[L] = { name: nc.n, lv: s.lv, costMod: 0, plays: 0 };
+                    const nlv = itemMode(g) ? itemDefFor(nc.n, lvNum(s.lv)).lv : s.lv;
+                    g.slots[L] = { name: nc.n, lv: nlv, costMod: 0, plays: 0 };
                 }
             });
         }
@@ -29030,7 +29439,7 @@ function runEventFx(g, fx) {
                 if (!out.includes(c))
                     out.push(c);
             }
-            redirect = { t: "freecards", cards: out };
+            redirect = { t: "freecards", cards: itemMode(g) ? out.map((c) => itemDefFor(c.n, rollItemLv(g)) || c) : out };
         }
         else if (k === "give_card") {
             const c = CARD_BY[cardKey(f[1], f[2])] || CARD_BY[cardKey(f[1], 1)];
@@ -29056,7 +29465,12 @@ function chooseEventOption(g, idx) {
     const pool2 = outs.length ? outs : opt.outcomes;
     const [, fx, text] = wpick(pool2.map((o) => [o[0], o]));
     const redirect = runEventFx(g, fx);
-    g.event.result = { text: text || "..." };
+    let rtext = text || "...";
+    if (g.__itemUpgSub) {
+        rtext += " (No upgrades on this journey — you gain " + g.__itemUpgSub + " gold instead.)";
+        delete g.__itemUpgSub;
+    }
+    g.event.result = { text: rtext };
     g.event.redirect = redirect;
 }
 function eventContinue(g) {
@@ -29267,10 +29681,17 @@ function afterAction(g) {
                 return;
             }
             if (ew.text || rdw) {
-                g.event = { name: "Aftermath", flavor: "", options: null, result: { text: ew.text || "..." }, redirect: rdw, continueTo: "reward" };
+                let ewText = ew.text || "...";
+                if (g.__itemUpgSub) {
+                    ewText += " (No upgrades on this journey — you gain " + g.__itemUpgSub + " gold instead.)";
+                    delete g.__itemUpgSub;
+                }
+                delete g.__itemUpgSub;
+                g.event = { name: "Aftermath", flavor: "", options: null, result: { text: ewText }, redirect: rdw, continueTo: "reward" };
                 g.screen = "event";
                 return;
             }
+            delete g.__itemUpgSub;
         }
         g.screen = "reward";
     }
