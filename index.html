@@ -18212,7 +18212,7 @@ function fxRow(b, g, c, stageIdx, text) {
                         }
                         if (stat === "burn") {
                             const flv = totemLv(g, "Firewall");
-                            if (flv >= 4)
+                            if (flv >= 3)
                                 v = Math.ceil(v * (flv >= 5 ? 1.5 : 1.25));
                         }
                         if (stat === "blind" && totemLv(g, "Evasion") >= 3)
@@ -18995,7 +18995,7 @@ function damageEnemy(b, g, en, raw, opts = {}) {
         let burnAdd = (F.attack_burn_turn || 0) + (F.attack_burn_battle || 0);
         {
             const flv = totemLv(g, "Firewall");
-            if (burnAdd && flv >= 4)
+            if (burnAdd && flv >= 3)
                 burnAdd = Math.ceil(burnAdd * (flv >= 5 ? 1.5 : 1.25));
         }
         if (burnAdd)
@@ -19322,7 +19322,7 @@ function runOps(b, g, ops, ctx) {
             let n = Math.round(n0 * (ctx.applyMult || 1)) + ((ctx.stBonus && ctx.stBonus[st]) || 0);
             if (ctx.chord && st === "burn") {
                 const flv = totemLv(g, "Firewall");
-                if (flv >= 4)
+                if (flv >= 3)
                     n = Math.ceil(n * (flv >= 5 ? 1.5 : 1.25));
             }
             if (ctx.chord && st === "blind" && totemLv(g, "Evasion") >= 3)
@@ -20962,10 +20962,10 @@ function heroTurnStart(b, g) {
     // decay hero statuses (last 1 turn)
     if (b.turn > 1 && h.st.burn > 0) {
         const flG = totemLv(g, "Firewall");
-        // v3 (Aug 2026): growth starts at L2 (25%), L3+ = 50%; L1's power is the
-        // no-decay guard + battle-start wall
+        // v4 (Aug 2026, user): growth L2/L3 +10%, L4 +25%, L5 +50%;
+        // L1's power is the no-decay guard + battle-start wall
         if (flG >= 2) {
-            h.st.burn = Math.ceil(h.st.burn * (flG >= 3 ? 1.5 : 1.25));
+            h.st.burn = Math.ceil(h.st.burn * (flG >= 5 ? 1.5 : flG >= 4 ? 1.25 : 1.10));
             log(b, "The Firewall totem stokes your wall to " + h.st.burn + ".");
         }
     }
@@ -22039,7 +22039,7 @@ const TOTEM_DESC = {
     Minion: ["Summon an Elephant Minion at the start of each battle", "Summon an Elephant Minion at the start of each battle. Minions gain 2 Strength and 2 Armored", "Summon an Elephant and Bear Minion at the start of each battle. Minions gain 2 Strength and 2 Armored", "Summon an Elephant and Bear Minion at the start of each battle. Minions gain 3 Strength and 3 Armored. Minion attacks apply 2 Exposed", "Summon an Elephant and Bear Minion at the start of each battle. Minions gain 3 Strength and 3 Armored. Minion attacks apply 2 Exposed. Minion effects have a 50% chance to activate twice"],
     Poison: ["Apply 3 AOE Poison to start each battle. Poison stacks on enemies do not decay", "Apply 3 AOE Poison to start each battle. Apply 2 extra Poison whenever it is applied. Poison stacks on enemies do not decay", "Apply 4 AOE Poison to start each battle. Apply 3 extra Poison whenever it is applied. Poison stacks on enemies do not decay", "Apply 4 AOE Poison to start each battle. Apply 3 extra Poison whenever it is applied. Poison stacks on enemies increase by 15% each turn", "Apply 4 AOE Poison to start each battle. Apply 3 extra Poison whenever it is applied. All your attacks apply 2 Poison. Poison stacks on enemies increase by 30% each turn"],
     Charge: ["Every third turn, a random card gains one extra charge", "Every other turn, a random card gains one extra charge", "Every other turn, a random card gains two extra charge", "Every turn, two random cards gain one extra charge", "Every turn, two random cards gain two extra charge"],
-    Firewall: ["Start each battle with 4 Firewall. Firewall does not decay when attacked", "Start each battle with 4 Firewall. Firewall does not decay when attacked. Firewall stacks increase by 25% at the start of your turn", "Start each battle with 5 Firewall. Firewall does not decay when attacked. Firewall stacks increase by 50% at the start of your turn", "Start each battle with 10 Firewall. Firewall does not decay when attacked. Firewall stacks increase by 50% at the start of your turn. Gain 25% increased Firewall from cards", "Start each battle with 10 Firewall. Firewall does not decay when attacked. Firewall stacks increase by 50% at the start of your turn. Gain 50% increased Firewall from cards"],
+    Firewall: ["Start each battle with 4 Firewall. Firewall does not decay when attacked", "Start each battle with 4 Firewall. Firewall does not decay when attacked. Firewall stacks increase by 10% at the start of your turn", "Start each battle with 5 Firewall. Firewall does not decay when attacked. Firewall stacks increase by 10% at the start of your turn. Gain 25% increased Firewall from cards", "Start each battle with 10 Firewall. Firewall does not decay when attacked. Firewall stacks increase by 25% at the start of your turn. Gain 25% increased Firewall from cards", "Start each battle with 10 Firewall. Firewall does not decay when attacked. Firewall stacks increase by 50% at the start of your turn. Gain 50% increased Firewall from cards"],
     Evasion: ["Start each battle with 3 Dodge and 3 AOE Blinded", "For your first 2 turns, gain 5 Dodge and apply 5 AOE Blinded. When enemies miss an attack, they take the intended attack damage", "For your first 2 turns, gain 5 Dodge and apply 5 AOE Blinded. Dodge and Blind cards are 25% more effective. When enemies miss an attack, they take the intended attack damage", "For your first 2 turns, gain 5 Dodge and apply 5 AOE Blinded. Dodge and Blind cards are 25% more effective. When enemies miss an attack, they take the intended attack damage", "For your first 2 turns, gain 5 Dodge and apply 5 AOE Blinded. Dodge and Blind cards are 25% more effective. When enemies miss an attack, they take twice the intended attack damage"],
     Debuff: ["Apply 5 AOE Exposed for the first 3 turns of each battle", "Apply 5 AOE Exposed and 5 AOE Weakened for the first 3 turns of each battle", "Your attacks apply 1 Exposed", "Your attacks apply 1 Exposed and 1 Weakened", "Your attacks apply 2 Exposed and 2 Weakened"],
 };
