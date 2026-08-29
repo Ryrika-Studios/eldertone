@@ -18736,24 +18736,38 @@ function intentTipLines(b, en) {
     return lines;
 }
 function volleyPreviewDmg(b, g) {
+    // mirrors damageEnemy's non-flat pipeline exactly (order and rounding)
     const h = b.hero;
     const base = 5 + (g.perm.shurikenBonus || 0) + ((h.flags && h.flags.shuriken_bonus) || 0);
-    let vd = base + Math.round((h.st.strength || 0) + (h.st._tempStr || 0));
+    let v0 = base + Math.round((h.st.strength || 0) + (h.st._tempStr || 0));
     if (h.flags && h.flags.dmg_out_mult > 1)
-        vd = Math.round(vd * h.flags.dmg_out_mult);
-    vd = Math.round(vd * (1 - 0.1 * Math.min(10, h.st.weaken || 0)));
+        v0 = Math.round(v0 * h.flags.dmg_out_mult);
+    if (b.darkLord)
+        v0 = Math.round(v0 * 1.5);
+    v0 = Math.round(v0 * (1 - 0.1 * Math.min(10, h.st.weaken || 0)));
     const av = alive(b);
+    const vs = (e) => {
+        let v = Math.round(v0 * (1 + 0.1 * (e ? (e.st.exposed || 0) + (e.st.acid || 0) : 0)));
+        if (g.relics.includes("Lucky 7") && b.turn === 7)
+            v *= 2;
+        if (g.relics.includes("Twin Daggers"))
+            v = Math.floor(v * 0.6);
+        if (g.relics.includes("Fan of Knives"))
+            v = Math.floor(v * 0.75);
+        if (b.nextMult > 1)
+            v *= b.nextMult; // Get Ready… / Blitz double the volley too
+        if (e && e.special === "ten_hits")
+            v = Math.min(v, 1); // Ice Wraith caps every instance at 1
+        return Math.max(0, v);
+    };
+    let dmg = vs(null), hi = dmg;
     if (av.length === 1)
-        vd = Math.round(vd * (1 + 0.1 * (av[0].st.exposed || 0)));
+        dmg = hi = vs(av[0]);
+    else if (av.length)
+        hi = Math.max(...av.map(vs));
     if (av.length && av.every((e) => e.special === "ten_hits"))
-        vd = Math.min(vd, 1); // Ice Wraith caps every instance at 1
-    if (g.relics.includes("Lucky 7") && b.turn === 7)
-        vd *= 2;
-    if (g.relics.includes("Twin Daggers"))
-        vd = Math.floor(vd * 0.6);
-    if (g.relics.includes("Fan of Knives"))
-        vd = Math.floor(vd * 0.75);
-    return { dmg: Math.max(0, vd), base, single: av.length === 1 };
+        dmg = Math.min(dmg, 1);
+    return { dmg, hi, base, single: av.length === 1 };
 }
 function startBattle(game, enemyNames, kindLabel) {
     UID = 1;
@@ -20830,8 +20844,9 @@ function shurikenStrike(b, g) {
     const h = b.hero;
     const sd = 5 + (g.perm.shurikenBonus || 0) + (h.flags.shuriken_bonus || 0);
     const allTen = alive(b).length && alive(b).every((e) => e.special === "ten_hits");
+    const vp = volleyPreviewDmg(b, g);
     log(b, allTen ? "Shurikens fly \u2014 the ethereal form lets only 1 damage through per hit!"
-        : "Shurikens fly, dealing " + sd + " damage to all enemies!");
+        : "Shurikens fly, dealing " + (vp.hi > vp.dmg ? vp.dmg + "\u2013" + vp.hi : vp.dmg) + " damage to all enemies!");
     let kills = 0;
     alive(b).forEach((e) => {
         if (b.over)
@@ -23610,8 +23625,8 @@ function HeroFigure({ g, b }) {
                 " \u2014 ",
                 d,
                 v ? [" Current volley: ",
-                    React.createElement("b", { key: "v", style: { color: v.volley > v.base ? "#9fd88a" : v.volley < v.base ? "#e08a7a" : undefined } }, v.volley),
-                    " AOE damage" + (vp.single ? " (vs this enemy)." : " (per-enemy effects like Exposed not included).")] : null)))) : null;
+                    React.createElement("b", { key: "v", style: { color: v.volley > v.base ? "#9fd88a" : v.volley < v.base ? "#e08a7a" : undefined } }, v.volley + (vp.hi > v.volley ? "\u2013" + vp.hi : "")),
+                    " AOE damage" + (vp.single ? " (vs this enemy)." : vp.hi > vp.dmg ? " (higher end vs Exposed enemies)." : " (per enemy).")] : null)))) : null;
         })(),
         React.createElement("div", { className: "et-hero-stage" },
             b.darkLord && React.createElement("div", { className: "et-mist" }),
@@ -28727,7 +28742,7 @@ function EldertoneInner() {
                         footer = "🎵 cursed — costs " + c.charge + " health to play";
                     if (c.locked)
                         footer = "spent this battle";
-                    return (React.createElement(CardFace, { key: i, tipKeys: statusesInText(c.txt), tipFlip: "EFG".includes(c.slot), tipExtra: /discipline|shuriken|stealth/i.test((c.txt || []).join(" ")) ? (() => { const vp = volleyPreviewDmg(b, g); return [["Shuriken volley", "currently " + vp.dmg + " AOE damage" + (vp.single ? " (vs this enemy)." : " (per-enemy effects like Exposed not included).")]]; })() : undefined, style: { gridColumn: Math.max(1, "ABCDEFG".indexOf(c.slot) + 1) }, name: dispName(c.name, c.slot) + (c.note ? " ✦" : "") + (b.sirenMark === i ? " 🎵" : "") +
+                    return (React.createElement(CardFace, { key: i, tipKeys: statusesInText(c.txt), tipFlip: "EFG".includes(c.slot), tipExtra: /discipline|shuriken|stealth/i.test((c.txt || []).join(" ")) ? (() => { const vp = volleyPreviewDmg(b, g); return [["Shuriken volley", "currently " + (vp.hi > vp.dmg ? vp.dmg + "\u2013" + vp.hi : vp.dmg) + " AOE damage" + (vp.single ? " (vs this enemy)." : vp.hi > vp.dmg ? " (higher end vs Exposed enemies)." : " (per enemy).")]]; })() : undefined, style: { gridColumn: Math.max(1, "ABCDEFG".indexOf(c.slot) + 1) }, name: dispName(c.name, c.slot) + (c.note ? " ✦" : "") + (b.sirenMark === i ? " 🎵" : "") +
                             ((() => { const t = targetEnemy(b); return t && t.st.burn > 0 && JSON.stringify(c.stages).includes('"damage"'); })() ? " 🔥" : ""), slot: c.slot, lv: c.lv, rows: rows, activeIdx: stageIdx >= 0 ? Math.min(stageIdx, rows.length - 1) : null, ready: ready, locked: !playable, fx: c.cardFx, bagSlots: bagSlotIcons(g.slots[c.slot]), onClick: () => playable && mut((g) => { logDecision(g, "play", { chord: c.name, slot: c.slot, stage: stageIdx, via: "click" }); playChord(g.battle, g, i); afterActionUI(g); logAfter(g); }), ring: { charge: c.charge, max: c.max }, footer: footer }));
                 })))));
     }
