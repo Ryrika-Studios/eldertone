@@ -18745,6 +18745,8 @@ function volleyPreviewDmg(b, g) {
     const av = alive(b);
     if (av.length === 1)
         vd = Math.round(vd * (1 + 0.1 * (av[0].st.exposed || 0)));
+    if (av.length && av.every((e) => e.special === "ten_hits"))
+        vd = Math.min(vd, 1); // Ice Wraith caps every instance at 1
     if (g.relics.includes("Lucky 7") && b.turn === 7)
         vd *= 2;
     if (g.relics.includes("Twin Daggers"))
@@ -19319,6 +19321,8 @@ function damageEnemy(b, g, en, raw, opts = {}) {
             return 0;
         }
     }
+    if (en.special === "ten_hits")
+        n = Math.min(n, 1); // Ice Wraith: strength/exposed never inflate the logged hit past the cap
     if (n <= 0)
         return 0;
     const abs = Math.min(en.shield, n);
@@ -20825,7 +20829,9 @@ function tempUpgradeChord(b, c) {
 function shurikenStrike(b, g) {
     const h = b.hero;
     const sd = 5 + (g.perm.shurikenBonus || 0) + (h.flags.shuriken_bonus || 0);
-    log(b, "Shurikens fly, dealing " + sd + " damage to all enemies!");
+    const allTen = alive(b).length && alive(b).every((e) => e.special === "ten_hits");
+    log(b, allTen ? "Shurikens fly \u2014 the ethereal form lets only 1 damage through per hit!"
+        : "Shurikens fly, dealing " + sd + " damage to all enemies!");
     let kills = 0;
     alive(b).forEach((e) => {
         if (b.over)
