@@ -18313,10 +18313,18 @@ function rollIntent(en, b) {
     }
     const isAtkMove = (mv) => mv.some((p) => p[0] === "D" || p[0] === "lifesteal_D" || p[0] === "charge_D");
     const isSummonMove = (mv) => mv.some((p) => p[0] === "summon" || p[0] === "summon_gnome");
+    // a PURE self-shield move (every part is plain S) — shield+buff/debuff/attack mixes don't count
+    const isPureShield = (mv) => mv.length > 0 && mv.every((p) => p[0] === "S");
     // an enemy never uses the SAME move more than twice in a row (when it knows
     // another) — DETERMINISTIC: the repeated move is filtered out of the pool
     // (rerolling was probabilistic and still leaked ×3 runs on high-weight moves)
     const pickAvoidRepeat = (pool) => {
+        if (en.lastPureShield && pool.length > 1) {
+            // never shield-only twice in a row: after a pure-shield turn, drop pure-shield moves
+            const ns = pool.filter((m) => !isPureShield(m[1]));
+            if (ns.length)
+                pool = ns;
+        }
         if (pool.length > 1 && (en.moveRepeat || 0) >= 2) {
             const alt = pool.filter((m) => JSON.stringify(m[1]) !== en.lastMoveKey);
             if (alt.length)
@@ -18340,6 +18348,7 @@ function rollIntent(en, b) {
     }
     en.noAtk = isAtkMove(eff) ? 0 : (en.noAtk || 0) + 1;
     en.noSummon = isSummonMove(eff) ? 0 : (en.noSummon || 0) + 1;
+    en.lastPureShield = isPureShield(eff);
     // track consecutive uses of the chosen move
     {
         const mvKey = JSON.stringify(eff);
