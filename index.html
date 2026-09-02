@@ -27109,7 +27109,7 @@ function EldertoneInner() {
     const [showDeck, setShowDeck] = useState(false);
     const [showMap, setShowMap] = useState(false);
     const [heroSel, setHeroSel] = useState("rogue");
-    const [verSel, setVerSel] = useState("classic"); // game version: classic run or the Item Test build
+    const [verSel, setVerSel] = useState("item"); // game version: V2 (found-level items, the default) or the classic run
     const [maxHp, setMaxHp] = useState(75);
     const [furyMax, setFuryMax] = useState(7);
     const heroSelDef = HEROES[heroSel] || { name: "Random", pools: ["common", "rogue", "necro", "ice"],
@@ -28053,9 +28053,9 @@ function EldertoneInner() {
                 React.createElement("div", { className: "et-field" },
                     React.createElement("label", null, "Version"),
                     React.createElement("select", { value: verSel, onChange: (e) => setVerSel(e.target.value) },
-                        React.createElement("option", { value: "classic" }, "Classic"),
-                        React.createElement("option", { value: "item" }, "Item Test"))),
-                verSel === "item" ? React.createElement("div", { className: "et-note", style: { fontSize: 11.5, margin: "2px 0 6px" } }, "Item Test: chords are FOUND at Level 1–3 (deeper biomes find higher levels) and can never be upgraded. Grab Bags still buff cards. No Evasion totem in this build.") : null,
+                        React.createElement("option", { value: "item" }, "V2"),
+                        React.createElement("option", { value: "classic" }, "Classic"))),
+                verSel === "item" ? React.createElement("div", { className: "et-note", style: { fontSize: 11.5, margin: "2px 0 6px" } }, "V2: chords are FOUND at Level 1–3 (deeper biomes find higher levels) and can never be upgraded. Grab Bags still buff cards. No Evasion totem in this build.") : null,
                 React.createElement("div", { className: "et-field" },
                     React.createElement("label", null, "Max health"),
                     React.createElement("input", { type: "number", value: maxHp, onChange: (e) => setMaxHp(+e.target.value || 75) })),
