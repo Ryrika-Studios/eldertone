@@ -18194,7 +18194,7 @@ const FF = () => pick(["Red Wand Fairy", "Green Wand Fairy", "Yellow Wand Fairy"
 // yellow charges big hits, green buffs the swarm — groups roll random colors
 const NORMAL_ENC = {
     N: {
-        1: [[50, ["Snail"]], [50, "2gnomes"]],
+        1: [[50, ["Snail"]], [50, "1gnome"]],
         2: [[34, ["Troll"]], [33, ["Magpie"]], [33, ["Lizard Rider"]]],
         4: [[35, ["Bruiser", "Assassin"]], [30, ["Magpie", "Snail"]], [35, ["Lizard Rider"]]],
         5: [[25, ["Bruiser", "Assassin"]], [25, ["Troll Hoard"]], [25, ["Lizard Rider", "Troll"]], [25, ["Magpie"]]],
@@ -18241,6 +18241,8 @@ function rollNormalEnc(g, node) {
         let names = wpick(rows);
         if (names === "2gnomes")
             names = G2();
+        else if (names === "1gnome")
+            names = G2().slice(0, 1);
         else if (names === "2gnomes+grub")
             names = [...G2(), "Grub"];
         else if (names === "3fairies")
