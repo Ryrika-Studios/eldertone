@@ -18298,6 +18298,13 @@ function rollIntent(en, b) {
         en.intent = { kind: "charge", label: "💪 buffing…" };
         return;
     }
+    if (en.special === "dwarf_boulders" && b && [1, 3, 5].includes(b.turn) && en.lastMoveKey
+        && b.enemies.some((e) => e.name === "Boulder" && !e.dead)) {
+        // next turn he cracks a boulder open — that IS his whole action (the
+        // startBattle pre-roll has no lastMoveKey, so turn 1 telegraphs normally)
+        en.intent = { kind: "charge", label: "⛏ eyeing a boulder…" };
+        return;
+    }
     if (en.charging) {
         if (en.charging.t <= 1 && en.charging.v != null) {
             en.intent = { kind: "charge", label: "\u26a1", parts: [["D", en.charging.v]] };
@@ -21868,6 +21875,8 @@ function enemyPhase(b, g) {
             continue;
         }
         if (en.special === "dire_pack") { } // handled in lifesteal
+        if (en.special === "dwarf_boulders" && en.flags.boulderBrokeTurn === b.turn)
+            continue; // the break WAS his action this turn (the splice re-visit used to make him act twice)
         if (en.special === "dwarf_boulders" && [2, 4, 6].includes(b.turn)
             && en.flags.boulderBrokeTurn !== b.turn) {
             // splicing the emerging enemy shifts the King forward and the phase
