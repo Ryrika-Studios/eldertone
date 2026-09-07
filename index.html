@@ -17257,6 +17257,21 @@ function migrateSaveNames(g) {
             if (CARD_RENAMES[c.baseName])
                 c.baseName = CARD_RENAMES[c.baseName];
         });
+    // a fresh page load resets UID to 1 — restore it past the save's enemy ids so
+    // mid-battle spawns (boulder releases, zombie parts, hydra heads, summons)
+    // never collide with existing ids (React keys + id-based targeting)
+    if (g.battle && g.battle.enemies && g.battle.enemies.length) {
+        UID = Math.max(UID, ...g.battle.enemies.map((e) => (e.id || 0) + 1));
+        // repair saves that already carry colliding ids (spawned pre-fix):
+        // later duplicates get fresh ids; references to the old id resolve to
+        // its first holder, which is what ambiguous lookups already did
+        const seen = new Set();
+        g.battle.enemies.forEach((e) => {
+            if (seen.has(e.id))
+                e.id = UID++;
+            seen.add(e.id);
+        });
+    }
     return g;
 }
 function decodeSaveCode(code) {
