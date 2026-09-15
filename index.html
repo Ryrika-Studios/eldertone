@@ -29652,7 +29652,13 @@ function runEventFx(g, fx) {
             });
         }
         else if (k === "skip_boss")
-            g.node = 10;
+            // "travel directly to the temple": land on THIS biome's boss node.
+            // eventContinue calls advanceNode right after runEventFx, so step to
+            // the node before the boss and let it walk on. (This was a hardcoded
+            // g.node = 10 from the retired 10-node layout — once biomes became 9
+            // nodes that read as "past the end" and advanceNode skipped the boss
+            // AND the rest of the biome, dropping the hero into the next one.)
+            g.node = Math.max(g.node, biomeLen(g) - 1);
         else if (k === "free_cards") {
             const cand = heroPool(g).filter((c) => c.slot === f[1] && !XMETA[c.n]);
             const out = [];
