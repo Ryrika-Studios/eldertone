@@ -18199,8 +18199,8 @@ const NODE_TEMPLATE = {
     3: [[100, "reward"]],
     4: [[50, "battle"], [20, "event"], [10, "store"], [20, "elite"]],
     5: [[50, "battle"], [20, "event"], [10, "store"], [20, "elite"]],
-    6: [[100, "store"]],
-    7: [[50, "battle"], [20, "event"], [10, "store"], [20, "elite"]],
+    6: [[50, "battle"], [20, "event"], [10, "store"], [20, "elite"]],
+    7: [[100, "store"]],
     8: [[100, "boss"]],
 };
 const G2 = () => [pick(["Red Gnome", "Yellow Gnome", "Gray Gnome"]), pick(["Red Gnome", "Yellow Gnome", "Gray Gnome"])];
@@ -18213,7 +18213,7 @@ const NORMAL_ENC = {
         2: [[34, ["Troll"]], [33, ["Magpie"]], [33, ["Lizard Rider"]]],
         4: [[35, ["Bruiser", "Assassin"]], [30, ["Magpie", "Snail"]], [35, ["Lizard Rider"]]],
         5: [[25, ["Bruiser", "Assassin"]], [25, ["Troll Hoard"]], [25, ["Lizard Rider", "Troll"]], [25, ["Magpie"]]],
-        7: [[25, ["Bruiser", "Assassin"]], [25, ["Troll Hoard"]], [25, ["Lizard Rider", "Troll"]], [25, ["Magpie", "Snail"]]],
+        6: [[25, ["Bruiser", "Assassin"]], [25, ["Troll Hoard"]], [25, ["Lizard Rider", "Troll"]], [25, ["Magpie", "Snail"]]],
         8: [[50, ["Troll King"]], [50, ["Vineman"]]],
     },
     R: {
@@ -18221,7 +18221,7 @@ const NORMAL_ENC = {
         2: [[34, ["Mushroom", "Assassin", "Bruiser"]], [33, ["Grub Group", "Mushroom"]], [33, "2gnomes+grub"]],
         4: [[34, ["Mushroom", "Assassin", "Bruiser"]], [33, ["Grub Group", "Mushroom"]], [33, ["Skeleton Warrior", "Skeleton Archer"]]],
         5: [[34, ["Grub Group", "Mushroom"]], [33, ["Golem"]], [33, ["Skeleton Warrior", "Skeleton Archer"]]],
-        7: [[50, ["Troll Hoard", "Grub Group"]], [50, ["Golem"]]],
+        6: [[50, ["Troll Hoard", "Grub Group"]], [50, ["Golem"]]],
         8: [[50, ["Lich King"]], [50, ["Dwarf King"]]],
     },
     F: {
@@ -18229,7 +18229,7 @@ const NORMAL_ENC = {
         2: [[34, ["Fire Imp", "Fire Imp"]], [33, ["Fireworks Vendor"]], [33, ["Skeleton Warrior", "Skeleton Archer"]]],
         4: [[50, ["Glow Worm"]], [50, ["Fireworks Vendor", "Golem"]]],
         5: [[34, ["Glow Worm"]], [33, "3fairies"], [33, "imp+2fairies"]],
-        7: [[34, ["Glow Worm"]], [33, "3fairies"], [33, "imp+2fairies"]],
+        6: [[34, ["Glow Worm"]], [33, "3fairies"], [33, "imp+2fairies"]],
         8: [[50, ["Dragon"]], [50, ["Chimera Lion", "Chimera Goat", "Chimera Snake"]]],
     },
     I: {
@@ -18237,7 +18237,7 @@ const NORMAL_ENC = {
         2: [[34, ["Ice Troll Axeman", "Ice Troll Chieftain"]], [33, ["Fire Imp", "Snow Golem"]], [33, ["Glow Worm", "Ice Hedgehog"]]],
         4: [[34, ["Ice Troll Axeman", "Ice Troll Chieftain"]], [33, ["Fire Imp", "Snow Golem"]], [33, ["Glow Worm", "Ice Hedgehog"]]],
         5: [[50, ["Sled Catapult", "Sled Goblin", "Sled Goblin"]], [50, ["Snow Golem", "Ice Troll Axeman"]]],
-        7: [[50, ["Sled Catapult", "Sled Goblin", "Sled Goblin"]], [50, ["Snow Golem", "Ice Troll Axeman"]]],
+        6: [[50, ["Sled Catapult", "Sled Goblin", "Sled Goblin"]], [50, ["Snow Golem", "Ice Troll Axeman"]]],
         8: [[50, ["Ice Shell"]], [50, ["Dire Wolf", "Dire Wolf", "Dire Wolf"]]],
     },
     C: {
@@ -18245,7 +18245,7 @@ const NORMAL_ENC = {
         2: [[34, ["Blimp", "Elf", "Elf"]], [33, ["Troll Hoard", "Snow Golem"]], [33, ["Glow Worm", "Fireworks Vendor", "Fire Imp", "Fire Imp"]]],
         4: [[34, ["Centaur"]], [33, ["Troll Hoard", "Snow Golem"]], [33, ["Snail", "Mushroom", "Glow Worm"]]],
         5: [[50, ["Gryphon"]], [50, ["Centaur"]]],
-        7: [[50, ["Siren"]], [50, ["Gryphon"]]],
+        6: [[50, ["Siren"]], [50, ["Gryphon"]]],
         8: [[100, ["Hydra Nature Head"]]],
     },
 };
@@ -22192,14 +22192,14 @@ function newGame(opts) {
 }
 function planBiome(g) {
     // Branching map (8 nodes): 1 battle -> split 2 -> 3 reward (Nature: totem) ->
-    // split (4,5) -> 6 store -> split 7 -> 8 boss.
+    // split (4,5) -> split 6 -> 7 store -> 8 boss.
     // Each lane is a full alternative route satisfying the biome constraints on its own.
-    const SPLITS = [2, 4, 5, 7];
+    const SPLITS = [2, 4, 5, 6];
     const mkLane = () => {
         const lane = {};
         for (const n of SPLITS)
             lane[n] = wpick(NODE_TEMPLATE[n]);
-        const spots = [4, 5, 7];
+        const spots = [4, 5, 6];
         let elites = spots.filter((n) => lane[n] === "elite");
         while (elites.length > 2) {
             lane[pick(elites)] = "battle";
@@ -22215,9 +22215,9 @@ function planBiome(g) {
             stores = SPLITS.filter((n) => lane[n] === "store");
         }
         // no wandering store before the player has seen the FIRST fixed store
-        // (node 6 of the Nature biome) — early Nature lane stores become battles
+        // (node 7 of the Nature biome) — early Nature lane stores become battles
         if ((g.biomeIdx || 0) === 0)
-            for (const n of [2, 4, 5])
+            for (const n of [2, 4, 5, 6])
                 if (lane[n] === "store")
                     lane[n] = "battle";
         if (!SPLITS.some((n) => lane[n] === "event")) {
@@ -22227,21 +22227,21 @@ function planBiome(g) {
         return lane;
     };
     const A = mkLane(), B = mkLane();
-    const plan = { 1: "battle", 3: "reward", 6: "store", 8: "boss" };
+    const plan = { 1: "battle", 3: "reward", 7: "store", 8: "boss" };
     for (const n of SPLITS)
         plan[n] = [A[n], B[n]];
     g.plan = plan;
     g.lanes = {};
-    g.elites = [4, 5, 7].filter((n) => A[n] === "elite" || B[n] === "elite");
+    g.elites = [4, 5, 6].filter((n) => A[n] === "elite" || B[n] === "elite");
     g.lastEnc = null;
 }
-function laneSeg(n) { return n <= 3 ? 2 : n <= 6 ? 4 : 7; }
+function laneSeg(n) { return n <= 3 ? 2 : n <= 5 ? 4 : 6; }
 // Map display faces (Aug 2026, user design): events and the small lane stores show
 // as "?" until the player has moved past them — you pick your path blind. The fixed
-// node-7 store keeps its "Store" label. Revealed events show 🎭 so the mask's ❓
+// fixed store keeps its "Store" label. Revealed events show 🎭 so the mask's ❓
 // stays unambiguous.
 function mapNodeFace(g, n, t) {
-    const hidden = (t === "event" || (t === "store" && n !== 6)) && n >= (g.node || 1);
+    const hidden = (t === "event" || (t === "store" && n !== 7)) && n >= (g.node || 1);
     if (hidden)
         return { ic: "❓", label: "?" };
     const icons = { battle: "⚔️", elite: "\u{1F480}", reward: "\u{1F5FF}", store: "\u{1F3EA}", boss: "\u{1F451}", event: "\u{1F3AD}" };
@@ -22345,7 +22345,7 @@ function nodeType(g, node, laneIdx) {
         const li = laneIdx != null ? laneIdx : (g.lanes ? g.lanes[laneSeg(node)] : null);
         return p[li != null ? li : 0];
     }
-    return p || (node === 3 ? "reward" : node === 6 ? "store" : node === 8 ? "boss" : "battle");
+    return p || (node === 3 ? "reward" : node === 7 ? "store" : node === 8 ? "boss" : "battle");
 }
 function encounterFor(g) {
     const biome = BIOMES[g.biomeIdx];
@@ -22865,11 +22865,13 @@ function makeStore(g, variant) {
         }).filter(Boolean);
         return { title: "Thrift Shop", cards: [], relics, items: [], variant };
     }
-    // Map stores: full store (Armory + Daily Deal + Care Center) at node 6,
-    // a single random section elsewhere. "free_one" event stores are always full.
+    // Map stores: the biome's FIXED store (node 7) is the full store (Armory +
+    // Daily Deal + Care Center), a lane store gets a single random section.
+    // "free_one" event stores are always full. Read off the plan rather than the
+    // node number so a save made under the old 6-store layout still opens full.
     const SEC_TITLE = { armory: "Armory", daily: "Daily Deal", care: "Care Center" };
-    const full = g.node === 6 || variant === "free_one";
-    // Daily Deal is available from the FIRST store (Nature node 6) onward —
+    const full = (g.plan && g.plan[g.node] === "store") || variant === "free_one";
+    // Daily Deal is available from the FIRST store (Nature node 7) onward —
     // and since no store exists before that node, it is simply always offered
     const fullSecs = ["armory", "daily", "care"];
     const secList = full ? fullSecs : [pick(fullSecs)];
