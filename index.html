@@ -17408,7 +17408,7 @@ const dispName = (name, slot) => (name && name.startsWith("X ")) ? name.slice(2)
 // Second playable version: cards are FOUND at Lv1/2/3 (no upgrades). ITEM_POOL = the curated sheet card list;
 // lv 3 defs generated from the sheet; "i1"/"i2" defs are item-mode-only variants where the sheet differs from the classic card.
 const ITEM_POOL = new Set(["A Pinch Of This...", "AED", "Abracadabra", "Absolutely Not!", "Accuracy", "Ace in the Hole", "Additive Effect", "Advancing Technology", "Again!", "Aggressive Learning", "Agility", "All together", "Alliance", "Amber wand", "Ambivalent Planning", "Ample Arsenic", "An Apple a Day", "Analytical Shielding", "Ancient Medicine", "And Again", "Angelic Wrath", "Animal Magnetism", "Annihilate", "Anticlimactic", "Antique Cutlass", "Antivenom", "Anvil", "Ape", "Apex Predator", "Apoptosis", "Apothecary", "Apprentice", "Arcane Wind", "Armadillo", "Arsonist", "Attack", "Aurora", "Auto Defend", "Avalanche", "Avenge", "Average", "Bad intentions", "Badger", "Bag of Sand", "Ball of Lightning", "Balls in the air", "BananaRang", "Band in Darkness", "Bandit", "Barn Door", "Barrage", "Barricade", "Bat (vampire)", "Battering Ram", "Battery charger", "Bear", "Beast mode", "Beautiful disaster", "Big Shot", "Bigger Shurikens", "Bigger is Better", "Bit of Both", "Bite Hard", "Bitter Cold", "Blade enhancements", "Blade of Venom", "Blast", "Block", "Block and Learn", "Bomb", "Bone Crusher", "Bookie", "Bookworm", "Boom", "Boost", "Borrow", "Bound in Ice", "Burn Brighter", "Burn powder", "Burning Blades", "Burning Knowledge", "Cabaret", "Calcium supplements", "Calm in Battle", "Can't touch this", "Can-Do Attitude", "Canary", "Candle", "Cat", "Cat paw", "Celestial Pegasus", "Chain lightening", "Charm", "Cheat code", "Cheers", "Cheese trap", "Freeze", "Chip Away", "Chop", "Chu Ko Nu", "Coat it All", "Coated shield", "Cold Fusion", "Cold Sharpened", "Cold Weather", "Collector", "Come Here", "Confrontational Behavior", "Conjugation", "Continual Improvement", "Control Your Fate", "Counter", "Creative accounting", "Crowd Control", "Crypt Robber", "Cut the Breaks", "Dagger Spray", "Dark Army", "Dark Lord Rising", "Darkness", "Dart", "Dart storm", "Dastardly potion", "David and Goliath", "Death wish", "Deathly Cold", "Decoy", "Defend", "Defensive Attacking", "Defensive formation", "Deficient Instructions", "Deflect", "Delete", "Delirium", "Dependable", "Diabolical", "Dice Roll", "Dig Deep", "Diminishing Returns", "Dino", "Dirty Dealing", "Discipline", "Distributors", "Don Quixote", "Don't Even Think About It", "Donkey", "Doomed", "Double trouble", "Downgrade", "Dragon", "Dream work; by Teamwork!", "Drink Up", "Drive by", "Due diligence", "Dynamite", "Eagle", "Early symptoms", "Earnin It", "Eat up!", "Eccentricity", "Edgy", "Egg", "Electric shield", "Electric shock", "Elemental mastery", "Elephant", "Elusiveness", "Embers", "Emergency Protocol", "Employer benefits", "Enchanted Blade", "Enchanter", "Energy barrier", "Engineering", "Enhancements", "Enigmatic cold", "Enough!", "Ent", "Entangle", "Entropy", "Equal opportunity", "Equalizer", "Erratic leadership", "Ethereal Cloak", "Evasive maneuvering", "Everlasting Servitude", "Everlasting night", "Everybody plays", "Everybody's Doing It!", "Evil protection", "Evolving Equipment", "Excellent Craftsmanship", "Execute", "Explode", "Fade Away", "Fairy Friend", "Family Fun", "Famished", "Fast Recovery", "Faster!", "Fearless Allies", "Feint", "Fiend", "Fighter", "Final meal", "Fire Thrower", "Fireblast", "Firefall", "Firefox", "Firewall", "Fireworks", "Fishing in the Underworld", "Fizzle", "Flabbergast", "Flight of Metal", "Flow of Power", "Flower Power", "Flush it Away", "Fly trap", "Focus", "Fog", "Foldable Blockade", "Follow Up", "Forced March", "Forced efficiency", "Fortify", "Free Fall", "Frost Shield", "Frostburn", "Fudge it", "Fully committed", "Future Planning", "Gadgets", "Galaxtic Fury", "Gale", "Garrote", "Gas", "Gateway to the Hereafter", "Get Ready…", "Getaway", "Ghost", "Ghostly Shield", "Giddy up", "Chill", "Glacial cold", "Glasses", "Glimmering Strike", "Glug Glug…", "Gnomes", "Go Away.", "Go for the Eyes", "Goodnight", "Goop", "Gorgon", "Grail", "Grapeshot", "Grass Shield", "Growing pains", "Growth from adversity", "Guard for Hire", "Guiding light", "X Randomizer Disipline Edition TM", "X Randomizer Poison Edition TM", "X Randomizer: Minions", "X Upgrade: Chilled", "X Upgrade: Darkness", "X Upgrade: Dodger", "X Upgrade: Fire Mastery", "X Upgrade: Firewall", "X Upgrade: Magical Mastery", "X Upgrade: Poison Bomb", "X Upgrade: Potent Poisons", "X Upgrade: Protect", "X Upgrade: Pure Damage", "X Upgrade: Skeleton", "X Upgrade: Spellbound", "X Upgrade: Well Trained Minions"]);
-const ITEM_LV_FREQ = {"N": [[100, 0, 0], [80, 20, 0]], "R": [[70, 30, 0], [65, 25, 10]], "F": [[50, 30, 20], [40, 35, 25]], "I": [[20, 40, 40], [10, 40, 50]], "C": [[5, 40, 55], [0, 40, 60]]}; // biome -> [nodes 1-4, nodes 5-8] -> [lv1, lv2, lv3] weights
+const ITEM_LV_FREQ = {"N": [[100, 0, 0], [80, 20, 0]], "R": [[70, 30, 0], [65, 25, 10]], "F": [[50, 30, 20], [40, 35, 25]], "I": [[20, 40, 40], [10, 40, 50]], "C": [[5, 40, 55], [0, 40, 60]]}; // biome -> [nodes 1-5, nodes 6-9] -> [lv1, lv2, lv3] weights (the sheet's 1-4/5-8 split, shifted by the node-4 Health Centre insert)
 const XMETA_I1 = {"X Upgrade: Pure Damage": 1}; // item-build found-Level-1 passive numbers
 const XMETA_L3 = {"X Upgrade: Dodger": 3, "X Upgrade: Poison Bomb": 8, "X Upgrade: Potent Poisons": 3, "X Upgrade: Fire Mastery": 3, "X Upgrade: Pure Damage": 3, "X Upgrade: Skeleton": 2, "X Upgrade: Chilled": 15, "X Upgrade: Protect": 16, "X Upgrade: Firewall": 12};
 const ITEM_CARDS = [
@@ -17755,7 +17755,7 @@ function itemMode(g) { return !!(g && g.itemMode); }
 function lvNum(lv) { return typeof lv === "string" ? (parseInt(lv.slice(1), 10) || 1) : (lv || 1); }
 function lvMark(lv) { const n = lvNum(lv); return n >= 3 ? "++" : n === 2 ? "+" : ""; }
 function rollItemLv(g) {
-    const w = (ITEM_LV_FREQ[BIOMES[g.biomeIdx || 0]] || ITEM_LV_FREQ.N)[(g.node || 1) <= 4 ? 0 : 1];
+    const w = (ITEM_LV_FREQ[BIOMES[g.biomeIdx || 0]] || ITEM_LV_FREQ.N)[(g.node || 1) <= 5 ? 0 : 1];
     let r = Math.random() * (w[0] + w[1] + w[2]);
     if ((r -= w[0]) < 0) return 1;
     if ((r -= w[1]) < 0) return 2;
@@ -18197,11 +18197,12 @@ const NODE_TEMPLATE = {
     1: [[100, "battle"]],
     2: [[60, "battle"], [25, "event"], [15, "store"]],
     3: [[100, "reward"]],
-    4: [[50, "battle"], [20, "event"], [10, "store"], [20, "elite"]],
+    4: [[100, "care"]],
     5: [[50, "battle"], [20, "event"], [10, "store"], [20, "elite"]],
     6: [[50, "battle"], [20, "event"], [10, "store"], [20, "elite"]],
-    7: [[100, "store"]],
-    8: [[100, "boss"]],
+    7: [[50, "battle"], [20, "event"], [10, "store"], [20, "elite"]],
+    8: [[100, "store"]],
+    9: [[100, "boss"]],
 };
 const G2 = () => [pick(["Red Gnome", "Yellow Gnome", "Gray Gnome"]), pick(["Red Gnome", "Yellow Gnome", "Gray Gnome"])];
 const FF = () => pick(["Red Wand Fairy", "Green Wand Fairy", "Yellow Wand Fairy"]);
@@ -18211,47 +18212,47 @@ const NORMAL_ENC = {
     N: {
         1: [[50, ["Snail"]], [50, "1gnome"]],
         2: [[34, ["Troll"]], [33, ["Magpie"]], [33, ["Lizard Rider"]]],
-        4: [[35, ["Bruiser", "Assassin"]], [30, ["Magpie", "Snail"]], [35, ["Lizard Rider"]]],
-        5: [[25, ["Bruiser", "Assassin"]], [25, ["Troll Hoard"]], [25, ["Lizard Rider", "Troll"]], [25, ["Magpie"]]],
-        6: [[25, ["Bruiser", "Assassin"]], [25, ["Troll Hoard"]], [25, ["Lizard Rider", "Troll"]], [25, ["Magpie", "Snail"]]],
-        8: [[50, ["Troll King"]], [50, ["Vineman"]]],
+        5: [[35, ["Bruiser", "Assassin"]], [30, ["Magpie", "Snail"]], [35, ["Lizard Rider"]]],
+        6: [[25, ["Bruiser", "Assassin"]], [25, ["Troll Hoard"]], [25, ["Lizard Rider", "Troll"]], [25, ["Magpie"]]],
+        7: [[25, ["Bruiser", "Assassin"]], [25, ["Troll Hoard"]], [25, ["Lizard Rider", "Troll"]], [25, ["Magpie", "Snail"]]],
+        9: [[50, ["Troll King"]], [50, ["Vineman"]]],
     },
     R: {
         1: [[50, ["Mushroom"]], [50, ["Grub Group"]]],
         2: [[34, ["Mushroom", "Assassin", "Bruiser"]], [33, ["Grub Group", "Mushroom"]], [33, "2gnomes+grub"]],
-        4: [[34, ["Mushroom", "Assassin", "Bruiser"]], [33, ["Grub Group", "Mushroom"]], [33, ["Skeleton Warrior", "Skeleton Archer"]]],
-        5: [[34, ["Grub Group", "Mushroom"]], [33, ["Golem"]], [33, ["Skeleton Warrior", "Skeleton Archer"]]],
-        6: [[50, ["Troll Hoard", "Grub Group"]], [50, ["Golem"]]],
-        8: [[50, ["Lich King"]], [50, ["Dwarf King"]]],
+        5: [[34, ["Mushroom", "Assassin", "Bruiser"]], [33, ["Grub Group", "Mushroom"]], [33, ["Skeleton Warrior", "Skeleton Archer"]]],
+        6: [[34, ["Grub Group", "Mushroom"]], [33, ["Golem"]], [33, ["Skeleton Warrior", "Skeleton Archer"]]],
+        7: [[50, ["Troll Hoard", "Grub Group"]], [50, ["Golem"]]],
+        9: [[50, ["Lich King"]], [50, ["Dwarf King"]]],
     },
     F: {
         1: [[50, ["Fire Imp", "Fire Imp"]], [50, ["Fireworks Vendor"]]],
         2: [[34, ["Fire Imp", "Fire Imp"]], [33, ["Fireworks Vendor"]], [33, ["Skeleton Warrior", "Skeleton Archer"]]],
-        4: [[50, ["Glow Worm"]], [50, ["Fireworks Vendor", "Golem"]]],
-        5: [[34, ["Glow Worm"]], [33, "3fairies"], [33, "imp+2fairies"]],
+        5: [[50, ["Glow Worm"]], [50, ["Fireworks Vendor", "Golem"]]],
         6: [[34, ["Glow Worm"]], [33, "3fairies"], [33, "imp+2fairies"]],
-        8: [[50, ["Dragon"]], [50, ["Chimera Lion", "Chimera Goat", "Chimera Snake"]]],
+        7: [[34, ["Glow Worm"]], [33, "3fairies"], [33, "imp+2fairies"]],
+        9: [[50, ["Dragon"]], [50, ["Chimera Lion", "Chimera Goat", "Chimera Snake"]]],
     },
     I: {
         1: [[50, ["Ice Hedgehog"]], [50, ["Snow Golem"]]],
         2: [[34, ["Ice Troll Axeman", "Ice Troll Chieftain"]], [33, ["Fire Imp", "Snow Golem"]], [33, ["Glow Worm", "Ice Hedgehog"]]],
-        4: [[34, ["Ice Troll Axeman", "Ice Troll Chieftain"]], [33, ["Fire Imp", "Snow Golem"]], [33, ["Glow Worm", "Ice Hedgehog"]]],
-        5: [[50, ["Sled Catapult", "Sled Goblin", "Sled Goblin"]], [50, ["Snow Golem", "Ice Troll Axeman"]]],
+        5: [[34, ["Ice Troll Axeman", "Ice Troll Chieftain"]], [33, ["Fire Imp", "Snow Golem"]], [33, ["Glow Worm", "Ice Hedgehog"]]],
         6: [[50, ["Sled Catapult", "Sled Goblin", "Sled Goblin"]], [50, ["Snow Golem", "Ice Troll Axeman"]]],
-        8: [[50, ["Ice Shell"]], [50, ["Dire Wolf", "Dire Wolf", "Dire Wolf"]]],
+        7: [[50, ["Sled Catapult", "Sled Goblin", "Sled Goblin"]], [50, ["Snow Golem", "Ice Troll Axeman"]]],
+        9: [[50, ["Ice Shell"]], [50, ["Dire Wolf", "Dire Wolf", "Dire Wolf"]]],
     },
     C: {
         1: [[50, ["Blimp", "Elf", "Elf"]], [50, ["Butterfly"]]],
         2: [[34, ["Blimp", "Elf", "Elf"]], [33, ["Troll Hoard", "Snow Golem"]], [33, ["Glow Worm", "Fireworks Vendor", "Fire Imp", "Fire Imp"]]],
-        4: [[34, ["Centaur"]], [33, ["Troll Hoard", "Snow Golem"]], [33, ["Snail", "Mushroom", "Glow Worm"]]],
-        5: [[50, ["Gryphon"]], [50, ["Centaur"]]],
-        6: [[50, ["Siren"]], [50, ["Gryphon"]]],
-        8: [[100, ["Hydra Nature Head"]]],
+        5: [[34, ["Centaur"]], [33, ["Troll Hoard", "Snow Golem"]], [33, ["Snail", "Mushroom", "Glow Worm"]]],
+        6: [[50, ["Gryphon"]], [50, ["Centaur"]]],
+        7: [[50, ["Siren"]], [50, ["Gryphon"]]],
+        9: [[100, ["Hydra Nature Head"]]],
     },
 };
 function rollNormalEnc(g, node) {
     const biome = BIOMES[g.biomeIdx];
-    const rows = NORMAL_ENC[biome][node] || NORMAL_ENC[biome][4];
+    const rows = NORMAL_ENC[biome][node] || NORMAL_ENC[biome][5];
     for (let tries = 0; tries < 12; tries++) {
         let names = wpick(rows);
         if (names === "2gnomes")
@@ -22191,15 +22192,16 @@ function newGame(opts) {
     return g;
 }
 function planBiome(g) {
-    // Branching map (8 nodes): 1 battle -> split 2 -> 3 reward (Nature: totem) ->
-    // split (4,5) -> split 6 -> 7 store -> 8 boss.
+    // Branching map (9 nodes): 1 battle -> split 2 -> 3 reward (Nature: totem) ->
+    // 4 Health Centre (care-only store) -> split pair (5,6) -> split 7 ->
+    // 8 store -> 9 boss.
     // Each lane is a full alternative route satisfying the biome constraints on its own.
-    const SPLITS = [2, 4, 5, 6];
+    const SPLITS = [2, 5, 6, 7];
     const mkLane = () => {
         const lane = {};
         for (const n of SPLITS)
             lane[n] = wpick(NODE_TEMPLATE[n]);
-        const spots = [4, 5, 6];
+        const spots = [5, 6, 7];
         let elites = spots.filter((n) => lane[n] === "elite");
         while (elites.length > 2) {
             lane[pick(elites)] = "battle";
@@ -22215,9 +22217,9 @@ function planBiome(g) {
             stores = SPLITS.filter((n) => lane[n] === "store");
         }
         // no wandering store before the player has seen the FIRST fixed store
-        // (node 7 of the Nature biome) — early Nature lane stores become battles
+        // (node 8 of the Nature biome) — early Nature lane stores become battles
         if ((g.biomeIdx || 0) === 0)
-            for (const n of [2, 4, 5, 6])
+            for (const n of [2, 5, 6, 7])
                 if (lane[n] === "store")
                     lane[n] = "battle";
         if (!SPLITS.some((n) => lane[n] === "event")) {
@@ -22227,25 +22229,28 @@ function planBiome(g) {
         return lane;
     };
     const A = mkLane(), B = mkLane();
-    const plan = { 1: "battle", 3: "reward", 7: "store", 8: "boss" };
+    const plan = { 1: "battle", 3: "reward", 4: "care", 8: "store", 9: "boss" };
     for (const n of SPLITS)
         plan[n] = [A[n], B[n]];
     g.plan = plan;
     g.lanes = {};
-    g.elites = [4, 5, 6].filter((n) => A[n] === "elite" || B[n] === "elite");
+    g.elites = [5, 6, 7].filter((n) => A[n] === "elite" || B[n] === "elite");
     g.lastEnc = null;
 }
-function laneSeg(n) { return n <= 3 ? 2 : n <= 5 ? 4 : 6; }
+function laneSeg(n) { return n <= 4 ? 2 : n <= 6 ? 5 : 7; }
+// How many interactions this biome has: 9 since the Health Centre was inserted
+// (Sep 2026), 8 for saves made before it, 10 for the retired pre-Aug layout.
+function biomeLen(g) { const p = g && g.plan; return p && p[10] ? 10 : p && p[9] ? 9 : 8; }
 // Map display faces (Aug 2026, user design): events and the small lane stores show
 // as "?" until the player has moved past them — you pick your path blind. The fixed
 // fixed store keeps its "Store" label. Revealed events show 🎭 so the mask's ❓
 // stays unambiguous.
 function mapNodeFace(g, n, t) {
-    const hidden = (t === "event" || (t === "store" && n !== 7)) && n >= (g.node || 1);
+    const hidden = (t === "event" || (t === "store" && Array.isArray(g.plan && g.plan[n]))) && n >= (g.node || 1);
     if (hidden)
         return { ic: "❓", label: "?" };
-    const icons = { battle: "⚔️", elite: "\u{1F480}", reward: "\u{1F5FF}", store: "\u{1F3EA}", boss: "\u{1F451}", event: "\u{1F3AD}" };
-    const names = { battle: "Battle", elite: "Elite battle", reward: "Totem", store: "Store", event: "Event", boss: "Boss" };
+    const icons = { battle: "⚔️", elite: "\u{1F480}", reward: "\u{1F5FF}", store: "\u{1F3EA}", care: "\u2764\uFE0F", boss: "\u{1F451}", event: "\u{1F3AD}" };
+    const names = { battle: "Battle", elite: "Elite battle", reward: "Totem", store: "Store", care: "Health Centre", event: "Event", boss: "Boss" };
     return { ic: icons[t] || "❓", label: names[t] || t };
 }
 function equipCard(g, card, interactive) {
@@ -22345,7 +22350,7 @@ function nodeType(g, node, laneIdx) {
         const li = laneIdx != null ? laneIdx : (g.lanes ? g.lanes[laneSeg(node)] : null);
         return p[li != null ? li : 0];
     }
-    return p || (node === 3 ? "reward" : node === 7 ? "store" : node === 8 ? "boss" : "battle");
+    return p || (node === 3 ? "reward" : node === 4 ? "care" : node === 8 ? "store" : node === 9 ? "boss" : "battle");
 }
 function encounterFor(g) {
     const biome = BIOMES[g.biomeIdx];
@@ -22360,7 +22365,7 @@ function encounterFor(g) {
         return { names, kind: "elite" };
     }
     if (t === "boss") {
-        const names = wpick(NORMAL_ENC[biome][8]);
+        const names = wpick(NORMAL_ENC[biome][9]);
         return { names, kind: biome === "C" ? "hydra" : "boss" };
     }
     return { names: rollNormalEnc(g, g.node), kind: "battle" };
@@ -22865,16 +22870,20 @@ function makeStore(g, variant) {
         }).filter(Boolean);
         return { title: "Thrift Shop", cards: [], relics, items: [], variant };
     }
-    // Map stores: the biome's FIXED store (node 7) is the full store (Armory +
-    // Daily Deal + Care Center), a lane store gets a single random section.
-    // "free_one" event stores are always full. Read off the plan rather than the
-    // node number so a save made under the old 6-store layout still opens full.
+    // Map stores: the biome's FIXED store (node 8) is the full store (Armory +
+    // Daily Deal + Care Center), a lane store gets a single random section, and
+    // the node-4 HEALTH CENTRE (plan type "care", right after the totem) is a
+    // care-only stop. "free_one" event stores are always full. All read off the
+    // plan rather than node numbers, so saves made under an older node layout
+    // still open the store they were promised.
     const SEC_TITLE = { armory: "Armory", daily: "Daily Deal", care: "Care Center" };
-    const full = (g.plan && g.plan[g.node] === "store") || variant === "free_one";
-    // Daily Deal is available from the FIRST store (Nature node 7) onward —
-    // and since no store exists before that node, it is simply always offered
+    const planT = g.plan && g.plan[g.node];
+    const careOnly = planT === "care" && variant !== "free_one";
+    const full = planT === "store" || variant === "free_one";
+    // Daily Deal is available from the FIRST full store (Nature node 8) onward —
+    // and since no full store exists before that node, it is simply always offered
     const fullSecs = ["armory", "daily", "care"];
-    const secList = full ? fullSecs : [pick(fullSecs)];
+    const secList = careOnly ? ["care"] : full ? fullSecs : [pick(fullSecs)];
     const cards = secList.includes("armory")
         ? randomCardChoices(g, 4).map((c) => ({ card: c, cost: 50 + 20 * (lvNum(c.lv) - 1), sec: "armory" }))
         : [];
@@ -22904,7 +22913,7 @@ function makeStore(g, variant) {
         const mh = pick([{ n: 4, cost: 40 }, { n: 7, cost: 60 }, { n: 10, cost: 80 }]);
         items.push({ t: "maxhp", n: mh.n, cost: mh.cost, sec: "care" });
     }
-    const store = { title: variant === "free_one" ? "Free Pick" : full ? "Store" : SEC_TITLE[secList[0]],
+    const store = { title: variant === "free_one" ? "Free Pick" : careOnly ? "Health Centre" : full ? "Store" : SEC_TITLE[secList[0]],
         secList, cards, relics: [], items, variant: variant || null };
     return store;
 }
@@ -26675,7 +26684,7 @@ const BOT = {
             const bankFloor = bigT && g.gold >= P(bigT.cost) * 0.8 && g.hp >= g.maxHp * BOT.BANK_HP_GATE ? P(bigT.cost) : 0;
             if (s && !s.closed) {
                 // at 55% HP or less, healing outranks every other purchase
-                if (g.hp <= g.maxHp * (g.node >= 7 ? 0.9 : 0.55))
+                if (g.hp <= g.maxHp * (g.node >= 8 ? 0.9 : 0.55))
                     (() => {
                         // smart heal shopping: skip entirely under 5 missing HP; pick the cheaper
                         // cost-per-HP between the 5-HP repeatable and the full heal
@@ -27586,7 +27595,7 @@ function EldertoneInner() {
                     const bankFloor = bigT && g.gold >= P(bigT.cost) * 0.8 && g.hp >= g.maxHp * BOT.BANK_HP_GATE ? P(bigT.cost) : 0;
                     if (s && !s.closed) {
                         // heal-first: at 55% HP (90% near the boss) healing outranks all purchases
-                        if (g.hp <= g.maxHp * (g.node >= 7 ? 0.9 : 0.55))
+                        if (g.hp <= g.maxHp * (g.node >= 8 ? 0.9 : 0.55))
                             (() => {
                                 // smart heal shopping: skip entirely under 5 missing HP; pick the cheaper
                                 // cost-per-HP between the 5-HP repeatable and the full heal
@@ -28370,7 +28379,7 @@ function EldertoneInner() {
             BIOME_NAME[biome],
             " \u00B7 ",
             g.node,
-            "/" + (g.plan && g.plan[10] ? 10 : 8)),
+            "/" + biomeLen(g)),
         React.createElement("span", { className: "et-stat", style: { display: "flex", alignItems: "center", gap: 6 } },
             "HP ",
             React.createElement("span", { className: "et-hpbar" },
@@ -28536,8 +28545,8 @@ function EldertoneInner() {
                 BIOME_NAME[biome],
                 " · you are at ",
                 g.node,
-                "/" + (g.plan && g.plan[10] ? 10 : 8)),
-            React.createElement("div", { className: "et-map", style: { maxWidth: 560, margin: "10px auto 0" } }, Array.from({ length: (g.plan && g.plan[10] ? 10 : 8) }, (_, i) => i + 1).map((n) => {
+                "/" + biomeLen(g)),
+            React.createElement("div", { className: "et-map", style: { maxWidth: 560, margin: "10px auto 0" } }, Array.from({ length: biomeLen(g) }, (_, i) => i + 1).map((n) => {
                 const p = g.plan[n];
                 if (Array.isArray(p)) {
                     const lane = g.lanes ? g.lanes[seg(n)] : null;
@@ -28577,7 +28586,7 @@ function EldertoneInner() {
             React.createElement("h2", { className: "et-title", style: { textAlign: "center", color: "#e8c98a", margin: "4px 0 12px" } },
                 BIOME_NAME[biome],
                 " \u2014 choose your path forward"),
-            React.createElement("div", { className: "et-map" }, Array.from({ length: (g.plan && g.plan[10] ? 10 : 8) }, (_, i) => i + 1).map((n) => {
+            React.createElement("div", { className: "et-map" }, Array.from({ length: biomeLen(g) }, (_, i) => i + 1).map((n) => {
                 const p = g.plan && g.plan[n];
                 if (Array.isArray(p)) {
                     const seg = laneSeg(n);
@@ -29405,7 +29414,7 @@ function enterNode(g, laneIdx) {
         g.rewardOptions = drawRewardOptions(g, 4);
         g.screen = "reward";
     }
-    else if (t === "store") {
+    else if (t === "store" || t === "care") {
         g.store = makeStore(g);
         g.screen = "store";
     }
@@ -29473,7 +29482,7 @@ function startEvent(g) {
     g.event = { id: ev.id, name: ev.name, flavor: ev.flavor, options: ev.options, result: null, redirect: null, continueTo: null };
     g.screen = "event";
 }
-function encounterForBattleFallback(g) { return rollNormalEnc(g, Math.min(9, Math.max(1, g.node))); }
+function encounterForBattleFallback(g) { return rollNormalEnc(g, Math.min(7, Math.max(1, g.node))); }
 function expandEnemyUnits(names) {
     // Some enemies only make sense as a group — a lone Blimp just self-destructs.
     const out = [];
@@ -29902,7 +29911,7 @@ function advanceNode(g) {
     g.cardChoices = null;
     g.transTo = null;
     g.store = null;
-    if (g.node >= (g.plan && g.plan[10] ? 10 : 8)) {
+    if (g.node >= biomeLen(g)) {
         if (g.biomeIdx === 4) {
             g.screen = "victory";
             if (!BOT.__simming && !g.arenaMode)
