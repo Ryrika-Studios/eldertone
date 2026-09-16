@@ -17824,7 +17824,11 @@ function itemDefFor(name, lv) {
     }
     return CARD_BY[cardKey(name, 1)];
 }
-function totemPoolIds(g) { return itemMode(g) ? TOTEM_IDS.filter((id) => id !== "Evasion") : TOTEM_IDS; }
+function totemPoolIds(g) {
+    const mine = RESOURCE_TOTEM[heroResource(g)];
+    const others = Object.values(RESOURCE_TOTEM).filter((id) => id !== mine);
+    return TOTEM_IDS.filter((id) => !others.includes(id));
+}
 // ---- Heroes: each defines starting stats, card pools, and a UNIQUE Fury ----
 // furyCharge: what fills the orb · furyFx: what an unleash does
 const HEROES = {
@@ -18687,18 +18691,15 @@ function fxRow(b, g, c, stageIdx, text) {
                             v = base + (stB[stat] || 0);
                         }
                         if (stat === "burn") {
-                            const flv = totemLv(g, "Firewall");
-                            if (flv >= 3)
-                                v = Math.ceil(v * (flv >= 5 ? 1.5 : 1.25));
+                            if (totemLv(g, "Firewall") >= 3)
+                                v = Math.ceil(v * 1.25);
                         }
-                        if (stat === "blind" && totemLv(g, "Evasion") >= 3)
-                            v = Math.ceil(v * 1.25);
                         const rowRatio = (c.stages && c.stages.length > 1) ? Math.pow((Math.min(stageIdx, c.stages.length - 1) + 1) / c.stages.length, 1.5) : 1;
                         if (stat === "poison") {
-                            // Poison totem/Potent Poisons extras — full value only at full charge
-                            const ptl = totemLv(g, "Poison");
-                            const extra = (g.perm.poisonBonus || 0) + (ptl >= 2 ? (ptl >= 3 ? 3 : 2) : 0);
-                            v += Math.round(extra * rowRatio);
+                            // Potent Poisons extra — full value only at full charge
+                            v += Math.round((g.perm.poisonBonus || 0) * rowRatio);
+                            if (totemLv(g, "Poison") >= 3)
+                                v = Math.ceil(v * 1.25); // V2 Poison totem: cards apply 25% more
                         }
                         if (stat === "burn")
                             v += Math.round((g.perm.burnBonus || 0) * rowRatio);
@@ -18843,7 +18844,7 @@ function intentTipLines(b, en) {
 function volleyPreviewDmg(b, g) {
     // mirrors damageEnemy's non-flat pipeline exactly (order and rounding)
     const h = b.hero;
-    const base = 5 + (g.perm.shurikenBonus || 0) + ((h.flags && h.flags.shuriken_bonus) || 0);
+    const base = 5 + (g.perm.shurikenBonus || 0) + ((h.flags && h.flags.shuriken_bonus) || 0) + (TOTEM_FX.ninjaShur[totemLv(g, "Ninja")] || 0);
     let v0 = base + Math.round((h.st.strength || 0) + (h.st._tempStr || 0));
     if (h.flags && h.flags.dmg_out_mult > 1)
         v0 = Math.round(v0 * h.flags.dmg_out_mult);
@@ -18974,8 +18975,24 @@ function startBattle(game, enemyNames, kindLabel) {
         b.enemies.forEach((e) => (e.st.poison += g.perm.poisonBomb));
     // totem battle-start hooks
     if (totemMode(game)) {
-        (game.totems || []).forEach((t) => { if (t && t.id === "Burn")
-            t.id = "Firewall"; });
+        // legacy totem fixups: the old "Burn" id, the retired Evasion totem
+        // (V2 dropped it — it becomes Block, or is discarded if Block is held)
+        // and levels above the new 4-level cap
+        if (game.totems && game.totems.length) {
+            game.totems.forEach((t) => { if (t && t.id === "Burn")
+                t.id = "Firewall"; });
+            game.totems = game.totems.filter((t) => {
+                if (!t)
+                    return false;
+                if (t.id === "Evasion") {
+                    if (game.totems.some((x) => x && x.id === "Block"))
+                        return false;
+                    t.id = "Block";
+                }
+                t.lv = Math.min(TOTEM_MAX, t.lv);
+                return true;
+            });
+        }
         const TL = (id) => totemLv(game, id);
         if (TL("Strength")) {
             h.st.strength += TL("Strength");
@@ -19000,14 +19017,14 @@ function startBattle(game, enemyNames, kindLabel) {
         {
             const l = TL("Block");
             if (l) {
-                h.st.armored += [0, 1, 1, 2, 2, 3][l];
-                h.st.entrenched += [0, 0, 2, 3, 4, 5][l];
+                h.st.armored += TOTEM_FX.blockArm[l];
+                h.st.entrenched += TOTEM_FX.blockEntr[l];
             }
         }
         {
             const l = TL("Poison");
             if (l) {
-                const n = [0, 3, 3, 4, 4, 4][l];
+                const n = TOTEM_FX.poisonStart[l];
                 b.enemies.forEach((e) => applyStatusEnemy(b, game, e, "poison", n));
                 log(b, "The Poison totem seeps " + n + " Poison into every foe.");
             }
@@ -19015,7 +19032,7 @@ function startBattle(game, enemyNames, kindLabel) {
         {
             const l = TL("Firewall");
             if (l) {
-                const n = [0, 4, 4, 5, 10, 10][l];
+                const n = TOTEM_FX.fireStart[l];
                 applyStatusEnemy(b, game, null, "burn", n);
                 log(b, "The Firewall totem kindles your wall.");
             }
@@ -19186,6 +19203,18 @@ function gainShield(b, g, n) {
         fxPush(b, "shield", "hero");
         if (h.flags && h.flags.on_shield_strength_turn)
             h.st._tempStr = (h.st._tempStr || 0) + h.flags.on_shield_strength_turn;
+        // V2 Firewall totem: every Shield gain also feeds the wall
+        if (g && totemMode(g) && !b.__fireOnShield) {
+            const fw = TOTEM_FX.fireOnShield[totemLv(g, "Firewall")] || 0;
+            if (fw > 0) {
+                b.__fireOnShield = true;
+                const pr = b.__applyRatio;
+                b.__applyRatio = 1;
+                applyStatusEnemy(b, g, null, "burn", fw);
+                b.__applyRatio = pr;
+                b.__fireOnShield = false;
+            }
+        }
         // Ice Knight: Glacial Fury charges per shield gain
         if (g && !b.over && heroDef(g).furyCharge === "shield") {
             g.fury = Math.min(g.furyMax, g.fury + 1);
@@ -19403,14 +19432,11 @@ function damageEnemy(b, g, en, raw, opts = {}) {
     }
     if (!opts.flat && totemMode(g) && !opts._totemHit) {
         opts._totemHit = true;
-        const pl = totemLv(g, "Poison");
-        if (pl >= 5)
-            applyStatusEnemy(b, g, en, "poison", 2);
         const dl = totemLv(g, "Debuff");
         if (dl >= 3) {
-            applyStatusEnemy(b, g, en, "exposed", dl === 5 ? 2 : 1);
+            applyStatusEnemy(b, g, en, "exposed", 1);
             if (dl >= 4)
-                applyStatusEnemy(b, g, en, "weaken", dl === 5 ? 2 : 1);
+                applyStatusEnemy(b, g, en, "weaken", 1);
         }
     }
     if (!opts.flat) {
@@ -19489,9 +19515,8 @@ function damageEnemy(b, g, en, raw, opts = {}) {
         const F = h.flags || {};
         let burnAdd = (F.attack_burn_turn || 0) + (F.attack_burn_battle || 0);
         {
-            const flv = totemLv(g, "Firewall");
-            if (burnAdd && flv >= 3)
-                burnAdd = Math.ceil(burnAdd * (flv >= 5 ? 1.5 : 1.25));
+            if (burnAdd && totemLv(g, "Firewall") >= 3)
+                burnAdd = Math.ceil(burnAdd * 1.25);
         }
         if (burnAdd)
             applyStatusEnemy(b, g, null, "burn", burnAdd);
@@ -19613,16 +19638,8 @@ function applyStatusEnemy(b, g, en, st, n, noMirror) {
     }
     if (!en || en.dead)
         return;
-    if (st === "poison") {
-        let extra = 0;
-        if (g.perm.poisonBonus)
-            extra += g.perm.poisonBonus;
-        const ptl = totemLv(g, "Poison");
-        if (ptl >= 2)
-            extra += ptl >= 3 ? 3 : 2;
-        if (extra > 0)
-            n += Math.round(extra * ar);
-    }
+    if (st === "poison" && g.perm.poisonBonus)
+        n += Math.round(g.perm.poisonBonus * ar);
     en.st[st] = (en.st[st] || 0) + n;
     fxPush(b, st, en.id);
     if (st === "chilled" && b.hero.flags && b.hero.flags.frostburn_turn > 0) {
@@ -19746,8 +19763,6 @@ function runOps(b, g, ops, ctx) {
             let [, stat, n] = op;
             if (stat === "discipline")
                 n += (ctx.discBonus || 0);
-            if (stat === "dodge" && totemLv(g, "Evasion") >= 3)
-                n = Math.ceil(n * 1.25);
             if (stat === "shield")
                 gainShield(b, g, n + (ctx.shieldGrow || 0));
             else if (stat === "gold")
@@ -19822,12 +19837,11 @@ function runOps(b, g, ops, ctx) {
             const [, st, n0, aoe] = op;
             let n = Math.round(n0 * (ctx.applyMult || 1)) + ((ctx.stBonus && ctx.stBonus[st]) || 0);
             if (ctx.chord && st === "burn") {
-                const flv = totemLv(g, "Firewall");
-                if (flv >= 3)
-                    n = Math.ceil(n * (flv >= 5 ? 1.5 : 1.25));
+                if (totemLv(g, "Firewall") >= 3)
+                    n = Math.ceil(n * 1.25);
             }
-            if (ctx.chord && st === "blind" && totemLv(g, "Evasion") >= 3)
-                n = Math.ceil(n * 1.25);
+            if (ctx.chord && st === "poison" && totemLv(g, "Poison") >= 3)
+                n = Math.ceil(n * 1.25); // V2 Poison totem: 25% more Poison from cards
             if (st === "burn")
                 applyStatusEnemy(b, g, null, st, n); // self-buff: AOE removed
             else if (aoe === "attackers")
@@ -20969,7 +20983,7 @@ function tempUpgradeChord(b, c) {
 }
 function shurikenStrike(b, g) {
     const h = b.hero;
-    const sd = 5 + (g.perm.shurikenBonus || 0) + (h.flags.shuriken_bonus || 0);
+    const sd = 5 + (g.perm.shurikenBonus || 0) + (h.flags.shuriken_bonus || 0) + (TOTEM_FX.ninjaShur[totemLv(g, "Ninja")] || 0);
     const allTen = alive(b).length && alive(b).every((e) => e.special === "ten_hits");
     const vp = volleyPreviewDmg(b, g);
     log(b, allTen ? "Shurikens fly \u2014 the ethereal form lets only 1 damage through per hit!"
@@ -21019,6 +21033,11 @@ function checkSorcerer(b, g) {
         alive(b).forEach((e) => applyStatusEnemy(b, g, e, "chilled", 5));
         applyStatusEnemy(b, g, null, "burn", 10);
         b.__applyRatio = pr;
+        const sh = TOTEM_FX.sorcShield[totemLv(g, "Sorcerer")] || 0;
+        if (sh) {
+            gainShield(b, g, sh);
+            log(b, "The Sorcerer totem wraps you in frost (+" + sh + " Shield).");
+        }
     }
 }
 // Necromancer's second form: 10 Darkness → DARK LORD until end of turn
@@ -21029,6 +21048,41 @@ function checkDarkLord(b, g) {
         h.st.darkness -= (g.darknessMax || 10);
         b.darkLord = true;
         log(b, "DARK LORD FORM! +50% damage and 25% lifesteal until end of turn.");
+        const times = TOTEM_FX.darkSkel[totemLv(g, "Dark Lord")] || 0;
+        if (times)
+            skeletonStrike(b, g, times);
+    }
+}
+// V2 Dark Lord totem (L2+): every standing Skeleton swings the moment the form
+// lands (twice at L4). Only m_attack ops fire — grants/auras stay untouched.
+function skeletonStrike(b, g, times) {
+    const h = b.hero;
+    const skels = b.minions.filter((m) => m.name === "Skeleton");
+    if (!skels.length)
+        return;
+    log(b, "The Dark Lord totem howls \u2014 your skeletons strike" + (times > 1 ? " twice" : "") + "!");
+    for (let r = 0; r < times; r++) {
+        for (const m of skels) {
+            if (b.over)
+                return;
+            for (const mo of m.ops) {
+                if (mo[0] !== "m_attack")
+                    continue;
+                let dmg = mo[1] + [0, 0, 2, 2, 3, 3][totemLv(g, "Minion")]
+                    + (h.flags.minion_atk_up || 0) + (h.flags.skel_atk_up || 0)
+                    + ((g.perm && g.perm.minionAtk) || 0);
+                if (b.darkLord && h.flags.dl_minion_buffs)
+                    dmg = Math.round(dmg * 1.5);
+                for (let i = 0; i < (mo[3] || 1); i++) {
+                    const t = mo[5] === "rand" && alive(b).length ? pick(alive(b)) : frontEnemy(b);
+                    if (!t)
+                        return;
+                    const dealt = damageEnemy(b, g, t, dmg, { flat: true, minion: true, src: m.name });
+                    if (dealt > 0 && b.darkLord && h.flags.dl_minion_buffs)
+                        heroHeal(g, Math.ceil(dealt * 0.25), b);
+                }
+            }
+        }
     }
 }
 // Necromancer fury (Aug 2026, user design): a FULL orb bursts on its own — the
@@ -21491,37 +21545,39 @@ function heroTurnStart(b, g) {
     if (b.over)
         return;
     // decay hero statuses (last 1 turn)
-    if (b.turn > 1 && h.st.burn > 0) {
-        const flG = totemLv(g, "Firewall");
-        // v4 (Aug 2026, user): growth L2/L3 +10%, L4 +25%, L5 +50%;
-        // L1's power is the no-decay guard + battle-start wall
-        if (flG >= 2) {
-            h.st.burn = Math.ceil(h.st.burn * (flG >= 5 ? 1.3 : flG >= 4 ? 1.2 : 1.10));
-            log(b, "The Firewall totem stokes your wall to " + h.st.burn + ".");
-        }
-    }
     h.st.dodge = g.perm.dodge || 0;
     h.st._tempStr = 0;
     h.st._tempArm = 0;
     if (totemMode(g)) {
-        const evl = totemLv(g, "Evasion");
-        if (evl >= 2) {
-            if (b.turn <= 2) {
-                h.st.dodge += 5;
-                alive(b).forEach((e) => applyStatusEnemy(b, g, e, "blind", 5));
-                log(b, "The Evasion totem shrouds you (+5 Dodge, 5 Blind on foes).");
-            }
-        }
-        else if (evl === 1 && b.turn === 1) {
-            h.st.dodge += 3;
-            alive(b).forEach((e) => applyStatusEnemy(b, g, e, "blind", 3));
-            log(b, "The Evasion totem shrouds you (+3 Dodge, 3 Blind on foes).");
-        }
+        // V2 Debuff: the opening curse runs at EVERY level (3 AOE Exposed, plus
+        // 3 AOE Weakened from L2) — the attack riders at L3/L4 stack on top of it
         const dl2 = totemLv(g, "Debuff");
-        if ((dl2 === 1 || dl2 === 2) && b.turn <= 3) {
-            alive(b).forEach((e) => { applyStatusEnemy(b, g, e, "exposed", 5); if (dl2 === 2)
-                applyStatusEnemy(b, g, e, "weaken", 5); });
+        if (dl2 >= 1 && b.turn <= 3) {
+            alive(b).forEach((e) => { applyStatusEnemy(b, g, e, "exposed", 3); if (dl2 >= 2)
+                applyStatusEnemy(b, g, e, "weaken", 3); });
             log(b, "The Debuff totem curses your foes.");
+        }
+        // V2 class-resource totems: they feed the hero's own resource each turn
+        // and can tip them straight into their second form
+        {
+            const nl = totemLv(g, "Ninja");
+            if (nl) {
+                h.st.discipline += TOTEM_FX.ninjaDisc[nl];
+                log(b, "The Ninja totem sharpens your focus (+" + TOTEM_FX.ninjaDisc[nl] + " Discipline).");
+                checkStealth(b, g);
+            }
+            const sl = totemLv(g, "Sorcerer");
+            if (sl && !b.over) {
+                h.st.spellbound += TOTEM_FX.sorcSpell[sl];
+                log(b, "The Sorcerer totem hums (+" + TOTEM_FX.sorcSpell[sl] + " Spellbound).");
+                checkSorcerer(b, g);
+            }
+            const dkl = totemLv(g, "Dark Lord");
+            if (dkl && !b.over) {
+                h.st.darkness += TOTEM_FX.darkGain[dkl];
+                log(b, "The Dark Lord totem gathers shadow (+" + TOTEM_FX.darkGain[dkl] + " Darkness).");
+                checkDarkLord(b, g);
+            }
         }
     }
     if (h.st.enraged > 0) {
@@ -21559,10 +21615,12 @@ function heroTurnStart(b, g) {
     {
         const cl = totemLv(g, "Charge");
         if (cl) {
-            const cadence = cl === 1 ? 3 : cl <= 3 ? 2 : 1;
+            // V2: L1 every third turn, L2-L4 every other turn; L4 hits two cards.
+            // (The sheet's L3 row is word-for-word L2 — flagged to the user.)
+            const cadence = cl === 1 ? 3 : 2;
             if (b.turn % cadence === 0) {
                 const nCards = cl >= 4 ? 2 : 1;
-                const amt = (cl === 3 || cl === 5) ? 2 : 1;
+                const amt = 1;
                 let cand = b.chords.filter((c) => c.charge < c.max);
                 const roomy = cand.filter((c) => c.max - c.charge >= amt);
                 if (roomy.length)
@@ -21750,11 +21808,9 @@ function enemyAttackHero(b, g, en, dmg, lifesteal) {
         let d = b.hero.st.burn * bm;
         if (en.special === "ten_hits")
             d = Math.min(d, 1);
-        // Aug 2026 (user design): the FIREWALL TOTEM (any level) keeps your wall
-        // from decaying when struck; without it the wall drops 25% per hit.
-        // Enemy walls always decay 25%.
-        if (!(totemMode(g) && totemLv(g, "Firewall") >= 1))
-            b.hero.st.burn = Math.floor(b.hero.st.burn * 0.75);
+        // V2 (Sep 2026): the Firewall totem no longer stops decay — a struck
+        // wall always falls 25%, both directions.
+        b.hero.st.burn = Math.floor(b.hero.st.burn * 0.75);
         log(b, en.name + " crashes into your Firewall and takes " + d + "! (wall " + b.hero.st.burn + ")");
         en._slainBy = "your Firewall";
         en.hp -= d;
@@ -21777,14 +21833,6 @@ function enemyAttackHero(b, g, en, dmg, lifesteal) {
     }
     if (Math.random() < 0.1 * Math.min(10, en.st.blind)) {
         log(b, en.name + " misses (Blind).");
-        {
-            const evT = totemLv(g, "Evasion");
-            if (evT >= 2) {
-                const rn = evT >= 5 ? n * 2 : n;
-                damageEnemy(b, g, en, rn, { flat: true, src: "Evasion" });
-                log(b, en.name + " takes " + rn + " from the missed strike!");
-            }
-        }
         if (F.on_miss_discipline) {
             b.hero.st.discipline += F.on_miss_discipline;
             checkStealth(b, g);
@@ -21796,14 +21844,6 @@ function enemyAttackHero(b, g, en, dmg, lifesteal) {
     if (Math.random() < 0.1 * Math.min(10, b.hero.st.dodge)) {
         fxPush(b, "dodge", "hero");
         log(b, "You dodge " + en.name + "!");
-        {
-            const evT = totemLv(g, "Evasion");
-            if (evT >= 2) {
-                const rn = evT >= 5 ? n * 2 : n;
-                damageEnemy(b, g, en, rn, { flat: true, src: "Evasion" });
-                log(b, en.name + " takes " + rn + " from the missed strike!");
-            }
-        }
         if (F.on_miss_discipline) {
             b.hero.st.discipline += F.on_miss_discipline;
             checkStealth(b, g);
@@ -22208,13 +22248,11 @@ function enemyPhase(b, g) {
         const pLoss = en.special === "ten_hits" ? Math.min(1, Math.max(0, en.st.poison - pAbs)) : (en.st.poison - pAbs);
         en.hp -= pLoss;
         {
-            // Poison totem: any level stops decay; L4 grows stacks 15%/turn, L5 30%
+            // V2 Poison totem: L1 still decays, L2+ stops decay, L4 grows 10%/turn
             const ptl2 = totemLv(g, "Poison");
-            if (ptl2 >= 5)
-                en.st.poison = Math.ceil(en.st.poison * 1.3);
-            else if (ptl2 === 4)
-                en.st.poison = Math.ceil(en.st.poison * 1.15);
-            else if (ptl2 < 1)
+            if (ptl2 >= 4)
+                en.st.poison = Math.ceil(en.st.poison * 1.10);
+            else if (ptl2 < 2)
                 en.st.poison -= 1;
         }
         if (en.hp <= 0)
@@ -22589,16 +22627,33 @@ function applyReward(g, def) {
 }
 // ===== TOTEM SYSTEM (variant build) =====
 // Max 3 active. Chosen/upgraded at node 4 of each biome and after boss battles.
+// TOTEM TABLE V2 (Sep 16 2026, from the "Totems" Google Sheet's V2 block):
+// FOUR levels, no Evasion, and three class-resource totems (Ninja / Sorcerer /
+// Dark Lord) offered only to the hero whose resource they feed.
+const TOTEM_MAX = 4;
 const TOTEM_DESC = {
-    Strength: ["Gain 1 Strength", "Gain 2 Strength", "Gain 3 Strength", "Gain 4 Strength", "Gain 5 Strength"],
-    Block: ["Gain 1 Armored", "Gain 1 Armored and 2 Entrenched", "Gain 2 Armored and 3 Entrenched", "Gain 2 Armored and 4 Entrenched", "Gain 3 Armored and 5 Entrenched"],
-    Minion: ["Summon an Elephant Minion at the start of each battle", "Summon an Elephant Minion at the start of each battle. Minions gain 2 Strength and 2 Armored", "Summon an Elephant and Bear Minion at the start of each battle. Minions gain 2 Strength and 2 Armored", "Summon an Elephant and Bear Minion at the start of each battle. Minions gain 3 Strength and 3 Armored. Minion attacks apply 2 Exposed", "Summon an Elephant and Bear Minion at the start of each battle. Minions gain 3 Strength and 3 Armored. Minion attacks apply 2 Exposed. Minion effects have a 50% chance to activate twice"],
-    Poison: ["Apply 3 AOE Poison to start each battle. Poison stacks on enemies do not decay", "Apply 3 AOE Poison to start each battle. Apply 2 extra Poison whenever it is applied. Poison stacks on enemies do not decay", "Apply 4 AOE Poison to start each battle. Apply 3 extra Poison whenever it is applied. Poison stacks on enemies do not decay", "Apply 4 AOE Poison to start each battle. Apply 3 extra Poison whenever it is applied. Poison stacks on enemies increase by 15% each turn", "Apply 4 AOE Poison to start each battle. Apply 3 extra Poison whenever it is applied. All your attacks apply 2 Poison. Poison stacks on enemies increase by 30% each turn"],
-    Charge: ["Every third turn, a random card gains one extra charge", "Every other turn, a random card gains one extra charge", "Every other turn, a random card gains two extra charge", "Every turn, two random cards gain one extra charge", "Every turn, two random cards gain two extra charge"],
-    Firewall: ["Start each battle with 4 Firewall. Firewall does not decay when attacked", "Start each battle with 4 Firewall. Firewall does not decay when attacked. Firewall stacks increase by 10% at the start of your turn", "Start each battle with 5 Firewall. Firewall does not decay when attacked. Firewall stacks increase by 10% at the start of your turn. Gain 25% increased Firewall from cards", "Start each battle with 10 Firewall. Firewall does not decay when attacked. Firewall stacks increase by 20% at the start of your turn. Gain 25% increased Firewall from cards", "Start each battle with 10 Firewall. Firewall does not decay when attacked. Firewall stacks increase by 30% at the start of your turn. Gain 50% increased Firewall from cards"],
-    Evasion: ["Start each battle with 3 Dodge and 3 AOE Blinded", "For your first 2 turns, gain 5 Dodge and apply 5 AOE Blinded. When enemies miss an attack, they take the intended attack damage", "For your first 2 turns, gain 5 Dodge and apply 5 AOE Blinded. Dodge and Blind cards are 25% more effective. When enemies miss an attack, they take the intended attack damage", "For your first 2 turns, gain 5 Dodge and apply 5 AOE Blinded. Dodge and Blind cards are 25% more effective. When enemies miss an attack, they take the intended attack damage", "For your first 2 turns, gain 5 Dodge and apply 5 AOE Blinded. Dodge and Blind cards are 25% more effective. When enemies miss an attack, they take twice the intended attack damage"],
-    Debuff: ["Apply 5 AOE Exposed for the first 3 turns of each battle", "Apply 5 AOE Exposed and 5 AOE Weakened for the first 3 turns of each battle", "Your attacks apply 1 Exposed", "Your attacks apply 1 Exposed and 1 Weakened", "Your attacks apply 2 Exposed and 2 Weakened"],
+    Strength: ["Gain 1 Strength", "Gain 2 Strength", "Gain 3 Strength", "Gain 4 Strength"],
+    Block: ["Gain 1 Armored", "Gain 1 Armored and 2 Entrenched", "Gain 2 Armored and 3 Entrenched", "Gain 3 Armored and 3 Entrenched"],
+    Minion: ["Summon an Elephant Minion at the start of each battle", "Summon an Elephant Minion at the start of each battle. Minions gain 2 Strength and 2 Armored", "Summon an Elephant and Bear Minion at the start of each battle. Minions gain 2 Strength and 2 Armored", "Summon an Elephant and Bear Minion at the start of each battle. Minions gain 3 Strength and 3 Armored"],
+    Poison: ["Apply 3 AOE Poison to start each battle", "Apply 3 AOE Poison to start each battle. Poison stacks on enemies do not decay", "Apply 3 AOE Poison to start each battle. Poison stacks on enemies do not decay. Poison from cards is increased by 25%", "Apply 3 AOE Poison to start each battle. Poison stacks on enemies increase by 10% each turn. Poison from cards is increased by 25%"],
+    Charge: ["Every third turn, a random card gains one extra charge", "Every other turn, a random card gains one extra charge", "Every other turn, a random card gains an extra charge", "Every other turn, two random cards gain an extra charge"],
+    Firewall: ["Start each battle with 4 Firewall", "Start each battle with 4 Firewall. Gain 1 Firewall each time you gain Shield", "Start each battle with 4 Firewall. Gain 1 Firewall each time you gain Shield. Gain 25% more Firewall from cards", "Start each battle with 4 Firewall. Gain 3 Firewall each time you gain Shield. Gain 25% more Firewall from cards"],
+    Debuff: ["Apply 3 AOE Exposed for the first 3 turns of each battle", "Apply 3 AOE Exposed and 3 AOE Weakened for the first 3 turns of each battle", "Apply 3 AOE Exposed and 3 AOE Weakened for the first 3 turns of each battle. Your attacks apply 1 Exposed", "Apply 3 AOE Exposed and 3 AOE Weakened for the first 3 turns of each battle. Your attacks apply 1 Exposed and 1 Weakened"],
+    Ninja: ["Gain 2 Discipline per turn", "Gain 2 Discipline per turn. Shuriken attacks deal 2 more damage", "Gain 3 Discipline per turn. Shuriken attacks deal 2 more damage", "Gain 4 Discipline per turn. Shuriken attacks deal 3 more damage"],
+    Sorcerer: ["Gain 2 Spellbound per turn", "Gain 2 Spellbound per turn. Gain 5 Shield when entering Sorcerer Form", "Gain 3 Spellbound per turn. Gain 5 Shield when entering Sorcerer Form", "Gain 4 Spellbound per turn. Gain 10 Shield when entering Sorcerer Form"],
+    "Dark Lord": ["Gain 2 Darkness per turn", "Gain 2 Darkness per turn. Skeletons attack when entering Dark Lord Form", "Gain 3 Darkness per turn. Skeletons attack when entering Dark Lord Form", "Gain 3 Darkness per turn. Skeletons attack twice when entering Dark Lord Form"],
 };
+// per-level effect tables (index = totem level, 0 = not owned)
+const TOTEM_FX = {
+    blockArm: [0, 1, 1, 2, 3], blockEntr: [0, 0, 2, 3, 3],
+    poisonStart: [0, 3, 3, 3, 3],
+    fireStart: [0, 4, 4, 4, 4], fireOnShield: [0, 0, 1, 1, 3],
+    ninjaDisc: [0, 2, 2, 3, 4], ninjaShur: [0, 0, 2, 2, 3],
+    sorcSpell: [0, 2, 2, 3, 4], sorcShield: [0, 0, 5, 5, 10],
+    darkGain: [0, 2, 2, 3, 3], darkSkel: [0, 0, 1, 1, 2],
+};
+// the class-resource totems only reach the hero they belong to
+const RESOURCE_TOTEM = { discipline: "Ninja", spellbound: "Sorcerer", darkness: "Dark Lord" };
 const TOTEM_IDS = Object.keys(TOTEM_DESC);
 function totemMode(g) { return g.gameMode === "totems"; }
 function totemLv(g, id) { const t = (g.totems || []).find((x) => x && x.id === id); return t ? t.lv : 0; }
@@ -22970,7 +23025,7 @@ function makeStore(g, variant) {
         if (g.furyMax > 2)
             deals.push({ t: "fury", cost: 310, sec: "daily" });
         if (totemMode(g)) {
-            if ((g.totems || []).some((t) => t.lv < 5))
+            if ((g.totems || []).some((t) => t.lv < TOTEM_MAX))
                 deals.push({ t: "totemUp", cost: 295, sec: "daily" });
             if ((g.totems || []).length < 3 && totemPoolIds(g).some((id) => !(g.totems || []).some((t) => t.id === id)))
                 deals.push({ t: "totemNew", cost: 280, sec: "daily" });
@@ -25071,7 +25126,7 @@ const BOT = {
     themes(card) { const t = new Set(); const j = JSON.stringify(card && card.st || []); for (const k of ["burn", "poison", "exposed", "weaken", "blind", "strength", "dodge", "armored", "discipline", "summon", "shield", "lifesteal", "enraged", "stun", "fury", "darkness", "acid"])
         if (j.includes('"' + k + '"'))
             t.add(k); return t; },
-    totemTheme(id) { return { Firewall: "burn", Poison: "poison", Evasion: "dodge", Strength: "strength", Block: "armored", Minion: "summon", Debuff: "exposed", Charge: "charge" }[id]; },
+    totemTheme(id) { return { Firewall: "burn", Poison: "poison", Strength: "strength", Block: "armored", Minion: "summon", Debuff: "exposed", Charge: "charge", Ninja: "discipline", Sorcerer: "spellbound", "Dark Lord": "darkness" }[id]; },
     ownedCards(g) { const out = []; for (const L of "ABCDEFG")
         if (g.slots[L]) {
             const c = CARD_BY[cardKey(g.slots[L].name, g.slots[L].lv)];
@@ -25082,7 +25137,7 @@ const BOT = {
     // aggro: strength + multi-hit + exposed debuffs, unleashed via fury (Strength/Debuff)
     // poison: poison stacking behind heavy shields (Poison/Block)
     // firewall: firewall walls behind heavy shields (Firewall/Block)
-    // Charge/Minion/Evasion are support totems that help any archetype.
+    // Charge/Minion are support totems that help any archetype.
     ARCH: {
         aggro: { themes: ["strength", "exposed", "fury", "multihit"], totems: ["Strength", "Debuff"] },
         poison: { themes: ["poison", "shield", "armored"], totems: ["Poison", "Block"] },
@@ -25093,7 +25148,7 @@ const BOT = {
         darklord: { themes: ["darkness", "lifesteal", "acid", "payload"], totems: [] },
         skeletons: { themes: ["skeleton", "summon"], totems: ["Minion"] },
     },
-    NEUTRAL_TOTEMS: ["Charge", "Minion", "Evasion"],
+    NEUTRAL_TOTEMS: ["Charge", "Minion"],
     cardThemes(card) {
         const t = BOT.themes(card);
         const j = JSON.stringify(card && card.st || []);
@@ -25750,8 +25805,8 @@ const BOT = {
     // HERO-AWARE since Aug 2026 (re-mined @1.5k/hero post weaken-fix/boss-heal/
     // aggro-lean; scale = observed win%-holding delta × 0.15, same weak-lever
     // convention). Debuff is now the TOP totem for both heroes; Firewall still last.
-    TOTEM_PRIOR: { Debuff: 1.2, Evasion: 1.1, Strength: 0.7, Block: 0.6, Minion: 0.3, Poison: 0.1, Charge: -0.1, Firewall: -1.0 },
-    TOTEM_PRIOR_NECRO: { Debuff: 1.8, Evasion: 0.9, Poison: 0.9, Charge: 0.5, Block: 0.4, Strength: 0.4, Minion: 0.2, Firewall: -0.6 },
+    TOTEM_PRIOR: { Debuff: 1.2, Ninja: 1.1, Strength: 0.7, Block: 0.6, Minion: 0.3, Poison: 0.1, Charge: -0.1, Firewall: -1.0 },
+    TOTEM_PRIOR_NECRO: { Debuff: 1.8, "Dark Lord": 0.9, Poison: 0.9, Charge: 0.5, Block: 0.4, Strength: 0.4, Minion: 0.2, Firewall: -0.6 },
     totemPriorOf(g, id) {
         const m = heroDef(g).furyCharge === "debuff" ? BOT.TOTEM_PRIOR_NECRO : BOT.TOTEM_PRIOR;
         return m[id] || 0;
@@ -25760,7 +25815,7 @@ const BOT = {
     // (Poison/Firewall/Strength) — a second competing source is mostly wasted;
     // Debuff belongs with attack-damage builds, not poison/firewall; Minion is a
     // damage source for minion decks (or 2+ minions beside another source), not a
-    // true generic. Generic fallbacks (Block/Evasion/Charge) help any build.
+    // true generic. Generic fallbacks (Block/Charge) help any build.
     DMG_TOTEMS: ["Poison", "Firewall", "Strength"],
     minionCardCount(g) {
         let n = 0;
@@ -25808,7 +25863,7 @@ const BOT = {
             ? ["poison", "firewall", "minion", "aggro", "darkness"]
             : BOT.FORCED_ARCHES;
     },
-    PERSONA_TOTEM: { poison: "Poison", firewall: "Firewall", minion: "Minion", aggro: "Strength", discipline: "Evasion" },
+    PERSONA_TOTEM: { poison: "Poison", firewall: "Firewall", minion: "Minion", aggro: "Strength", discipline: "Ninja", darkness: "Dark Lord" },
     // v11.1 (user design): forced runs start UNCOMMITTED ("pending") — the persona is
     // discovered from the run's own rewards: the first persona-appropriate card the
     // bot sees before its first totem MUST be taken, and that card's archetype
@@ -25906,7 +25961,7 @@ const BOT = {
     },
     totemUpScore(g, t, lean) {
         lean = lean || BOT.archLean(g);
-        const SPIKE = { Poison: { 4: 3, 5: 2 }, Minion: { 3: 1.5, 5: 3 }, Firewall: { 2: 2, 3: 1.5, 4: 1.5, 5: 1.5 }, Debuff: { 3: 2, 5: 1.5 }, Block: { 3: 1 }, Evasion: { 5: 1 }, Charge: { 4: 1 } };
+        const SPIKE = { Poison: { 2: 2, 3: 1.5, 4: 2 }, Minion: { 3: 1.5, 4: 1 }, Firewall: { 2: 1.5, 3: 1.5, 4: 2 }, Debuff: { 2: 1.5, 3: 2, 4: 1.5 }, Block: { 3: 1 }, Charge: { 4: 1 }, Ninja: { 2: 1.5, 4: 1 }, Sorcerer: { 2: 1.5, 4: 1 }, "Dark Lord": { 2: 2, 4: 1.5 } };
         let s = (BOT.NEUTRAL_TOTEMS.includes(t.id) ? 1 : 0) + ((SPIKE[t.id] || {})[t.lv + 1] || 0) + (BOT.exploringPriors(g) ? 0 : BOT.totemPriorOf(g, t.id) * 0.5) + BOT.totemDoctrineAdj(g, t.id, lean);
         const pa2 = BOT.activePersona(g);
         if (pa2 && BOT.PERSONA_TOTEM[pa2] === t.id)
@@ -25946,7 +26001,7 @@ const BOT = {
         // misfit for a better offer) measured −1.5pp win rate — the forgone upgrade
         // plus the L1 reset outweigh the better fit. Upgrades stay strictly preferred;
         // replacement only happens when every totem is maxed (below).
-        const up = owned.filter((t) => t.lv < 5);
+        const up = owned.filter((t) => t.lv < TOTEM_MAX);
         if (up.length) {
             let bt = up[0], bs = -1;
             for (const t of up) {
@@ -26834,7 +26889,7 @@ const BOT = {
                         BOT.note("store: heal " + it.n + " ×" + bought + " (" + P(it.cost) * bought + "g)");
                     return;
                 } if (t === "totemUp") {
-                    const tt = (g.totems || []).filter((x) => x.lv < 5).sort((a, b) => BOT.totemUpScore(g, b) - BOT.totemUpScore(g, a))[0];
+                    const tt = (g.totems || []).filter((x) => x.lv < TOTEM_MAX).sort((a, b) => BOT.totemUpScore(g, b) - BOT.totemUpScore(g, a))[0];
                     if (tt) {
                         g.gold -= P(it.cost);
                         tt.lv += 1;
@@ -27748,7 +27803,7 @@ function EldertoneInner() {
                         BOT.note("store: heal " + it.n + " ×" + bought + " (" + P(it.cost) * bought + "g)");
                     return;
                 } if (t === "totemUp") {
-                    const tt = (g.totems || []).filter((x) => x.lv < 5).sort((a, b) => BOT.totemUpScore(g, b) - BOT.totemUpScore(g, a))[0];
+                    const tt = (g.totems || []).filter((x) => x.lv < TOTEM_MAX).sort((a, b) => BOT.totemUpScore(g, b) - BOT.totemUpScore(g, a))[0];
                     if (tt) {
                         g.gold -= P(it.cost);
                         tt.lv += 1;
@@ -28302,7 +28357,7 @@ function EldertoneInner() {
                                 React.createElement("select", { value: (testTotems[ti] || "").split("@@")[0], onChange: (e) => { const id = e.target.value; setTestTotems((p) => { const q = p.slice(); q[ti] = id ? id + "@@" + (((q[ti] || "").split("@@")[1]) || 1) : ""; return q; }); } },
                                     React.createElement("option", { value: "" }, "\u2014 none \u2014"),
                                     Object.keys(TOTEM_DESC).map((id) => React.createElement("option", { key: id, value: id }, id))),
-                                testTotems[ti] ? (React.createElement("select", { style: { marginLeft: 6, maxWidth: 70 }, value: (testTotems[ti] || "").split("@@")[1] || "1", title: totemDesc((testTotems[ti] || "").split("@@")[0], +((testTotems[ti] || "").split("@@")[1] || 1)), onChange: (e) => { const lv = e.target.value; setTestTotems((p) => { const q = p.slice(); const id = (q[ti] || "").split("@@")[0]; q[ti] = id ? id + "@@" + lv : ""; return q; }); } }, [1, 2, 3, 4, 5].map((lv) => React.createElement("option", { key: lv, value: lv },
+                                testTotems[ti] ? (React.createElement("select", { style: { marginLeft: 6, maxWidth: 70 }, value: (testTotems[ti] || "").split("@@")[1] || "1", title: totemDesc((testTotems[ti] || "").split("@@")[0], +((testTotems[ti] || "").split("@@")[1] || 1)), onChange: (e) => { const lv = e.target.value; setTestTotems((p) => { const q = p.slice(); const id = (q[ti] || "").split("@@")[0]; q[ti] = id ? id + "@@" + lv : ""; return q; }); } }, [1, 2, 3, 4].map((lv) => React.createElement("option", { key: lv, value: lv },
                                     "L",
                                     lv)))) : null))),
                             testTotems.some(Boolean) && (React.createElement("div", { className: "et-note", style: { fontSize: 11 } }, testTotems.filter(Boolean).map((t) => { const p = t.split("@@"); return p[0] + " L" + (p[1] || 1) + ": " + totemDesc(p[0], +(p[1] || 1)); }).join(" · "))),
@@ -28971,8 +29026,8 @@ function EldertoneInner() {
                             " ",
                             t.id,
                             " ",
-                            t.lv < 5 ? `L${t.lv} \u2192 L${t.lv + 1}` : "(max level)"),
-                        React.createElement("div", { className: "fx" }, t.lv < 5 ? totemDesc(t.id, t.lv + 1) : totemDesc(t.id, t.lv)))))))),
+                            t.lv < TOTEM_MAX ? `L${t.lv} \u2192 L${t.lv + 1}` : "(max level)"),
+                        React.createElement("div", { className: "fx" }, t.lv < TOTEM_MAX ? totemDesc(t.id, t.lv + 1) : totemDesc(t.id, t.lv)))))))),
                 offers.length > 0 && (React.createElement("div", null,
                     React.createElement("h3", { style: { color: "#d8b97a", textAlign: "center", marginTop: 14 } },
                         owned.length ? "\u2026 or take a new totem" : "Take a new totem",
@@ -28992,7 +29047,7 @@ function EldertoneInner() {
                             id,
                             " Totem"),
                         React.createElement("div", { className: "fx" }, totemDesc(id, 1)))))))),
-                owned.every((t) => t.lv >= 5) && !offers.length && (React.createElement("div", { style: { textAlign: "center", marginTop: 12 } },
+                owned.every((t) => t.lv >= TOTEM_MAX) && !offers.length && (React.createElement("div", { style: { textAlign: "center", marginTop: 12 } },
                     React.createElement("button", { className: "et-btn", onClick: () => mut((g) => done()) }, "Continue")))))));
     }
     // ---------- screen: reward ----------
@@ -29381,12 +29436,12 @@ function EldertoneInner() {
             tp ? (React.createElement("div", { style: { maxWidth: 760, margin: "0 auto" } },
                 React.createElement("h3", { className: "et-title", style: { color: "#d8b97a", textAlign: "center" } }, tp.t === "totemUp" ? "Choose a totem to upgrade" : "Choose your new totem"),
                 React.createElement("div", { className: "et-grid" }, (tp.t === "totemUp"
-                    ? (g.totems || []).filter((t) => t.lv < 5).map((t) => (React.createElement("div", { key: t.id, className: "et-panel et-pick", style: { cursor: "pointer", borderColor: "#8a6d3b" }, onClick: () => mut((g) => {
+                    ? (g.totems || []).filter((t) => t.lv < TOTEM_MAX).map((t) => (React.createElement("div", { key: t.id, className: "et-panel et-pick", style: { cursor: "pointer", borderColor: "#8a6d3b" }, onClick: () => mut((g) => {
                             const pk = g.store.totemPick;
                             if (!pk || g.gold < pk.cost)
                                 return;
                             const tt = (g.totems || []).find((x) => x.id === t.id);
-                            if (!tt || tt.lv >= 5)
+                            if (!tt || tt.lv >= TOTEM_MAX)
                                 return;
                             tt.lv += 1;
                             g.gold -= pk.cost;
