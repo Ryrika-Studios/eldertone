@@ -21615,12 +21615,12 @@ function heroTurnStart(b, g) {
     {
         const cl = totemLv(g, "Charge");
         if (cl) {
-            // V2: L1 every third turn, L2-L4 every other turn; L4 hits two cards.
-            // (The sheet's L3 row is word-for-word L2 — flagged to the user.)
+            // V2: L1 every third turn, L2-L4 every other turn; L3 gives ONE card
+            // two charges, L4 gives TWO cards one charge each.
             const cadence = cl === 1 ? 3 : 2;
             if (b.turn % cadence === 0) {
                 const nCards = cl >= 4 ? 2 : 1;
-                const amt = 1;
+                const amt = cl === 3 ? 2 : 1;
                 let cand = b.chords.filter((c) => c.charge < c.max);
                 const roomy = cand.filter((c) => c.max - c.charge >= amt);
                 if (roomy.length)
@@ -22636,7 +22636,7 @@ const TOTEM_DESC = {
     Block: ["Gain 1 Armored", "Gain 1 Armored and 2 Entrenched", "Gain 2 Armored and 3 Entrenched", "Gain 3 Armored and 3 Entrenched"],
     Minion: ["Summon an Elephant Minion at the start of each battle", "Summon an Elephant Minion at the start of each battle. Minions gain 2 Strength and 2 Armored", "Summon an Elephant and Bear Minion at the start of each battle. Minions gain 2 Strength and 2 Armored", "Summon an Elephant and Bear Minion at the start of each battle. Minions gain 3 Strength and 3 Armored"],
     Poison: ["Apply 3 AOE Poison to start each battle", "Apply 3 AOE Poison to start each battle. Poison stacks on enemies do not decay", "Apply 3 AOE Poison to start each battle. Poison stacks on enemies do not decay. Poison from cards is increased by 25%", "Apply 3 AOE Poison to start each battle. Poison stacks on enemies increase by 10% each turn. Poison from cards is increased by 25%"],
-    Charge: ["Every third turn, a random card gains one extra charge", "Every other turn, a random card gains one extra charge", "Every other turn, a random card gains an extra charge", "Every other turn, two random cards gain an extra charge"],
+    Charge: ["Every third turn, a random card gains one extra charge", "Every other turn, a random card gains one extra charge", "Every other turn, a random card gains two extra charge", "Every other turn, two random cards gain an extra charge"],
     Firewall: ["Start each battle with 4 Firewall", "Start each battle with 4 Firewall. Gain 1 Firewall each time you gain Shield", "Start each battle with 4 Firewall. Gain 1 Firewall each time you gain Shield. Gain 25% more Firewall from cards", "Start each battle with 4 Firewall. Gain 3 Firewall each time you gain Shield. Gain 25% more Firewall from cards"],
     Debuff: ["Apply 3 AOE Exposed for the first 3 turns of each battle", "Apply 3 AOE Exposed and 3 AOE Weakened for the first 3 turns of each battle", "Apply 3 AOE Exposed and 3 AOE Weakened for the first 3 turns of each battle. Your attacks apply 1 Exposed", "Apply 3 AOE Exposed and 3 AOE Weakened for the first 3 turns of each battle. Your attacks apply 1 Exposed and 1 Weakened"],
     Ninja: ["Gain 2 Discipline per turn", "Gain 2 Discipline per turn. Shuriken attacks deal 2 more damage", "Gain 3 Discipline per turn. Shuriken attacks deal 2 more damage", "Gain 4 Discipline per turn. Shuriken attacks deal 3 more damage"],
