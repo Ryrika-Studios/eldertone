@@ -18767,6 +18767,8 @@ function intentLabel(b, en) {
         const base = Math.max(0, Math.floor((en.maxHp - en.hp) / 2));
         return (en.intent.label || "⚠ growing…") + " ⚔" + eff(base);
     }
+    if (en.special === "blimp" && en.flags && en.flags.boom && en.flags.boomDmg != null)
+        return (en.intent.label || "💥 bursting") + " ⚔" + eff(en.flags.boomDmg);
     if (!en.intent.parts)
         return en.intent.label;
     // generic symbols (Aug 2026, user design): 🌀 = "will debuff you" (which one
@@ -18818,6 +18820,8 @@ function intentTipLines(b, en) {
     };
     if (en.special === "growing_mass" && en.flags && en.flags.slamNext)
         lines.push("Slam: attacks for half the health it has regrown (⚔" + eff(Math.max(0, Math.floor((en.maxHp - en.hp) / 2))) + ").");
+    if (en.special === "blimp" && en.flags && en.flags.boom && en.flags.boomDmg != null)
+        lines.push("\u{1F4A5} Its crew is gone \u2014 on its next turn it self-destructs, hitting you for " + eff(en.flags.boomDmg) + (b.hero.shield > 0 ? " (your Shield absorbs first)" : "") + ".");
     for (const p of (en.intent.parts || [])) {
         if (p[0] === "D")
             lines.push("⚔ Will attack you for " + eff(p[1]) + (b.hero.shield > 0 ? " (your Shield absorbs first)" : "") + ".");
@@ -22074,13 +22078,14 @@ function enemyPhase(b, g) {
             const elves = b.enemies.filter((e) => e.name === "Elf" && !e.dead);
             if (!elves.length) {
                 if (en.flags.boom) {
-                    const v = rollTier("D", en.biome, 4);
+                    const v = en.flags.boomDmg != null ? en.flags.boomDmg : rollTier("D", en.biome, 4);
                     enemyAttackHero(b, g, en, v, false);
                     killEnemy(b, g, en);
                     continue;
                 }
                 en.flags.boom = true;
-                en.intent = { kind: "charge", label: "💥 next turn" };
+                en.flags.boomDmg = rollTier("D", en.biome, 4); // telegraphed on the pill
+                en.intent = { kind: "charge", label: "💥 bursting" };
                 continue;
             }
         }
@@ -24220,6 +24225,8 @@ const BOT = {
         }
         if (e.special === "growing_mass" && e.flags && e.flags.slamNext)
             out.attack += Math.max(0, Math.floor((e.maxHp - e.hp) / 2));
+        if (e.special === "blimp" && e.flags && e.flags.boom && e.flags.boomDmg != null)
+            out.attack += e.flags.boomDmg;
         if (out.attack > 0) {
             // expected damage: enemy strength & weaken, blind miss chance, hero exposed
             out.attack += hits * (e.st.strength || 0);
