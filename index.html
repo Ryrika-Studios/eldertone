@@ -23248,17 +23248,17 @@ const CSS = `
 .et-battle .et-scene{margin-top:auto}
 .et-scene .et-chords{position:relative;z-index:2;margin:6px 10px 12px;padding:0 4px;display:grid;grid-template-columns:repeat(7,1fr);grid-auto-flow:dense;gap:7px;align-items:start}
 .et-scene .et-chords .cf{width:auto;min-width:0}
-.et-scene .et-chords.v2slots{gap:6px;margin-top:14px}
-.et-slot{position:relative;min-width:0;min-height:150px;padding:24px 3px 4px;border-radius:12px;border:2px solid var(--sc);background:linear-gradient(180deg,color-mix(in srgb,var(--sc) 22%,rgba(14,18,26,.55)),rgba(14,18,26,.35));box-shadow:0 0 10px color-mix(in srgb,var(--sc) 35%,transparent),inset 0 0 12px rgba(0,0,0,.35)}
-.et-slot.empty{border-style:dashed;opacity:.8}
-.et-slotorb{position:absolute;top:-16px;left:50%;transform:translateX(-50%);width:36px;height:36px;z-index:3;pointer-events:none;filter:drop-shadow(0 2px 3px rgba(0,0,0,.55))}
+.et-scene .et-chords.v2slots{gap:6px;margin-top:10px}
+.et-slot{position:relative;min-width:0;min-height:150px;padding:9px 6px 7px;border-radius:9px;border:4px solid transparent;background:repeating-linear-gradient(91deg,rgba(0,0,0,.13) 0 2px,transparent 2px 9px,rgba(255,220,170,.05) 9px 10px,transparent 10px 17px) padding-box,linear-gradient(180deg,#80532e,#5e3b21 55%,#482c18) padding-box,linear-gradient(150deg,#f1f4f7,#8e98a2 28%,#dde2e8 48%,#646c75 70%,#c4cad1) border-box;box-shadow:0 3px 9px rgba(0,0,0,.55),inset 0 0 16px rgba(0,0,0,.6)}
+.et-slot::before{content:'';position:absolute;inset:3px;pointer-events:none;background:radial-gradient(circle at 35% 35%,#f4f6f8,#7c848d 60%,#3c4248) 0 0/6px 6px no-repeat,radial-gradient(circle at 35% 35%,#f4f6f8,#7c848d 60%,#3c4248) 100% 0/6px 6px no-repeat,radial-gradient(circle at 35% 35%,#f4f6f8,#7c848d 60%,#3c4248) 0 100%/6px 6px no-repeat,radial-gradient(circle at 35% 35%,#f4f6f8,#7c848d 60%,#3c4248) 100% 100%/6px 6px no-repeat}
+.et-slot.empty{box-shadow:0 3px 9px rgba(0,0,0,.55),inset 0 0 26px rgba(0,0,0,.8)}
 .et-slot .cf{width:100%}
-.et-slot .cf .cf-slot{display:none}
+.cf-slot.orb{background:none;border:none;width:32px;height:32px;top:-10px;left:-10px}
+.cf-slot.orb img{width:100%;height:100%;display:block;filter:drop-shadow(0 2px 3px rgba(0,0,0,.55))}
 @media (max-width:700px){.et-scene .et-chords .et-slot{grid-column:auto !important}}
-.et-slot.free{min-width:178px;min-height:0;padding:24px 5px 6px;margin-top:16px}
+.et-slot.free{min-width:180px;min-height:0;padding:12px 6px 8px;margin-top:8px}
 .et-slot.free .cf{width:168px}
-.et-slot.free{background-color:#12151c}
-.et-slot.free.empty{min-height:200px;opacity:1}
+.et-slot.free.empty{min-height:200px}
 .et-slotgrid{gap:12px 10px}
 .et-scene .et-chords .cf .cf-rows{font-size:11px;line-height:1.3}
 .et-scene .et-chords .cf .cf-banner h4{font-size:12.5px}
@@ -24088,11 +24088,10 @@ const SLOT_COLORS = {A:"#0a84ff",B:"#e6f000",C:"#00d8c6",D:"#f2142e",E:"#d862ff"
 function SlotFrame({ L, empty, children }) {
     if (!SLOT_ORBS[L])
         return React.createElement(React.Fragment, null, children);
-    return React.createElement("div", { className: "et-slot free" + (empty ? " empty" : ""), style: { "--sc": SLOT_COLORS[L] } },
-        React.createElement("img", { className: "et-slotorb", src: SLOT_ORBS[L], alt: L, draggable: false }),
+    return React.createElement("div", { className: "et-slot free" + (empty ? " empty" : ""), },
         children);
 }
-function CardFace({ name, slot, lv, rows, activeIdx, extra, footer, onClick, ready, locked, style, ring, tipKeys, tipFlip, tipExtra, fx, bagSlots }) {
+function CardFace({ name, slot, lv, rows, activeIdx, extra, footer, onClick, ready, locked, style, ring, tipKeys, tipFlip, tipExtra, fx, bagSlots, orb }) {
     // class border color: strip battle decorations (✦ 🎵 🔥) before the card lookup
     const baseName = String(name).replace(/[\s✦🎵🔥]+$/u, "");
     const cCls = (CARD_BY[cardKey(baseName, lv)] || CARD_BY[cardKey(baseName, 1)] || {}).cls;
@@ -24114,7 +24113,7 @@ function CardFace({ name, slot, lv, rows, activeIdx, extra, footer, onClick, rea
                 " \u2014 ",
                 d2)))),
         React.createElement("div", { className: "cf-banner" },
-            React.createElement("span", { className: "cf-slot" }, slot),
+            (orb && SLOT_ORBS[slot]) ? React.createElement("span", { className: "cf-slot orb" }, React.createElement("img", { src: SLOT_ORBS[slot], alt: slot, draggable: false })) : React.createElement("span", { className: "cf-slot" }, slot),
             bagSlots && React.createElement("span", { className: "cf-bagslot" + (bagSlots[0] ? " filled" : "") }, React.createElement(BagSlotIcon, { k: bagSlots[0] })),
             React.createElement("h4", null,
                 name,
@@ -28753,10 +28752,10 @@ function EldertoneInner() {
             const c = g.slots[L] && CARD_BY[cardKey(g.slots[L].name, g.slots[L].lv)];
             if (!c)
                 return React.createElement(SlotFrame, { key: L, L: L, empty: true });
-            return React.createElement(SlotFrame, { key: L, L: L }, React.createElement(CardFace, { key: L, name: dispName(g.slots[L].name, L), slot: L, lv: g.slots[L].lv, rows: grownRows(c.txt, g.slots[L]), activeIdx: null, ring: { charge: 0, max: c.c }, footer: [g.slots[L].growth ? "+" + g.slots[L].growth + " permanent damage" : "", bagDesc(g, g.slots[L])].filter(Boolean).join(" \u00b7 ") || undefined }));
+            return React.createElement(SlotFrame, { key: L, L: L }, React.createElement(CardFace, { key: L, orb: true, name: dispName(g.slots[L].name, L), slot: L, lv: g.slots[L].lv, rows: grownRows(c.txt, g.slots[L]), activeIdx: null, ring: { charge: 0, max: c.c }, footer: [g.slots[L].growth ? "+" + g.slots[L].growth + " permanent damage" : "", bagDesc(g, g.slots[L])].filter(Boolean).join(" \u00b7 ") || undefined }));
         })),
         g.reserves.some(Boolean) && React.createElement("div", { className: "et-note" }, "Reserves"),
-        React.createElement("div", { className: "et-grid et-slotgrid" }, g.reserves.filter((r) => r && CARD_BY[cardKey(r.name, r.lv)]).map((r, i) => (React.createElement(SlotFrame, { key: "r" + i, L: r.slot }, React.createElement(CardFace, { name: dispName(r.name, r.slot), slot: r.slot, lv: r.lv, rows: grownRows(CARD_BY[cardKey(r.name, r.lv)].txt, r), bagSlots: bagSlotIcons(r), activeIdx: null, ring: { charge: 0, max: CARD_BY[cardKey(r.name, r.lv)].c }, footer: r.growth ? "reserve · +" + r.growth + " dmg" : "reserve" })))))));
+        React.createElement("div", { className: "et-grid et-slotgrid" }, g.reserves.filter((r) => r && CARD_BY[cardKey(r.name, r.lv)]).map((r, i) => (React.createElement(SlotFrame, { key: "r" + i, L: r.slot }, React.createElement(CardFace, { orb: true, name: dispName(r.name, r.slot), slot: r.slot, lv: r.lv, rows: grownRows(CARD_BY[cardKey(r.name, r.lv)].txt, r), bagSlots: bagSlotIcons(r), activeIdx: null, ring: { charge: 0, max: CARD_BY[cardKey(r.name, r.lv)].c }, footer: r.growth ? "reserve · +" + r.growth + " dmg" : "reserve" })))))));
     // road-ahead overlay (Map button in the top bar): the biome path from anywhere.
     // Same faces as the map screen — events and small stores stay "?" until passed.
     const MapOverlay = () => {
@@ -29072,13 +29071,12 @@ function EldertoneInner() {
                         footer = "🎵 cursed — costs " + c.charge + " health to play";
                     if (c.locked)
                         footer = "spent this battle";
-                    return (React.createElement(CardFace, { key: i, tipKeys: statusesInText(c.txt), tipFlip: "EFG".includes(c.slot), tipExtra: /discipline|shuriken|stealth/i.test((c.txt || []).join(" ")) ? (() => { const vp = volleyPreviewDmg(b, g); return [["Shuriken volley", "currently " + (vp.hi > vp.dmg ? vp.dmg + "\u2013" + vp.hi : vp.dmg) + " AOE damage" + (vp.single ? " (vs this enemy)." : vp.hi > vp.dmg ? " (higher end vs Exposed enemies)." : " (per enemy).")]]; })() : undefined, style: { gridColumn: Math.max(1, "ABCDEFG".indexOf(c.slot) + 1) }, name: dispName(c.name, c.slot) + (c.note ? " ✦" : "") + (b.sirenMark === i ? " 🎵" : "") +
+                    return (React.createElement(CardFace, { key: i, orb: itemMode(g), tipKeys: statusesInText(c.txt), tipFlip: "EFG".includes(c.slot), tipExtra: /discipline|shuriken|stealth/i.test((c.txt || []).join(" ")) ? (() => { const vp = volleyPreviewDmg(b, g); return [["Shuriken volley", "currently " + (vp.hi > vp.dmg ? vp.dmg + "\u2013" + vp.hi : vp.dmg) + " AOE damage" + (vp.single ? " (vs this enemy)." : vp.hi > vp.dmg ? " (higher end vs Exposed enemies)." : " (per enemy).")]]; })() : undefined, style: { gridColumn: Math.max(1, "ABCDEFG".indexOf(c.slot) + 1) }, name: dispName(c.name, c.slot) + (c.note ? " ✦" : "") + (b.sirenMark === i ? " 🎵" : "") +
                             ((() => { const t = targetEnemy(b); return t && t.st.burn > 0 && JSON.stringify(c.stages).includes('"damage"'); })() ? " 🔥" : ""), slot: c.slot, lv: c.lv, rows: rows, activeIdx: stageIdx >= 0 ? Math.min(stageIdx, rows.length - 1) : null, ready: ready, locked: !playable, fx: c.cardFx, bagSlots: bagSlotIcons(g.slots[c.slot]), onClick: () => playable && mut((g) => { logDecision(g, "play", { chord: c.name, slot: c.slot, stage: stageIdx, via: "click" }); playChord(g.battle, g, i); afterActionUI(g); logAfter(g); }), ring: { charge: c.charge, max: c.max }, footer: footer }));
                 };
                 if (!itemMode(g)) return b.chords.map(renderChord);
                 // V2: seven fixed slot frames A-G, each tinted its letter colour with the letter orb over it
-                const cells = "ABCDEFG".split("").map((L, li) => React.createElement("div", { key: "slot" + L, className: "et-slot" + (b.chords.some((c) => c.slot === L) ? "" : " empty"), style: { gridColumn: li + 1, "--sc": SLOT_COLORS[L] } },
-                    React.createElement("img", { className: "et-slotorb", src: SLOT_ORBS[L], alt: L, draggable: false }),
+                const cells = "ABCDEFG".split("").map((L, li) => React.createElement("div", { key: "slot" + L, className: "et-slot" + (b.chords.some((c) => c.slot === L) ? "" : " empty"), style: { gridColumn: li + 1 } },
                     b.chords.map((c, i) => c.slot === L ? renderChord(c, i) : null)));
                 return cells.concat(b.chords.map((c, i) => "ABCDEFG".includes(c.slot) ? null : renderChord(c, i)));
                 })()))));
@@ -29306,9 +29304,9 @@ function EldertoneInner() {
                 const upRows = g.slots[L].name === "Gaining Steam" ? gainingSteamRows(g.slots[L], 1) : c2.txt;
                 return (React.createElement(SlotFrame, { key: L, L: L }, React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "stretch" } },
                     React.createElement("div", { style: { opacity: 0.6 } },
-                        React.createElement(CardFace, { name: dispName(g.slots[L].name, L), slot: L, lv: g.slots[L].lv, rows: grownRows(c1.txt, g.slots[L]), bagSlots: bagSlotIcons(g.slots[L]), activeIdx: null, ring: { charge: 0, max: c1.c }, footer: g.slots[L].growth ? "current · +" + g.slots[L].growth + " dmg" : "current" })),
+                        React.createElement(CardFace, { orb: true, name: dispName(g.slots[L].name, L), slot: L, lv: g.slots[L].lv, rows: grownRows(c1.txt, g.slots[L]), bagSlots: bagSlotIcons(g.slots[L]), activeIdx: null, ring: { charge: 0, max: c1.c }, footer: g.slots[L].growth ? "current · +" + g.slots[L].growth + " dmg" : "current" })),
                     React.createElement("div", { style: { alignSelf: "center", color: "#c9a24b", fontSize: 20 } }, "→"),
-                    React.createElement(CardFace, { name: dispName(g.slots[L].name, L), slot: L, lv: 2, rows: grownRows(upRows, g.slots[L]), bagSlots: bagSlotIcons(g.slots[L]), activeIdx: null, ring: { charge: 0, max: c2.c }, footer: "upgrade", onClick: () => mut((g) => {
+                    React.createElement(CardFace, { orb: true, name: dispName(g.slots[L].name, L), slot: L, lv: 2, rows: grownRows(upRows, g.slots[L]), bagSlots: bagSlotIcons(g.slots[L]), activeIdx: null, ring: { charge: 0, max: c2.c }, footer: "upgrade", onClick: () => mut((g) => {
                             upgradeSlot(g, L);
                             if (g.pendingPurchase) {
                                 g.gold -= g.pendingPurchase.cost;
@@ -29324,9 +29322,9 @@ function EldertoneInner() {
                 const upRowsR = r.name === "Gaining Steam" ? gainingSteamRows(r, 1) : c2.txt;
                 return (React.createElement(SlotFrame, { key: "rv" + rvi, L: r.slot }, React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "stretch" } },
                     React.createElement("div", { style: { opacity: 0.6 } },
-                        React.createElement(CardFace, { name: dispName(r.name, r.slot), slot: r.slot, lv: r.lv, rows: grownRows(c1.txt, r), bagSlots: bagSlotIcons(r), activeIdx: null, footer: "current · reserve", ring: { charge: 0, max: c1.c } })),
+                        React.createElement(CardFace, { orb: true, name: dispName(r.name, r.slot), slot: r.slot, lv: r.lv, rows: grownRows(c1.txt, r), bagSlots: bagSlotIcons(r), activeIdx: null, footer: "current · reserve", ring: { charge: 0, max: c1.c } })),
                     React.createElement("div", { style: { alignSelf: "center", color: "#c9a24b", fontSize: 20 } }, "→"),
-                    React.createElement(CardFace, { name: dispName(r.name, r.slot), slot: r.slot, lv: 2, rows: grownRows(upRowsR, r), bagSlots: bagSlotIcons(r), activeIdx: null, footer: "upgrade · reserve", ring: { charge: 0, max: c2.c }, onClick: () => mut((g) => {
+                    React.createElement(CardFace, { orb: true, name: dispName(r.name, r.slot), slot: r.slot, lv: 2, rows: grownRows(upRowsR, r), bagSlots: bagSlotIcons(r), activeIdx: null, footer: "upgrade · reserve", ring: { charge: 0, max: c2.c }, onClick: () => mut((g) => {
                             upgradeReserve(g, rvi);
                             if (g.pendingPurchase) {
                                 g.gold -= g.pendingPurchase.cost;
