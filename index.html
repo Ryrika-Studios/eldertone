@@ -22568,10 +22568,10 @@ function upgradeReserve(g, i) {
 }
 function drawRewardOptions(g, n) {
     // V2 ("Rewards and Shop Costs V3", Sep 21 2026): the reward screen is EXACTLY 3 cards,
-    // no two in the same slot; skipping pays 1-10 gold, ROLLED HERE so the Skip button can
+    // no two in the same slot; skipping pays 5-10 gold, ROLLED HERE so the Skip button can
     // show the exact amount (g.rewardSkipGold, consumed + cleared by the Skip click)
     if (itemMode(g)) {
-        g.rewardSkipGold = ri(1, 10);
+        g.rewardSkipGold = ri(5, 10);
         const used = new Set(), out = [];
         for (let tries = 0; tries < 4 && out.length < 3; tries++)
             for (const c of randomCardChoices(g, 12)) {
@@ -29173,7 +29173,7 @@ function EldertoneInner() {
                 o.sub && React.createElement("div", { className: "fx" }, o.sub)))))),
             React.createElement("div", { className: "et-actions" },
                 itemMode(g)
-                    ? React.createElement("button", { className: "et-btn ghost", onClick: () => mut((g) => { const n = g.rewardSkipGold != null ? g.rewardSkipGold : ri(1, 10); g.rewardSkipGold = null; g.gold += n; advanceNode(g); }) }, g.rewardSkipGold != null ? "Skip (+" + g.rewardSkipGold + " gold)" : "Skip (+1\u201310 gold)")
+                    ? React.createElement("button", { className: "et-btn ghost", onClick: () => mut((g) => { const n = g.rewardSkipGold != null ? g.rewardSkipGold : ri(5, 10); g.rewardSkipGold = null; g.gold += n; advanceNode(g); }) }, g.rewardSkipGold != null ? "Skip (+" + g.rewardSkipGold + " gold)" : "Skip (+5\u201310 gold)")
                     : React.createElement("button", { className: "et-btn ghost", onClick: () => mut((g) => advanceNode(g)) }, "Skip"))));
     }
     // ---------- screen: cardpick ----------
