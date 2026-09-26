@@ -17847,6 +17847,27 @@ function isV3(g) { return !!(g && g.v3); }
 //  - sentences that differ only in numbers collapse to one row with "a / b / c"
 //  - a sentence that only appears from stage k is its own row, live from charge k
 //  - a single-stage card only fires at FULL charge, so its row needs max
+// V3 battle text: fold the live numbers into a chord's printed rows the way the classic
+// renderer's fxRow does — Evolving Equipment's growing Shield, slot/idle/dmgGrow damage
+// growth and Strength — and hand back plain strings so v3Rows can still merge the ladder.
+function v3LiveTxt(b, g, c) {
+    if (!b || !c || !c.txt || !c.stages)
+        return (c && c.txt) || [];
+    const grown = (c.shieldGrow || 0) || (c.dmgGrow || 0) || (c.idleBonus || 0) ||
+        ((g.slots[c.slot] && g.slots[c.slot].growth) || 0) ||
+        (b.hero.st.strength || 0) || (b.hero.st._tempStr || 0) || (b.hero.st.armored || 0);
+    if (!grown)
+        return c.txt;
+    return c.txt.map((row) => String(row).replace(/(\d+)(\s*(?:AOE\s+)?(Shield|shield|Damage|damage))/g,
+        (mm, n, tail, kw, off) => {
+            // "Add 1 shield each time this is played" is an increment, not the payload
+            if (/\b(adds?|add)\s*$/i.test(String(row).slice(0, off)))
+                return mm;
+            const base = +n;
+            const eff = /shield/i.test(kw) ? effShieldNum(b, g, c, base) : effHitNum(b, g, c, base);
+            return eff + tail;
+        }));
+}
 function v3Rows(txt, max) {
     const stages = (txt || []).map((s) => String(s).trim()).filter(Boolean);
     if (!stages.length)
@@ -29335,7 +29356,7 @@ function EldertoneInner() {
                         footer = "🎵 cursed — costs " + c.charge + " health to play";
                     if (c.locked)
                         footer = "spent this battle";
-                    return (React.createElement(CardFace, { key: i, orb: itemMode(g), v3: isV3(g) ? { txt: c.txt, charge: c.charge, max: c.max } : undefined, tipKeys: statusesInText(c.txt), tipFlip: "EFG".includes(c.slot), tipExtra: /discipline|shuriken|stealth/i.test((c.txt || []).join(" ")) ? (() => { const vp = volleyPreviewDmg(b, g); return [["Shuriken volley", "currently " + (vp.hi > vp.dmg ? vp.dmg + "\u2013" + vp.hi : vp.dmg) + " AOE damage" + (vp.single ? " (vs this enemy)." : vp.hi > vp.dmg ? " (higher end vs Exposed enemies)." : " (per enemy).")]]; })() : undefined, style: { gridColumn: Math.max(1, "ABCDEFG".indexOf(c.slot) + 1) }, name: dispName(c.name, c.slot) + (c.note ? " ✦" : "") + (b.sirenMark === i ? " 🎵" : "") +
+                    return (React.createElement(CardFace, { key: i, orb: itemMode(g), v3: isV3(g) ? { txt: v3LiveTxt(b, g, c), charge: c.charge, max: c.max } : undefined, tipKeys: statusesInText(c.txt), tipFlip: "EFG".includes(c.slot), tipExtra: /discipline|shuriken|stealth/i.test((c.txt || []).join(" ")) ? (() => { const vp = volleyPreviewDmg(b, g); return [["Shuriken volley", "currently " + (vp.hi > vp.dmg ? vp.dmg + "\u2013" + vp.hi : vp.dmg) + " AOE damage" + (vp.single ? " (vs this enemy)." : vp.hi > vp.dmg ? " (higher end vs Exposed enemies)." : " (per enemy).")]]; })() : undefined, style: { gridColumn: Math.max(1, "ABCDEFG".indexOf(c.slot) + 1) }, name: dispName(c.name, c.slot) + (c.note ? " ✦" : "") + (b.sirenMark === i ? " 🎵" : "") +
                             ((() => { const t = targetEnemy(b); return t && t.st.burn > 0 && JSON.stringify(c.stages).includes('"damage"'); })() ? " 🔥" : ""), slot: c.slot, lv: c.lv, rows: rows, activeIdx: stageIdx >= 0 ? Math.min(stageIdx, rows.length - 1) : null, ready: ready, locked: !playable, fx: c.cardFx, bagSlots: bagSlotIcons(g.slots[c.slot]), onClick: () => playable && mut((g) => { logDecision(g, "play", { chord: c.name, slot: c.slot, stage: stageIdx, via: "click" }); playChord(g.battle, g, i); afterActionUI(g); logAfter(g); }), ring: { charge: c.charge, max: c.max }, footer: footer }));
                 };
                 if (!itemMode(g)) return b.chords.map(renderChord);
