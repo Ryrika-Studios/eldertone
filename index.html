@@ -23437,6 +23437,10 @@ const CSS = `
 .v3-title{position:absolute;left:24%;right:8%;top:51.5%;height:15%;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;font:700 7.4cqw 'Cormorant SC',serif;text-shadow:0 .4cqw .8cqw rgba(0,0,0,.65);z-index:2;line-height:1.05}
 .v3-text{position:absolute;left:14%;right:12%;top:66.5%;height:26%;display:flex;flex-direction:column;justify-content:center;gap:.5cqw;color:#241c12;font:500 6.2cqw system-ui;text-align:center;line-height:1.22;overflow:hidden;z-index:2}
 .v3-row.dim{opacity:.5}
+/* scaling ladders: the value for the charge you are on is bold and a touch larger,
+   every other value sits at 50% (inside an already-dim row the row's own fade does it) */
+.v3-text .v3num.now{font-weight:800;font-size:1.1em}
+.v3-row:not(.dim) .v3num.dim{opacity:.5}
 .v3-foot{position:absolute;left:14%;right:12%;bottom:4.5%;text-align:center;color:#5d5340;font:500 5cqw system-ui;z-index:2}
 .cf-v3 .cf-row.v3{background:none;border:0;color:#241c12;padding:3px 7px;line-height:1.32}
 .cf-v3 .cf-row.v3.dim{opacity:.5}
