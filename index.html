@@ -17810,6 +17810,58 @@ const EXCLUDED_FROM_POOLS = new Set(["Eldertone", "Gang fight"]);
 const L1_POOL = CARDS.filter((c) => c.lv === 1 && !EXCLUDED_FROM_POOLS.has(c.n));
 // ---- Item Test build helpers (second playable version; cards are FOUND at levels, never upgraded) ----
 function itemMode(g) { return !!(g && g.itemMode); }
+// V3 (Sep 25 2026, user): same rules as V2, new card presentation — one line per effect,
+// scaling values written "1 / 2 / 3" in black with the live one bold + underlined, everything
+// not active at 50%, and an aqua segmented charge ring that shows the CURRENT charge.
+function isV3(g) { return !!(g && g.v3); }
+// Merge a card's per-stage texts into V3 rows.
+//  - sentences that differ only in numbers collapse to one row with "a / b / c"
+//  - a sentence that only appears from stage k is its own row, live from charge k
+//  - a single-stage card only fires at FULL charge, so its row needs max
+function v3Rows(txt, max) {
+    const stages = (txt || []).map((s) => String(s).trim()).filter(Boolean);
+    if (!stages.length)
+        return [];
+    const single = stages.length === 1;   // all-or-nothing card: it only fires at full charge
+    const sentences = (s) => s.split(/\.\s+|\.$/).map((x) => x.trim()).filter(Boolean);
+    const skel = (s) => s.replace(/\d+/g, "#");
+    // align each stage's sentences by SHAPE, so a clause added at stage k lands on its own row
+    const rows = [];
+    stages.forEach((st, si) => {
+        sentences(st).forEach((sen) => {
+            const k = skel(sen);
+            let row = rows.find((r) => r.skel === k && r.variants[si] === undefined);
+            if (!row) {
+                row = { skel: k, variants: {}, first: si };
+                rows.push(row);
+            }
+            row.variants[si] = sen;
+        });
+    });
+    return rows.map((r) => {
+        const idxs = Object.keys(r.variants).map(Number).sort((a, b) => a - b);
+        const parts = idxs.map((i) => r.variants[i].split(/(\d+)/));
+        const segs = [];
+        for (let p = 0; p < parts[0].length; p++) {
+            const piece = parts[0][p];
+            if (/^\d+$/.test(piece)) {
+                const vals = parts.map((a) => a[p]);
+                if (vals.every((v) => v === vals[0]))
+                    segs.push({ t: vals[0] });
+                else
+                    vals.forEach((v, k) => {
+                        if (k)
+                            segs.push({ t: " / " });
+                        segs.push({ t: v, scale: true, needs: idxs[k] + 1 });
+                    });
+            }
+            else if (piece)
+                segs.push({ t: piece });
+        }
+        segs.push({ t: "." });
+        return { segs: segs, needs: single && max > 1 ? max : r.first + 1 };
+    });
+}
 function lvNum(lv) { return typeof lv === "string" ? (parseInt(lv.slice(1), 10) || 1) : (lv || 1); }
 function lvMark(lv) { const n = lvNum(lv); return n >= 3 ? "++" : n === 2 ? "+" : ""; }
 function rollItemLv(g) {
@@ -22329,6 +22381,7 @@ function newGame(opts) {
         reserves: [null, null],
         relics: [], totems: [], gameMode: opts.gameMode || "relics", boosts: [], transTokens: 0,
         itemMode: !!opts.itemMode, // Item Test build: found-level cards, no upgrades
+        v3: !!opts.v3, // V3: V2 rules, new card presentation
         heroId: opts.hero || "rogue",
         perm: { strength: 0, armored: 0, dodge: 0, poisonBomb: 0, counter: 0, poisonBonus: 0, burnBonus: 0, minions: [] },
         seenEvents: [], egg: 0, lastEnc: null, plan: null, event: null, eventWin: null,
@@ -23258,6 +23311,10 @@ const CSS = `
 .cf-slot.orb{background:none;border:none;width:32px;height:32px;top:-10px;left:-10px}
 .cf-slot.orb img{width:100%;height:100%;display:block;filter:drop-shadow(0 2px 3px rgba(0,0,0,.55))}
 @media (max-width:700px){.et-scene .et-chords .et-slot{grid-column:auto !important}}
+.cf-v3 .cf-row.v3{background:none;border:0;color:#241c12;padding:3px 7px;line-height:1.32}
+.cf-v3 .cf-row.v3.dim{opacity:.5}
+.cf-v3 .v3num.now{font-weight:800;text-decoration:underline;text-underline-offset:2px;text-decoration-thickness:2px}
+.cf-v3 .v3num.dim{opacity:.5}
 .et-slot.free{min-width:180px;min-height:0;padding:12px 6px 8px;margin-top:8px}
 .et-slot.free .cf{width:168px}
 .et-slot.free.empty{min-height:200px}
@@ -24003,7 +24060,9 @@ function HeroFigure({ g, b }) {
         null));
 }
 // segmented charge ring: max-charge number in center, one segment per charge point
-function ChargeRing({ charge, max }) {
+function ChargeRing({ charge, max, thick }) {
+    if (thick)
+        return ChargeRingV3({ charge, max });
     const size = 36, cx = size / 2, cy = size / 2, r = 14;
     const gap = max > 1 ? 14 : 0; // degrees of gap between segments
     const step = 360 / max;
@@ -24022,6 +24081,33 @@ function ChargeRing({ charge, max }) {
         React.createElement("circle", { cx: cx, cy: cy, r: r + 3.5, fill: "#252a38", stroke: "#6f7275", strokeWidth: "1.5" }),
         segs,
         React.createElement("text", { x: cx, y: cy + 0.5, textAnchor: "middle", dominantBaseline: "middle", fill: "#f4f7fa", fontSize: "13.5", fontWeight: "700", fontFamily: "'Cormorant SC',serif" }, max)));
+}
+// V3 ring: thick wedges in the game's aqua, hollow outline until that charge is reached,
+// and the CURRENT charge (not the max) in the middle.
+function ChargeRingV3({ charge, max }) {
+    const size = 40, cx = size / 2, cy = size / 2, r = 14;
+    const band = r * 0.5, rO = r + band / 2, rI = r - band / 2;
+    const gap = max > 1 ? 12 : 0, step = 360 / max;
+    const pt = (rad, a) => [cx + rad * Math.cos(((a - 90) * Math.PI) / 180), cy + rad * Math.sin(((a - 90) * Math.PI) / 180)];
+    const wedge = (a0, a1) => {
+        const [x0, y0] = pt(rO, a0), [x1, y1] = pt(rO, a1), [x2, y2] = pt(rI, a1), [x3, y3] = pt(rI, a0);
+        const big = a1 - a0 > 180 ? 1 : 0;
+        return `M ${x0.toFixed(2)} ${y0.toFixed(2)} A ${rO} ${rO} 0 ${big} 1 ${x1.toFixed(2)} ${y1.toFixed(2)} L ${x2.toFixed(2)} ${y2.toFixed(2)} A ${rI} ${rI} 0 ${big} 0 ${x3.toFixed(2)} ${y3.toFixed(2)} Z`;
+    };
+    const segs = [];
+    for (let i = 0; i < max; i++) {
+        const a0 = i * step + gap / 2, a1 = Math.max(a0 + 1, (i + 1) * step - gap / 2);
+        segs.push(React.createElement("path", { key: i, d: wedge(a0, a1),
+            fill: i < charge ? "#7fd4e8" : "none",
+            stroke: i < charge ? "rgba(0,0,0,.35)" : "#7fd4e8",
+            strokeWidth: i < charge ? 0.8 : 1.8, strokeLinejoin: "round" }));
+    }
+    return (React.createElement("svg", { width: size, height: size, viewBox: `0 0 ${size} ${size}`, style: { display: "block" } },
+        React.createElement("circle", { cx: cx, cy: cy, r: rI - 1, fill: "#252a38", stroke: "#6f7275", strokeWidth: "1.2" }),
+        segs,
+        React.createElement("text", { x: cx, y: cy + 0.5, textAnchor: "middle", dominantBaseline: "middle",
+            fill: charge > 0 ? "#f4f7fa" : "#9aa3b2", fontSize: "13", fontWeight: "700",
+            fontFamily: "'Cormorant SC',serif" }, charge)));
 }
 function opsLabel(ops) {
     if (!ops)
@@ -24093,14 +24179,14 @@ function SlotFrame({ L, empty, children }) {
     return React.createElement("div", { className: "et-slot free" + (empty ? " empty" : ""), },
         children);
 }
-function CardFace({ name, slot, lv, rows, activeIdx, extra, footer, onClick, ready, locked, style, ring, tipKeys, tipFlip, tipExtra, fx, bagSlots, orb }) {
+function CardFace({ name, slot, lv, rows, activeIdx, extra, footer, onClick, ready, locked, style, ring, tipKeys, tipFlip, tipExtra, fx, bagSlots, orb, v3 }) {
     // class border color: strip battle decorations (✦ 🎵 🔥) before the card lookup
     const baseName = String(name).replace(/[\s✦🎵🔥]+$/u, "");
     const cCls = (CARD_BY[cardKey(baseName, lv)] || CARD_BY[cardKey(baseName, 1)] || {}).cls;
     const isX = /^(★ )?X /.test(String(name)); // X-cards shimmer instead of the grey fallback
     return (React.createElement("div", { className: "cf " + (cCls ? "cls-" + cCls + " " : "") + (isX ? "cls-x " : "") + (lvNum(lv) >= 3 ? "lv3 " : lvNum(lv) === 2 ? "lv2 " : "") + (ready ? "ready " : "") + (locked ? "locked" : ""), onClick: onClick, style: style },
         ring && React.createElement("span", { className: "cf-ring" },
-            React.createElement(ChargeRing, { charge: ring.charge, max: ring.max })),
+            React.createElement(ChargeRing, { charge: ring.charge, max: ring.max, thick: !!v3 })),
         fx && React.createElement("div", { key: "fx" + fx.seq, className: "cf-fx " + fx.k },
             fx.k === "hand" ? React.createElement("span", null, "\u270B")
                 : [0, 1, 2].map((i2) => React.createElement("i", { key: i2, className: "g" }))),
@@ -24122,7 +24208,16 @@ function CardFace({ name, slot, lv, rows, activeIdx, extra, footer, onClick, rea
                 lvMark(lv)),
             bagSlots && React.createElement("span", { className: "cf-bagslot" + (bagSlots[1] ? " filled" : "") }, React.createElement(BagSlotIcon, { k: bagSlots[1] }))),
         (() => { const a = cardArt(baseName, lv); return React.createElement("div", { className: "cf-art", style: { background: "linear-gradient(180deg,hsl(" + a.h + ",30%,30%),hsl(" + a.h + ",28%,15%))" } }, a.e); })(),
-        React.createElement("div", { className: "cf-rows" }, rows.map((r, i) => (React.createElement("div", { key: i, className: "cf-row " + (i === activeIdx ? "active" : i > (activeIdx == null ? -1 : activeIdx) ? "next" : "") }, r)))),
+        v3 ? React.createElement("div", { className: "cf-rows cf-v3" }, v3Rows(v3.txt || rows, v3.max).map((r, ri) => {
+            const live = v3.charge == null || v3.charge >= r.needs;      // null = out of battle: show it all
+            return React.createElement("div", { key: ri, className: "cf-row v3" + (live ? "" : " dim") }, r.segs.map((s, si) => {
+                if (!s.scale)
+                    return React.createElement("span", { key: si }, s.t);
+                const now = v3.charge != null && v3.charge === s.needs;   // the value this charge will use
+                return React.createElement("span", { key: si, className: "v3num" + (now ? " now" : v3.charge != null ? " dim" : "") }, s.t);
+            }));
+        }))
+            : React.createElement("div", { className: "cf-rows" }, rows.map((r, i) => (React.createElement("div", { key: i, className: "cf-row " + (i === activeIdx ? "active" : i > (activeIdx == null ? -1 : activeIdx) ? "next" : "") }, r)))),
         extra,
         footer && React.createElement("div", { className: "cf-note" }, footer)));
 }
@@ -27424,12 +27519,12 @@ function EldertoneInner() {
     const [showDeck, setShowDeck] = useState(false);
     const [showMap, setShowMap] = useState(false);
     const [heroSel, setHeroSel] = useState("rogue");
-    const [verSel, setVerSel] = useState("item"); // game version: V2 (found-level items, the default) or the classic run
+    const [verSel, setVerSel] = useState("v3"); // game version: V3 (default), V2, or the classic run
     const [maxHp, setMaxHp] = useState(75);
     const [furyMax, setFuryMax] = useState(7);
     const heroSelDef = HEROES[heroSel] || { name: "Random", pools: ["common", "rogue", "necro", "ice"],
         furyDesc: "A random hero — health, Fury and starting chords are rolled fresh when the run begins." };
-    const startNames = useMemo(() => Array.from(new Set(L1_POOL.filter((c) => heroSelDef.pools.includes(c.cls) && (verSel !== "item" || ITEM_POOL.has(c.n))).map((c) => c.n))).sort(), [heroSel, verSel]);
+    const startNames = useMemo(() => Array.from(new Set(L1_POOL.filter((c) => heroSelDef.pools.includes(c.cls) && (verSel === "classic" || ITEM_POOL.has(c.n))).map((c) => c.n))).sort(), [heroSel, verSel]);
     const [d1, setD1] = useState("Feint");
     const [d2, setD2] = useState("Attack");
     const [d3, setD3] = useState("Defend");
@@ -27446,7 +27541,7 @@ function EldertoneInner() {
     };
     const randomizeDeck = () => {
         // pick 3 random starting chords, preferring 3 different slots so none start benched
-        const shuffled = L1_POOL.filter((c) => heroSelDef.pools.includes(c.cls) && (verSel !== "item" || ITEM_POOL.has(c.n))).sort(() => Math.random() - 0.5);
+        const shuffled = L1_POOL.filter((c) => heroSelDef.pools.includes(c.cls) && (verSel === "classic" || ITEM_POOL.has(c.n))).sort(() => Math.random() - 0.5);
         const picked = [];
         const slotsUsed = new Set();
         for (const c of shuffled) {
@@ -27461,7 +27556,7 @@ function EldertoneInner() {
             picked.push(c);
         }
         while (picked.length < 3)
-            picked.push(pick(L1_POOL.filter((c) => heroSelDef.pools.includes(c.cls) && (verSel !== "item" || ITEM_POOL.has(c.n)))));
+            picked.push(pick(L1_POOL.filter((c) => heroSelDef.pools.includes(c.cls) && (verSel === "classic" || ITEM_POOL.has(c.n)))));
         setD1(picked[0].n);
         setD2(picked[1].n);
         setD3(picked[2].n);
@@ -27566,7 +27661,7 @@ function EldertoneInner() {
             window.__eldertoneTestOpts = (testBiome > 0 || testArena || anySlot || tt.length) ? { biome: testBiome, arena: testArena, slots: sl, totems: tt } : null;
     }
     const botCfgRef = useRef({});
-    botCfgRef.current = { maxHp, furyMax, deck: [d1, d2, d3], gameMode: LOCKED_MODE || gameModeSel, hero: heroSel, itemMode: verSel === "item" };
+    botCfgRef.current = { maxHp, furyMax, deck: [d1, d2, d3], gameMode: LOCKED_MODE || gameModeSel, hero: heroSel, itemMode: verSel !== "classic", v3: verSel === "v3" };
     const botStateRef = useRef({ mode: "off", step: false, speed: 350, runs: 0, wins: 0, losses: 0, lastNode: 0, actions: 0, timer: null });
     useEffect(() => {
         if (!botEnabled)
@@ -28376,8 +28471,10 @@ function EldertoneInner() {
                 React.createElement("div", { className: "et-field" },
                     React.createElement("label", null, "Version"),
                     React.createElement("select", { value: verSel, onChange: (e) => setVerSel(e.target.value) },
+                        React.createElement("option", { value: "v3" }, "V3"),
                         React.createElement("option", { value: "item" }, "V2"),
                         React.createElement("option", { value: "classic" }, "Classic"))),
+                verSel === "v3" ? React.createElement("div", { className: "et-note", style: { fontSize: 11.5, margin: "2px 0 6px" } }, "V3: V2's rules (chords are FOUND at Level 1\u20133, never upgraded) with the new card face \u2014 one line per effect, scaling values written 1 / 2 / 3 with the live one bold, and an aqua segmented charge ring.") : null,
                 verSel === "item" ? React.createElement("div", { className: "et-note", style: { fontSize: 11.5, margin: "2px 0 6px" } }, "V2: chords are FOUND at Level 1–3 (deeper biomes find higher levels) and can never be upgraded. Grab Bags still buff cards. No Evasion totem in this build.") : null,
                 React.createElement("div", { className: "et-field" },
                     React.createElement("label", null, "Max health"),
@@ -28463,7 +28560,7 @@ function EldertoneInner() {
                                 "\u26a1",
                                 " simulations. Single battle jumps straight into the chosen fight and the run ends when it does.")))),
                     React.createElement("button", { className: "et-btn", onClick: () => {
-                            const ng = newGame({ maxHp, furyMax, deck: [d1, d2, d3], gameMode: LOCKED_MODE || gameModeSel, hero: heroSel, itemMode: verSel === "item" });
+                            const ng = newGame({ maxHp, furyMax, deck: [d1, d2, d3], gameMode: LOCKED_MODE || gameModeSel, hero: heroSel, itemMode: verSel !== "classic", v3: verSel === "v3" });
                             logDecision(ng, "run_start", { deck: [d1, d2, d3], maxHp, furyMax, gameMode: ng.gameMode, hero: heroSel });
                             setGame(ng);
                         } }, "Begin the run"),
@@ -28754,10 +28851,10 @@ function EldertoneInner() {
             const c = g.slots[L] && CARD_BY[cardKey(g.slots[L].name, g.slots[L].lv)];
             if (!c)
                 return React.createElement(SlotFrame, { key: L, L: L, empty: true });
-            return React.createElement(SlotFrame, { key: L, L: L }, React.createElement(CardFace, { key: L, orb: true, name: dispName(g.slots[L].name, L), slot: L, lv: g.slots[L].lv, rows: grownRows(c.txt, g.slots[L]), activeIdx: null, ring: { charge: 0, max: c.c }, footer: [g.slots[L].growth ? "+" + g.slots[L].growth + " permanent damage" : "", bagDesc(g, g.slots[L])].filter(Boolean).join(" \u00b7 ") || undefined }));
+            return React.createElement(SlotFrame, { key: L, L: L }, React.createElement(CardFace, { key: L, orb: true, v3: isV3(g) ? { txt: grownRows(c.txt, g.slots[L]), max: c.c } : undefined, name: dispName(g.slots[L].name, L), slot: L, lv: g.slots[L].lv, rows: grownRows(c.txt, g.slots[L]), activeIdx: null, ring: { charge: 0, max: c.c }, footer: [g.slots[L].growth ? "+" + g.slots[L].growth + " permanent damage" : "", bagDesc(g, g.slots[L])].filter(Boolean).join(" \u00b7 ") || undefined }));
         })),
         g.reserves.some(Boolean) && React.createElement("div", { className: "et-note" }, "Reserves"),
-        React.createElement("div", { className: "et-grid et-slotgrid" }, g.reserves.filter((r) => r && CARD_BY[cardKey(r.name, r.lv)]).map((r, i) => (React.createElement(SlotFrame, { key: "r" + i, L: r.slot }, React.createElement(CardFace, { orb: true, name: dispName(r.name, r.slot), slot: r.slot, lv: r.lv, rows: grownRows(CARD_BY[cardKey(r.name, r.lv)].txt, r), bagSlots: bagSlotIcons(r), activeIdx: null, ring: { charge: 0, max: CARD_BY[cardKey(r.name, r.lv)].c }, footer: r.growth ? "reserve · +" + r.growth + " dmg" : "reserve" })))))));
+        React.createElement("div", { className: "et-grid et-slotgrid" }, g.reserves.filter((r) => r && CARD_BY[cardKey(r.name, r.lv)]).map((r, i) => (React.createElement(SlotFrame, { key: "r" + i, L: r.slot }, React.createElement(CardFace, { orb: true, v3: isV3(g) ? { txt: grownRows(CARD_BY[cardKey(r.name, r.lv)].txt, r), max: CARD_BY[cardKey(r.name, r.lv)].c } : undefined, name: dispName(r.name, r.slot), slot: r.slot, lv: r.lv, rows: grownRows(CARD_BY[cardKey(r.name, r.lv)].txt, r), bagSlots: bagSlotIcons(r), activeIdx: null, ring: { charge: 0, max: CARD_BY[cardKey(r.name, r.lv)].c }, footer: r.growth ? "reserve · +" + r.growth + " dmg" : "reserve" })))))));
     // road-ahead overlay (Map button in the top bar): the biome path from anywhere.
     // Same faces as the map screen — events and small stores stay "?" until passed.
     const MapOverlay = () => {
@@ -29073,7 +29170,7 @@ function EldertoneInner() {
                         footer = "🎵 cursed — costs " + c.charge + " health to play";
                     if (c.locked)
                         footer = "spent this battle";
-                    return (React.createElement(CardFace, { key: i, orb: itemMode(g), tipKeys: statusesInText(c.txt), tipFlip: "EFG".includes(c.slot), tipExtra: /discipline|shuriken|stealth/i.test((c.txt || []).join(" ")) ? (() => { const vp = volleyPreviewDmg(b, g); return [["Shuriken volley", "currently " + (vp.hi > vp.dmg ? vp.dmg + "\u2013" + vp.hi : vp.dmg) + " AOE damage" + (vp.single ? " (vs this enemy)." : vp.hi > vp.dmg ? " (higher end vs Exposed enemies)." : " (per enemy).")]]; })() : undefined, style: { gridColumn: Math.max(1, "ABCDEFG".indexOf(c.slot) + 1) }, name: dispName(c.name, c.slot) + (c.note ? " ✦" : "") + (b.sirenMark === i ? " 🎵" : "") +
+                    return (React.createElement(CardFace, { key: i, orb: itemMode(g), v3: isV3(g) ? { txt: c.txt, charge: c.charge, max: c.max } : undefined, tipKeys: statusesInText(c.txt), tipFlip: "EFG".includes(c.slot), tipExtra: /discipline|shuriken|stealth/i.test((c.txt || []).join(" ")) ? (() => { const vp = volleyPreviewDmg(b, g); return [["Shuriken volley", "currently " + (vp.hi > vp.dmg ? vp.dmg + "\u2013" + vp.hi : vp.dmg) + " AOE damage" + (vp.single ? " (vs this enemy)." : vp.hi > vp.dmg ? " (higher end vs Exposed enemies)." : " (per enemy).")]]; })() : undefined, style: { gridColumn: Math.max(1, "ABCDEFG".indexOf(c.slot) + 1) }, name: dispName(c.name, c.slot) + (c.note ? " ✦" : "") + (b.sirenMark === i ? " 🎵" : "") +
                             ((() => { const t = targetEnemy(b); return t && t.st.burn > 0 && JSON.stringify(c.stages).includes('"damage"'); })() ? " 🔥" : ""), slot: c.slot, lv: c.lv, rows: rows, activeIdx: stageIdx >= 0 ? Math.min(stageIdx, rows.length - 1) : null, ready: ready, locked: !playable, fx: c.cardFx, bagSlots: bagSlotIcons(g.slots[c.slot]), onClick: () => playable && mut((g) => { logDecision(g, "play", { chord: c.name, slot: c.slot, stage: stageIdx, via: "click" }); playChord(g.battle, g, i); afterActionUI(g); logAfter(g); }), ring: { charge: c.charge, max: c.max }, footer: footer }));
                 };
                 if (!itemMode(g)) return b.chords.map(renderChord);
@@ -29164,7 +29261,7 @@ function EldertoneInner() {
             g.rewardCtx && g.rewardCtx.bossHeal > 0 ? React.createElement("div", { className: "et-note", style: { textAlign: "center", marginBottom: 6, color: "#7fd08a" } },
                 "❤ Your wounds knit as the beast falls — you recover " + g.rewardCtx.bossHeal + " health.") : null,
             g.rewardCtx && g.rewardCtx.slain && g.rewardCtx.slain.length ? React.createElement("div", { className: "et-note", style: { textAlign: "center", marginBottom: 6 } }, g.rewardCtx.slain.join("  ·  ")) : null,
-            React.createElement("div", { className: "et-grid" }, g.rewardOptions.map((o, i) => (o.def.t === "card" ? (React.createElement(CardFace, { key: i, name: (o.def.legendary ? "★ " : "") + dispName(o.def.card.n, o.def.card.slot), slot: o.def.card.slot, lv: o.def.card.lv, rows: o.def.card.txt, activeIdx: null, ring: { charge: 0, max: o.def.card.c }, footer: o.def.legendary ? "LEGENDARY" + (replaceWarning(g, o.def.card) ? " — " + replaceWarning(g, o.def.card) : "") : replaceWarning(g, o.def.card), style: o.def.legendary ? { boxShadow: "0 0 12px rgba(232,201,138,.6)", borderColor: "#e8c98a" } : undefined, onClick: () => mut((g) => { takeReward(g, o.def); logAfter(g); }) })) : o.def.t === "relic" ? (React.createElement("div", { key: i, className: "et-panel et-pick", style: { cursor: "pointer", borderColor: "#8a6d3b" }, onClick: () => mut((g) => { takeReward(g, o.def); logAfter(g); }) },
+            React.createElement("div", { className: "et-grid" }, g.rewardOptions.map((o, i) => (o.def.t === "card" ? (React.createElement(CardFace, { key: i, v3: isV3(g) ? { txt: o.def.card.txt, max: o.def.card.c } : undefined, name: (o.def.legendary ? "★ " : "") + dispName(o.def.card.n, o.def.card.slot), slot: o.def.card.slot, lv: o.def.card.lv, rows: o.def.card.txt, activeIdx: null, ring: { charge: 0, max: o.def.card.c }, footer: o.def.legendary ? "LEGENDARY" + (replaceWarning(g, o.def.card) ? " — " + replaceWarning(g, o.def.card) : "") : replaceWarning(g, o.def.card), style: o.def.legendary ? { boxShadow: "0 0 12px rgba(232,201,138,.6)", borderColor: "#e8c98a" } : undefined, onClick: () => mut((g) => { takeReward(g, o.def); logAfter(g); }) })) : o.def.t === "relic" ? (React.createElement("div", { key: i, className: "et-panel et-pick", style: { cursor: "pointer", borderColor: "#8a6d3b" }, onClick: () => mut((g) => { takeReward(g, o.def); logAfter(g); }) },
                 React.createElement("h4", null,
                     "\u269C ",
                     o.def.id),
@@ -29185,7 +29282,7 @@ function EldertoneInner() {
             React.createElement("h2", { className: "et-title", style: { textAlign: "center", color: "#e8c98a" } }, "Choose a new chord"),
             React.createElement("div", { className: "et-grid" }, g.cardChoices.map((c, i) => {
                 const occ = c.slot !== "X" ? g.slots[c.slot] : null;
-                return (React.createElement(CardFace, { key: i, name: dispName(c.n, c.slot), slot: c.slot, lv: c.lv, rows: c.txt, activeIdx: null, ring: { charge: 0, max: c.c }, footer: replaceWarning(g, c), onClick: () => mut((g) => { equipCard(g, c, true); advanceNode(g); }) }));
+                return (React.createElement(CardFace, { key: i, v3: isV3(g) ? { txt: c.txt, max: c.c } : undefined, name: dispName(c.n, c.slot), slot: c.slot, lv: c.lv, rows: c.txt, activeIdx: null, ring: { charge: 0, max: c.c }, footer: replaceWarning(g, c), onClick: () => mut((g) => { equipCard(g, c, true); advanceNode(g); }) }));
             })),
             React.createElement("div", { className: "et-actions" },
                 React.createElement("button", { className: "et-btn ghost", onClick: () => mut((g) => advanceNode(g)) }, "Skip"))));
@@ -29367,7 +29464,7 @@ function EldertoneInner() {
             React.createElement("div", { className: "et-note" }, "Active chords"),
             React.createElement("div", { className: "et-grid" }, "ABCDEFG".split("").filter((L) => g.slots[L]).map((L) => {
                 const c = CARD_BY[cardKey(g.slots[L].name, g.slots[L].lv)];
-                return React.createElement(CardFace, { key: L, name: dispName(g.slots[L].name, L), slot: L, lv: g.slots[L].lv, rows: grownRows(c.txt, g.slots[L]), activeIdx: null, ring: { charge: 0, max: c.c }, footer: [g.slots[L].growth ? "+" + g.slots[L].growth + " permanent damage" : "", bagDesc(g, g.slots[L])].filter(Boolean).join(" \u00b7 ") || undefined });
+                return React.createElement(CardFace, { key: L, v3: isV3(g) ? { txt: grownRows(c.txt, g.slots[L]), max: c.c } : undefined, name: dispName(g.slots[L].name, L), slot: L, lv: g.slots[L].lv, rows: grownRows(c.txt, g.slots[L]), activeIdx: null, ring: { charge: 0, max: c.c }, footer: [g.slots[L].growth ? "+" + g.slots[L].growth + " permanent damage" : "", bagDesc(g, g.slots[L])].filter(Boolean).join(" \u00b7 ") || undefined });
             })),
             React.createElement("div", { className: "et-note" }, "Reserves \u2014 tap to swap into the matching slot"),
             React.createElement("div", { className: "et-grid" }, g.reserves.map((r, i) => r ? (React.createElement(CardFace, { key: i, name: dispName(r.name, r.slot), slot: r.slot, lv: r.lv, rows: grownRows(CARD_BY[cardKey(r.name, r.lv)].txt, r), bagSlots: bagSlotIcons(r), activeIdx: null, ring: { charge: 0, max: CARD_BY[cardKey(r.name, r.lv)].c }, footer: g.slots[r.slot] ? "swaps with " + dispName(g.slots[r.slot].name, r.slot) : "fills empty " + r.slot + " slot", onClick: () => mut((g) => swapReserve(g, i)) })) : (React.createElement("div", { key: i, className: "et-panel et-pick", style: { opacity: 0.5, textAlign: "center" } }, "Empty reserve")))),
@@ -29409,7 +29506,7 @@ function EldertoneInner() {
             React.createElement(TopBar, null),
             React.createElement(DeckOverlay, null),
             React.createElement("h2", { className: "et-title", style: { textAlign: "center", color: "#e8c98a" } }, "The trolls demand a chord"),
-            React.createElement("div", { className: "et-grid" }, g.losePick.map((L) => (React.createElement(CardFace, { key: L, name: dispName(g.slots[L].name, L), slot: L, lv: g.slots[L].lv, rows: grownRows(CARD_BY[cardKey(g.slots[L].name, g.slots[L].lv)].txt, g.slots[L]), activeIdx: null, onClick: () => mut((g) => { g.slots[L] = null; g.losePick = null; advanceNode(g); }) })))),
+            React.createElement("div", { className: "et-grid" }, g.losePick.map((L) => (React.createElement(CardFace, { key: L, v3: isV3(g) ? { txt: grownRows(CARD_BY[cardKey(g.slots[L].name, g.slots[L].lv)].txt, g.slots[L]), max: CARD_BY[cardKey(g.slots[L].name, g.slots[L].lv)].c } : undefined, name: dispName(g.slots[L].name, L), slot: L, lv: g.slots[L].lv, rows: grownRows(CARD_BY[cardKey(g.slots[L].name, g.slots[L].lv)].txt, g.slots[L]), activeIdx: null, onClick: () => mut((g) => { g.slots[L] = null; g.losePick = null; advanceNode(g); }) })))),
             React.createElement("div", { className: "et-note" }, "Choose which chord to hand over.")));
     }
     // ---------- screen: store ----------
@@ -29429,7 +29526,7 @@ function EldertoneInner() {
                     g.store.closed = true;
             }
         });
-        const renderCard = (it, i) => (React.createElement(CardFace, { key: "c" + i, name: dispName(it.card.n, it.card.slot), slot: it.card.slot, lv: it.card.lv, rows: it.card.txt, activeIdx: null, footer: replaceWarning(g, it.card), ring: { charge: 0, max: it.card.c }, extra: React.createElement("div", { style: { textAlign: "center", padding: "6px 0 2px" } },
+        const renderCard = (it, i) => (React.createElement(CardFace, { key: "c" + i, v3: isV3(g) ? { txt: it.card.txt, max: it.card.c } : undefined, name: dispName(it.card.n, it.card.slot), slot: it.card.slot, lv: it.card.lv, rows: it.card.txt, activeIdx: null, footer: replaceWarning(g, it.card), ring: { charge: 0, max: it.card.c }, extra: React.createElement("div", { style: { textAlign: "center", padding: "6px 0 2px" } },
                 React.createElement("button", { className: "et-btn", disabled: g.gold < P(it.cost), onClick: (e) => { e.stopPropagation(); buy(it.cost, (g) => { equipCard(g, it.card, true); g.store.cards[i].sold = true; }, "card:" + it.card.n); } },
                     "Buy · ",
                     P(it.cost),
