@@ -24105,8 +24105,8 @@ function FxHost({ b, tgt }) {
 // V3 (Sep 27 2026, user): a standing Firewall shows as a WALL of fire in front of the character (the side
 // facing the opponent: right of the hero, left of an enemy), feet on the ground — ONE fixed shape and size
 // for hero and enemies alike (only the side changes), for as long as the wall
-// is up — 35% opacity, +5% per 10 stacks (capped at 100%). Display-only.
-function fwAuraOpacity(n) { return Math.min(1, 0.35 + 0.05 * Math.floor(n / 10)); }
+// is up — 50% opacity, +2% per 5 stacks (capped at 100%). Display-only.
+function fwAuraOpacity(n) { return Math.min(1, 0.5 + 0.02 * Math.floor(n / 5)); }
 // where the feet are in each hero's art (fraction of the drawn 200px image height)
 const HERO_FEET = { rogue: 0.835, necromancer: 0.97, iceknight: 0.95 };
 function FirewallAura({ n, feet }) {
