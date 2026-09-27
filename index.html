@@ -17463,6 +17463,8 @@ const dispName = (name, slot) => (name && name.startsWith("X ")) ? name.slice(2)
 // Second playable version: cards are FOUND at Lv1/2/3 (no upgrades). ITEM_POOL = the curated sheet card list;
 // lv 3 defs generated from the sheet; "i1"/"i2" defs are item-mode-only variants where the sheet differs from the classic card.
 const ITEM_POOL = new Set(["A Pinch Of This...", "Abracadabra", "Absolutely Not!", "Accuracy", "Ace in the Hole", "Additive Effect", "Advancing Technology", "Again!", "Aggressive Learning", "Agility", "All together", "Alliance", "Amber wand", "Ambivalent Planning", "Ample Arsenic", "An Apple a Day", "Analytical Shielding", "And Again", "Angelic Wrath", "Animal Magnetism", "Annihilate", "Antique Cutlass", "Antivenom", "Anvil", "Ape", "Apex Predator", "Apoptosis", "Apothecary", "Apprentice", "Arcane Wind", "Armadillo", "Arsonist", "Attack", "Aurora", "Auto Defend", "Avalanche", "Avenge", "Average", "Bad intentions", "Bag of Sand", "Ball of Lightning", "Balls in the air", "BananaRang", "Band in Darkness", "Bandit", "Barn Door", "Barrage", "Barricade", "Bat (vampire)", "Battering Ram", "Battery charger", "Bear", "Beast mode", "Beautiful disaster", "Big Shot", "Bigger Shurikens", "Bigger is Better", "Bit of Both", "Bite Hard", "Bitter Cold", "Blade enhancements", "Blade of Venom", "Blast", "Block", "Block and Learn", "Bomb", "Bone Crusher", "Bookworm", "Boom", "Borrow", "Bound in Ice", "Burn Brighter", "Burn powder", "Burning Blades", "Burning Knowledge", "Cabaret", "Calcium supplements", "Calm in Battle", "Can't touch this", "Can-Do Attitude", "Canary", "Candle", "Cat", "Cat paw", "Celestial Pegasus", "Chain lightening", "Charm", "Cheat code", "Cheers", "Cheese trap", "Freeze", "Chip Away", "Chop", "Chu Ko Nu", "Coat it All", "Coated shield", "Cold Fusion", "Cold Sharpened", "Cold Weather", "Collector", "Come Here", "Confrontational Behavior", "Conjugation", "Continual Improvement", "Control Your Fate", "Counter", "Creative accounting", "Crowd Control", "Crypt Robber", "Cut the Breaks", "Dagger Spray", "Dark Army", "Dark Lord Rising", "Darkness", "Dart", "Dart storm", "Dastardly potion", "Death wish", "Deathly Cold", "Decoy", "Defend", "Defensive formation", "Deficient Instructions", "Deflect", "Delete", "Delirium", "Dependable", "Diabolical", "Dig Deep", "Diminishing Returns", "Dino", "Dirty Dealing", "Discipline", "Distributors", "Don Quixote", "Don't Even Think About It", "Donkey", "Downgrade", "Dragon", "Drink Up", "Drive by", "Due diligence", "Dynamite", "Eagle", "Early symptoms", "Earnin It", "Eat up!", "Eccentricity", "Edgy", "Egg", "Electric shield", "Electric shock", "Elemental mastery", "Elephant", "Elusiveness", "Embers", "Emergency Protocol", "Employer benefits", "Enchanted Blade", "Enchanter", "Energy barrier", "Engineering", "Enhancements", "Enigmatic cold", "Enough!", "Ent", "Entangle", "Entropy", "Equal opportunity", "Equalizer", "Erratic leadership", "Ethereal Cloak", "Evasive maneuvering", "Everlasting Servitude", "Everlasting night", "Everybody plays", "Everybody's Doing It!", "Evil protection", "Evolving Equipment", "Excellent Craftsmanship", "Execute", "Explode", "Fade Away", "Fairy Friend", "Family Fun", "Famished", "Fast Recovery", "Faster!", "Feint", "Fiend", "Fighter", "Final meal", "Fire Thrower", "Fireblast", "Firefall", "Firefox", "Firewall", "Fireworks", "Fishing in the Underworld", "Fizzle", "Flabbergast", "Flight of Metal", "Flow of Power", "Flower Power", "Flush it Away", "Fly trap", "Focus", "Fog", "Foldable Blockade", "Follow Up", "Forced March", "Forced efficiency", "Fortify", "Free Fall", "Frost Shield", "Frostburn", "Fudge it", "Fully committed", "Future Planning", "Gadgets", "Galaxtic Fury", "Gale", "Garrote", "Gas", "Gateway to the Hereafter", "Get Ready…", "Getaway", "Ghost", "Ghostly Shield", "Giddy up", "Chill", "Glacial cold", "Glasses", "Glimmering Strike", "Glug Glug…", "Gnomes", "Go Away.", "Go for the Eyes", "Goodnight", "Goop", "Gorgon", "Grail", "Grapeshot", "Grass Shield", "Growing pains", "Growth from adversity", "Guard for Hire", "Guiding light", "X Randomizer Disipline Edition TM", "X Randomizer Poison Edition TM", "X Randomizer: Minions", "X Upgrade: Chilled", "X Upgrade: Darkness", "X Upgrade: Dodger", "X Upgrade: Fire Mastery", "X Upgrade: Firewall", "X Upgrade: Magical Mastery", "X Upgrade: Poison Bomb", "X Upgrade: Potent Poisons", "X Upgrade: Protect", "X Upgrade: Pure Damage", "X Upgrade: Skeleton", "X Upgrade: Spellbound", "X Upgrade: Well Trained Minions"]);
+// V3 pool (Sep 26 2026, user): the "Chords Final" sheet roster, exactly — V2 keeps ITEM_POOL.
+const V3_POOL = new Set(["A Pinch Of This...", "AED", "Able Boddied", "Able Minded", "Abracadabra", "Absolutely Not!", "Accuracy", "Ace in the Hole", "Additive Effect", "Advancing Technology", "After Effects", "Again!", "Aggressive Learning", "Agility", "All together", "Alliance", "Amber wand", "Ambivalent Planning", "Ample Arsenic", "Amplify", "An Apple a Day", "Analytical Shielding", "And Again", "Angelic Wrath", "Animal Magnetism", "Animal Tamer", "Annihilate", "Anticlimactic", "Antique Cutlass", "Antivenom", "Anvil", "Ape", "Apex Predator", "Apoptosis", "Apothecary", "Apprentice", "Arcane Wind", "Armadillo", "Arsonist", "Attack", "Aurora", "Auto Defend", "Avalanche", "Avenge", "Average", "Bad intentions", "Bag of Sand", "Ball of Lightning", "Balls in the air", "BananaRang", "Band in Darkness", "Bandit", "Barn Door", "Barrage", "Barricade", "Bat (vampire)", "Battering Ram", "Battery charger", "Bear", "Beast mode", "Beautiful disaster", "Big Shot", "Bigger Shurikens", "Bigger is Better", "Bit of Both", "Bite Hard", "Bitter Cold", "Blade enhancements", "Blade of Venom", "Blast", "Block", "Block and Learn", "Bomb", "Bone Crusher", "Bookworm", "Boom", "Borrow", "Bound in Ice", "Burn Brighter", "Burn powder", "Burning Blades", "Burning Knowledge", "Cabaret", "Calcium supplements", "Calm in Battle", "Can't touch this", "Can-Do Attitude", "Canary", "Candle", "Cat", "Cat paw", "Celestial Pegasus", "Chain lightening", "Charm", "Cheat code", "Cheers", "Cheese trap", "Chill", "Chip Away", "Chop", "Chu Ko Nu", "Coat it All", "Coated shield", "Cold Fusion", "Cold Sharpened", "Cold Weather", "Collector", "Come Here", "Confrontational Behavior", "Conjugation", "Control Your Fate", "Counter", "Creative accounting", "Crowd Control", "Crypt Robber", "Cut the Breaks", "Dagger Spray", "Dark Army", "Dark Lord Rising", "Darkness", "Dart", "Dart storm", "Dastardly potion", "Death wish", "Deathly Cold", "Decoy", "Defend", "Defensive formation", "Deficient Instructions", "Deflect", "Delirium", "Dependable", "Diabolical", "Dig Deep", "Diminishing Returns", "Dino", "Dirty Dealing", "Discipline", "Distributors", "Don Quixote", "Don't Even Think About It", "Donkey", "Downgrade", "Dragon", "Drink Up", "Drive by", "Due diligence", "Dynamite", "Eagle", "Early symptoms", "Earnin It", "Eat up!", "Eccentricity", "Edgy", "Egg", "Electric shield", "Electric shock", "Elemental mastery", "Elephant", "Elusiveness", "Embers", "Emergency Protocol", "Employer benefits", "Enchanted Blade", "Enchanter", "Energy barrier", "Engineering", "Enhancements", "Enigmatic cold", "Enough!", "Ent", "Entangle", "Entropy", "Equal opportunity", "Equalizer", "Erratic leadership", "Ethereal Cloak", "Evasive maneuvering", "Everlasting Servitude", "Everlasting night", "Everybody plays", "Everybody's Doing It!", "Evil protection", "Evolving Equipment", "Excellent Craftsmanship", "Execute", "Explode", "Fade Away", "Fairy Friend", "Family Fun", "Famished", "Fast Recovery", "Faster!", "Feint", "Fiend", "Fighter", "Final meal", "Fire Thrower", "Fireblast", "Firefall", "Firefox", "Firewall", "Fireworks", "Fishing in the Underworld", "Fizzle", "Flabbergast", "Flight of Metal", "Flow of Power", "Flower Power", "Flush it Away", "Fly trap", "Focus", "Fog", "Foldable Blockade", "Follow Up", "Forced March", "Forced efficiency", "Fortify", "Free Fall", "Freeze", "Frost Shield", "Frostburn", "Fudge it", "Fully committed", "Future Planning", "Gadgets", "Galaxtic Fury", "Gale", "Garrote", "Gas", "Gateway to the Hereafter", "General George", "Get Ready…", "Getaway", "Ghost", "Ghostly Shield", "Giddy up", "Glacial cold", "Glasses", "Glimmering Strike", "Glug Glug…", "Gnomes", "Go Away.", "Go for the Eyes", "Goodnight", "Goop", "Gorgon", "Gotcha!", "Grail", "Grapeshot", "Grass Shield", "Growing pains", "Growth from adversity", "Guard for Hire", "Guiding light", "X Randomizer Disipline Edition TM", "X Randomizer Poison Edition TM", "X Randomizer: Minions", "X Upgrade: Chilled", "X Upgrade: Darkness", "X Upgrade: Dodger", "X Upgrade: Fire Mastery", "X Upgrade: Firewall", "X Upgrade: Magical Mastery", "X Upgrade: Poison Bomb", "X Upgrade: Potent Poisons", "X Upgrade: Protect", "X Upgrade: Pure Damage", "X Upgrade: Skeleton", "X Upgrade: Spellbound", "X Upgrade: Well Trained Minions"]);
 const ITEM_LV_FREQ = {"N": [[100, 0, 0], [80, 20, 0]], "R": [[70, 30, 0], [65, 25, 10]], "F": [[50, 30, 20], [40, 35, 25]], "I": [[20, 40, 40], [10, 40, 50]], "C": [[5, 40, 55], [0, 40, 60]]}; // biome -> [nodes 1-5, nodes 6-9] -> [lv1, lv2, lv3] weights (the sheet's 1-4/5-8 split, shifted by the node-5 Health Centre insert)
 const XMETA_I1 = {"X Upgrade: Pure Damage": 1}; // item-build found-Level-1 passive numbers
 const XMETA_L3 = {"X Upgrade: Dodger": 3, "X Upgrade: Poison Bomb": 8, "X Upgrade: Potent Poisons": 3, "X Upgrade: Fire Mastery": 3, "X Upgrade: Pure Damage": 3, "X Upgrade: Skeleton": 2, "X Upgrade: Chilled": 15, "X Upgrade: Protect": 16, "X Upgrade: Firewall": 12};
@@ -17948,11 +17950,12 @@ const HEROES = {
         furyDesc: "Icy Shell charges every time he gains Shield. When the orb fills, an Ice Shard crystallizes on its own \u2014 each shard grants +1 Armored while it stands." },
 };
 function heroDef(g) { return HEROES[(g && g.heroId) || "rogue"] || HEROES.rogue; }
+function cardPoolOf(g) { return isV3(g) ? V3_POOL : ITEM_POOL; }
 function heroPool(g) {
     const ps = heroDef(g).pools;
     let p = L1_POOL.filter((c) => ps.includes(c.cls));
-    if (itemMode(g)) // item build: only the curated sheet pool, and item ("i1") variants where they exist
-        p = p.filter((c) => ITEM_POOL.has(c.n)).map((c) => itemDefFor(c.n, 1));
+    if (itemMode(g)) // item build: only the curated sheet pool (V3: Chords Final), and item ("i1") variants where they exist
+        p = p.filter((c) => cardPoolOf(g).has(c.n)).map((c) => itemDefFor(c.n, 1));
     return p;
 }
 const ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
@@ -23210,7 +23213,7 @@ function storeCardCost(g, lv) {
 }
 function makeStore(g, variant) {
     if (variant === "pet_shop") {
-        const minions = CARDS.filter((c) => c.lv === 2 && !XMETA[c.n] && heroDef(g).pools.includes(c.cls) && (!itemMode(g) || ITEM_POOL.has(c.n)) && JSON.stringify(c.st).includes('"summon"'));
+        const minions = CARDS.filter((c) => c.lv === 2 && !XMETA[c.n] && heroDef(g).pools.includes(c.cls) && (!itemMode(g) || cardPoolOf(g).has(c.n)) && JSON.stringify(c.st).includes('"summon"'));
         const owned = new Set([...Object.values(g.slots).filter(Boolean).map((s) => s.name),
             ...(g.reserves || []).filter(Boolean).map((r) => r.name)]);
         const cards = [];
@@ -27393,7 +27396,7 @@ const BOT = {
     simRunOne(menuCfg, ST, cfg) {
         BOT.__simming = true;
         try {
-            let g = newGame({ maxHp: menuCfg.maxHp, furyMax: menuCfg.furyMax, deck: menuCfg.deck, gameMode: menuCfg.gameMode, hero: menuCfg.hero, itemMode: menuCfg.itemMode });
+            let g = newGame({ maxHp: menuCfg.maxHp, furyMax: menuCfg.furyMax, deck: menuCfg.deck, gameMode: menuCfg.gameMode, hero: menuCfg.hero, itemMode: menuCfg.itemMode, v3: menuCfg.v3 });
             let steps = 0;
             const inject = menuCfg.inject ? { atScore: menuCfg.inject.atScore, cards: menuCfg.inject.cards, done: false } : null;
             while (g && steps++ < 3000) {
@@ -27710,7 +27713,7 @@ function EldertoneInner() {
     const [furyMax, setFuryMax] = useState(7);
     const heroSelDef = HEROES[heroSel] || { name: "Random", pools: ["common", "rogue", "necro", "ice"],
         furyDesc: "A random hero — health, Fury and starting chords are rolled fresh when the run begins." };
-    const startNames = useMemo(() => Array.from(new Set(L1_POOL.filter((c) => heroSelDef.pools.includes(c.cls) && (verSel === "classic" || ITEM_POOL.has(c.n))).map((c) => c.n))).sort(), [heroSel, verSel]);
+    const startNames = useMemo(() => Array.from(new Set(L1_POOL.filter((c) => heroSelDef.pools.includes(c.cls) && (verSel === "classic" || (verSel === "v3" ? V3_POOL : ITEM_POOL).has(c.n))).map((c) => c.n))).sort(), [heroSel, verSel]);
     const [d1, setD1] = useState("Feint");
     const [d2, setD2] = useState("Attack");
     const [d3, setD3] = useState("Defend");
@@ -27727,7 +27730,7 @@ function EldertoneInner() {
     };
     const randomizeDeck = () => {
         // pick 3 random starting chords, preferring 3 different slots so none start benched
-        const shuffled = L1_POOL.filter((c) => heroSelDef.pools.includes(c.cls) && (verSel === "classic" || ITEM_POOL.has(c.n))).sort(() => Math.random() - 0.5);
+        const shuffled = L1_POOL.filter((c) => heroSelDef.pools.includes(c.cls) && (verSel === "classic" || (verSel === "v3" ? V3_POOL : ITEM_POOL).has(c.n))).sort(() => Math.random() - 0.5);
         const picked = [];
         const slotsUsed = new Set();
         for (const c of shuffled) {
@@ -27742,7 +27745,7 @@ function EldertoneInner() {
             picked.push(c);
         }
         while (picked.length < 3)
-            picked.push(pick(L1_POOL.filter((c) => heroSelDef.pools.includes(c.cls) && (verSel === "classic" || ITEM_POOL.has(c.n)))));
+            picked.push(pick(L1_POOL.filter((c) => heroSelDef.pools.includes(c.cls) && (verSel === "classic" || (verSel === "v3" ? V3_POOL : ITEM_POOL).has(c.n)))));
         setD1(picked[0].n);
         setD2(picked[1].n);
         setD3(picked[2].n);
@@ -27859,7 +27862,7 @@ function EldertoneInner() {
             // start / loop new runs automatically
             if (!g) {
                 const cf = botCfgRef.current;
-                const ng = newGame({ maxHp: cf.maxHp, furyMax: cf.furyMax, deck: cf.deck, gameMode: cf.gameMode, hero: cf.hero, itemMode: cf.itemMode });
+                const ng = newGame({ maxHp: cf.maxHp, furyMax: cf.furyMax, deck: cf.deck, gameMode: cf.gameMode, hero: cf.hero, itemMode: cf.itemMode, v3: cf.v3 });
                 logDecision(ng, "run_start", { deck: cf.deck, maxHp: cf.maxHp, furyMax: cf.furyMax, gameMode: ng.gameMode });
                 S.actions = 0;
                 setGame(ng);
