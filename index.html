@@ -23506,19 +23506,12 @@ const CSS = `
 @keyframes fxHalfL{0%{transform:translateX(-30%)}50%{transform:translateX(0)}62%{transform:translateX(-3%)}74%{transform:translateX(0)}100%{transform:translateX(0)}}
 @keyframes fxHalfR{0%{transform:translateX(30%)}50%{transform:translateX(0)}62%{transform:translateX(3%)}74%{transform:translateX(0)}100%{transform:translateX(0)}}
 .et-espwrap{position:relative;display:inline-block}
-.et-fwaura{position:absolute;bottom:-4px;width:34px;height:100px;pointer-events:none;z-index:3;transition:opacity .4s}
-.et-fwaura.foe{left:-22px}
-.et-fwaura.hero{right:-6px}
-.et-fwglow{position:absolute;left:10%;right:10%;top:6%;bottom:0;border-radius:45% 45% 20% 20%;background:linear-gradient(to top,rgba(255,150,40,.9),rgba(255,110,20,.55) 55%,rgba(255,90,10,0));filter:blur(3px)}
-.et-fwf{position:absolute;left:50%;width:100%;transform-origin:50% 100%;animation:fwFlick 1.1s ease-in-out infinite alternate}
-.et-fwf .et-fx-svg,.et-fwf img{width:100%;height:100%;display:block}
-.et-fwf .et-fx-svg svg{width:100%;height:100%;display:block}
-.et-fwf0{bottom:0;height:34%;margin-left:-50%}
-.et-fwf1{bottom:16%;height:32%;margin-left:-54%;animation-delay:-.4s;animation-duration:.9s}
-.et-fwf2{bottom:32%;height:30%;margin-left:-46%;animation-delay:-.8s;animation-duration:1.25s}
-.et-fwf3{bottom:48%;height:28%;margin-left:-52%;animation-delay:-.2s}
-.et-fwf4{bottom:63%;height:26%;margin-left:-48%;animation-delay:-.6s;animation-duration:.95s}
-.et-fwf5{bottom:77%;height:24%;margin-left:-50%;animation-delay:-1s;animation-duration:1.2s}
+.et-fwaura{position:absolute;bottom:-4px;width:42px;height:82px;pointer-events:none;z-index:3;transition:opacity .4s}
+.et-fwaura.foe{left:-24px}
+.et-fwaura.hero{right:-10px}
+.et-fwone{position:absolute;inset:0;transform-origin:50% 94%;animation:fwFlick 1.1s ease-in-out infinite alternate}
+.et-fwone .et-fx-svg,.et-fwone img{width:100%;height:100%;display:block}
+.et-fwone .et-fx-svg svg{width:100%;height:100%;display:block}
 @keyframes fwFlick{0%{transform:scaleY(.88) scaleX(1.05) skewX(-4deg)}50%{transform:scaleY(1.06) scaleX(.96) skewX(3deg)}100%{transform:scaleY(.95) scaleX(1.02) skewX(-1deg)}}
 .et-fx.front{align-items:flex-end;animation:fxFront .9s ease-out forwards}
 .et-fx.front .et-fx-svg,.et-fx.front img{width:58%;height:58%}
@@ -24112,17 +24105,18 @@ const HERO_FEET = { rogue: 0.835, necromancer: 0.97, iceknight: 0.95 };
 function FirewallAura({ n, feet }) {
     if (!(n > 0))
         return null;
+    // the Firewall-gain FX flame itself, squeezed to 1/3 of its width and stretched from feet to hand
+    // (FW_WALL_H tall) — the same shape for hero and enemies
     const art = FX_ART.burn;
     const st = { opacity: fwAuraOpacity(n) };
-    if (feet) // hero art is always drawn 200px tall: stand the wall on the feet line
-        st.bottom = "auto", st.top = Math.round(feet * 200 - 96) + "px";
-    const flame = (i) => React.createElement("span", { key: i, className: "et-fwf et-fwf" + i },
-        art.img ? React.createElement("img", { src: art.img, alt: "" })
-            : React.createElement("span", { className: "et-fx-svg", dangerouslySetInnerHTML: { __html: art.svg } }));
+    if (feet) // hero art is always drawn 200px tall: flame base (6% up its box) on the feet line
+        st.bottom = "auto", st.top = Math.round(feet * 200 - FW_WALL_H * 0.94) + "px";
     return React.createElement("div", { className: "et-fwaura " + (feet ? "hero" : "foe"), style: st },
-        React.createElement("span", { className: "et-fwglow" }),
-        [0, 1, 2, 3, 4, 5].map(flame));
+        React.createElement("span", { className: "et-fwone" },
+            art.img ? React.createElement("img", { src: art.img, alt: "" })
+                : React.createElement("span", { className: "et-fx-svg", dangerouslySetInnerHTML: { __html: art.svg.replace("<svg ", '<svg preserveAspectRatio="none" ') } })));
 }
+const FW_WALL_H = 82; // px: the flame spans y 8-94 of its viewBox, so ~71px of fire = the rogue's feet-to-hand height
 function HeroFigure({ g, b }) {
     // per-hero sprite palette: the Necromancer wears a black cloak and carries a wand
     const hid = (g && g.heroId) || "rogue";
