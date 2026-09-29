@@ -23482,6 +23482,9 @@ const CSS = `
 .v3-text .v3num.now{font-weight:800;font-size:1.1em}
 .v3-row:not(.dim) .v3num.dim{opacity:.5}
 .v3-foot{position:absolute;left:14%;right:12%;bottom:4.5%;text-align:center;color:#5d5340;font:500 5cqw system-ui;z-index:2}
+.v3cell{display:flex;flex-direction:column;align-items:center;gap:4px}
+.et-grid > .cf.v3card,.et-grid > .v3cell{align-self:flex-start}
+.v3-footbelow{max-width:186px;text-align:center;color:#e2cf9f;font-size:11.5px;line-height:1.35;padding:0 4px}
 .cf-v3 .cf-row.v3{background:none;border:0;color:#241c12;padding:3px 7px;line-height:1.32}
 .cf-v3 .cf-row.v3.dim{opacity:.5}
 .cf-v3 .v3num.now{font-weight:800}
@@ -24406,11 +24409,11 @@ function SlotFrame({ L, empty, children, bare }) {
 }
 // V3 card face (Sep 25 2026, user reference art): the real card frame, art in its window,
 // the title on the banner, the slot rune over the badge, and the segmented ring top-left.
-function V3CardFace({ name, baseName, slot, lv, rows, cls, footer, onClick, ready, locked, style, ring, fx, v3 }) {
+function V3CardFace({ name, baseName, slot, lv, rows, cls, footer, extra, onClick, ready, locked, style, ring, fx, v3 }) {
     const art = V3_ART[baseName];
     const charge = v3.charge;
     const shown = charge == null ? (v3.max || (ring && ring.max) || 1) : charge;   // out of battle: show the max
-    return (React.createElement("div", { className: "cf v3card" + (ready ? " ready" : "") + (locked ? " locked" : ""),
+    const card = (React.createElement("div", { className: "cf v3card" + (ready ? " ready" : "") + (locked ? " locked" : ""),
         style: Object.assign({ backgroundImage: "url(" + v3Frame(cls) + ")" }, style || {}), onClick: onClick },
         art ? React.createElement("img", { className: "v3-art", src: art, alt: "" })
             : React.createElement("div", { className: "v3-art v3-noart" }, (() => { const a = cardArt(baseName, lv); return a.e; })()),
@@ -24429,10 +24432,15 @@ function V3CardFace({ name, baseName, slot, lv, rows, cls, footer, onClick, read
                 return React.createElement("span", { key: si, className: "v3num" + (now ? " now" : charge != null ? " dim" : "") }, s.t);
             }));
         })),
-        footer ? React.createElement("div", { className: "v3-foot" }, footer) : null,
         fx && React.createElement("div", { key: "fx" + fx.seq, className: "cf-fx " + fx.k },
             fx.k === "hand" ? React.createElement("span", null, "\u270B")
                 : [0, 1, 2].map((i2) => React.createElement("i", { key: i2, className: "g" })))));
+    // footer notes ("replaces …", "reserve", growth) and the store's Buy button sit BELOW the
+    // frame — inside it they covered the card text, and `extra` was never drawn at all
+    if (!footer && !extra)
+        return card;
+    return React.createElement("div", { className: "v3cell" }, card, extra || null,
+        footer ? React.createElement("div", { className: "v3-footbelow" }, footer) : null);
 }
 function dispTitle(name, lv) { return String(name).replace(/[\s✦🎵🔥]+$/u, "") + lvMark(lv); }
 function CardFace({ name, slot, lv, rows, activeIdx, extra, footer, onClick, ready, locked, style, ring, tipKeys, tipFlip, tipExtra, fx, bagSlots, orb, v3 }) {
@@ -24440,7 +24448,7 @@ function CardFace({ name, slot, lv, rows, activeIdx, extra, footer, onClick, rea
     const baseName = String(name).replace(/[\s✦🎵🔥]+$/u, "");
     const cCls = (CARD_BY[cardKey(baseName, lv)] || CARD_BY[cardKey(baseName, 1)] || {}).cls;
     if (v3)
-        return V3CardFace({ name, baseName, slot, lv, rows, cls: cCls, footer, onClick, ready, locked, style, ring, fx, v3 });
+        return V3CardFace({ name, baseName, slot, lv, rows, cls: cCls, footer, extra, onClick, ready, locked, style, ring, fx, v3 });
     const isX = /^(★ )?X /.test(String(name)); // X-cards shimmer instead of the grey fallback
     return (React.createElement("div", { className: "cf " + (cCls ? "cls-" + cCls + " " : "") + (isX ? "cls-x " : "") + (lvNum(lv) >= 3 ? "lv3 " : lvNum(lv) === 2 ? "lv2 " : "") + (ready ? "ready " : "") + (locked ? "locked" : ""), onClick: onClick, style: style },
         ring && React.createElement("span", { className: "cf-ring" },
@@ -29725,7 +29733,7 @@ function EldertoneInner() {
                 return React.createElement(CardFace, { key: L, v3: isV3(g) ? { txt: grownRows(c.txt, g.slots[L]), max: c.c } : undefined, name: dispName(g.slots[L].name, L), slot: L, lv: g.slots[L].lv, rows: grownRows(c.txt, g.slots[L]), activeIdx: null, ring: { charge: 0, max: c.c }, footer: [g.slots[L].growth ? "+" + g.slots[L].growth + " permanent damage" : "", bagDesc(g, g.slots[L])].filter(Boolean).join(" \u00b7 ") || undefined });
             })),
             React.createElement("div", { className: "et-note" }, "Reserves \u2014 tap to swap into the matching slot"),
-            React.createElement("div", { className: "et-grid" }, g.reserves.map((r, i) => r ? (React.createElement(CardFace, { key: i, name: dispName(r.name, r.slot), slot: r.slot, lv: r.lv, rows: grownRows(CARD_BY[cardKey(r.name, r.lv)].txt, r), bagSlots: bagSlotIcons(r), activeIdx: null, ring: { charge: 0, max: CARD_BY[cardKey(r.name, r.lv)].c }, footer: g.slots[r.slot] ? "swaps with " + dispName(g.slots[r.slot].name, r.slot) : "fills empty " + r.slot + " slot", onClick: () => mut((g) => swapReserve(g, i)) })) : (React.createElement("div", { key: i, className: "et-panel et-pick", style: { opacity: 0.5, textAlign: "center" } }, "Empty reserve")))),
+            React.createElement("div", { className: "et-grid" }, g.reserves.map((r, i) => r ? (React.createElement(CardFace, { key: i, v3: isV3(g) ? { txt: grownRows(CARD_BY[cardKey(r.name, r.lv)].txt, r), max: CARD_BY[cardKey(r.name, r.lv)].c } : undefined, name: dispName(r.name, r.slot), slot: r.slot, lv: r.lv, rows: grownRows(CARD_BY[cardKey(r.name, r.lv)].txt, r), bagSlots: bagSlotIcons(r), activeIdx: null, ring: { charge: 0, max: CARD_BY[cardKey(r.name, r.lv)].c }, footer: g.slots[r.slot] ? "swaps with " + dispName(g.slots[r.slot].name, r.slot) : "fills empty " + r.slot + " slot", onClick: () => mut((g) => swapReserve(g, i)) })) : (React.createElement("div", { key: i, className: "et-panel et-pick", style: { opacity: 0.5, textAlign: "center" } }, "Empty reserve")))),
             React.createElement("div", { className: "et-actions" },
                 React.createElement("button", { className: "et-btn", onClick: () => mut((g) => {
                         const enc = g.pendingEnc;
