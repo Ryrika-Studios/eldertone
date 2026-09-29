@@ -17246,6 +17246,10 @@ const CARD_RENAMES = { "Enchantress": "Enchanter", "Analytical defense": "Analyt
 function migrateSaveNames(g) {
     if (!g)
         return g;
+    // V2 was retired (Sep 28 2026): a saved V2 run (item rules, old card face) continues as V3,
+    // which plays by the same rules — cards it already holds stay usable even if V3's pool dropped them
+    if (g.itemMode && !g.v3)
+        g.v3 = true;
     const fix = (o) => { if (o && CARD_RENAMES[o.name]) o.name = CARD_RENAMES[o.name]; };
     for (const L in (g.slots || {}))
         fix(g.slots[L]);
@@ -27773,7 +27777,7 @@ function EldertoneInner() {
     const [showDeck, setShowDeck] = useState(false);
     const [showMap, setShowMap] = useState(false);
     const [heroSel, setHeroSel] = useState("rogue");
-    const [verSel, setVerSel] = useState("v3"); // game version: V3 (default), V2, or the classic run
+    const [verSel, setVerSel] = useState("v3"); // game version: V3 (default) or the classic run — V2 retired Sep 28 2026
     const [maxHp, setMaxHp] = useState(75);
     const [furyMax, setFuryMax] = useState(7);
     const heroSelDef = HEROES[heroSel] || { name: "Random", pools: ["common", "rogue", "necro", "ice"],
@@ -28726,10 +28730,8 @@ function EldertoneInner() {
                     React.createElement("label", null, "Version"),
                     React.createElement("select", { value: verSel, onChange: (e) => setVerSel(e.target.value) },
                         React.createElement("option", { value: "v3" }, "V3"),
-                        React.createElement("option", { value: "item" }, "V2"),
                         React.createElement("option", { value: "classic" }, "Classic"))),
-                verSel === "v3" ? React.createElement("div", { className: "et-note", style: { fontSize: 11.5, margin: "2px 0 6px" } }, "V3: V2's rules (chords are FOUND at Level 1\u20133, never upgraded) with the new card face \u2014 one line per effect, scaling values written 1 / 2 / 3 with the live one bold, and an aqua segmented charge ring.") : null,
-                verSel === "item" ? React.createElement("div", { className: "et-note", style: { fontSize: 11.5, margin: "2px 0 6px" } }, "V2: chords are FOUND at Level 1–3 (deeper biomes find higher levels) and can never be upgraded. Grab Bags still buff cards. No Evasion totem in this build.") : null,
+                verSel === "v3" ? React.createElement("div", { className: "et-note", style: { fontSize: 11.5, margin: "2px 0 6px" } }, "V3: chords are FOUND at Level 1\u20133 (deeper biomes find higher levels) and are never upgraded, shown on the new card face \u2014 one line per effect, scaling values written 1 / 2 / 3 with the live one bold, and an aqua segmented charge ring.") : null,
                 React.createElement("div", { className: "et-field" },
                     React.createElement("label", null, "Max health"),
                     React.createElement("input", { type: "number", value: maxHp, onChange: (e) => setMaxHp(+e.target.value || 75) })),
