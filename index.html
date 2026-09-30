@@ -23531,6 +23531,39 @@ const CSS = `
 .v3-row:not(.dim) .v3num.dim{opacity:.5}
 .v3-foot{position:absolute;left:14%;right:12%;bottom:4.5%;text-align:center;color:#5d5340;font:500 5cqw system-ui;z-index:2}
 .v3cell{display:flex;flex-direction:column;align-items:center;gap:4px}
+.et-lf{position:fixed;inset:0;z-index:210;background:radial-gradient(ellipse at center,#281e14,#0c0906);overflow-y:auto;padding:18px 16px 28px;box-sizing:border-box}
+.et-lf-head{text-align:center;margin-bottom:10px}
+.et-lf-head .et-title{margin:4px 0 2px;color:#f0b640}
+.et-lf-count{font-size:20px;font-weight:700;color:#e8dfc8}
+.et-lf-count .over{color:#e05a4a}
+.et-lf-body{display:flex;gap:22px;justify-content:center;align-items:flex-start;flex-wrap:wrap;max-width:1180px;margin:0 auto}
+.et-lf-newcol{display:flex;flex-direction:column;align-items:center;width:190px}
+.et-lf-hint{color:#e8dfc8;font-size:13px;text-align:center;font-weight:600;margin-bottom:6px;min-height:34px}
+.et-lf-newcard{padding:4px;border-radius:10px;background:rgba(255,255,255,.06);box-shadow:0 0 0 2px rgba(255,255,255,.08)}
+.et-lf-grid{display:flex;flex-wrap:wrap;gap:12px 14px;justify-content:center;flex:1;min-width:260px}
+.et-lf-cell{display:flex;flex-direction:column;align-items:center;width:170px}
+.et-lf-cell .cf.v3card,.et-lf-newcard .cf.v3card,.et-lf-preview .cf.v3card{width:100%}
+.et-lf-newcard{width:180px}
+.et-lf-tag{font-variant:small-caps;letter-spacing:.06em;font-weight:700;font-size:15px;height:20px;color:transparent}
+.et-lf-tag.res{color:#e36be8}
+.et-lf-under{font-size:12.5px;font-weight:700;height:18px;margin-top:3px;color:transparent}
+.et-lf-under.new{color:#ff9a3c}
+.et-lf-under.boot{color:#fff}
+.et-lf-cell.dim{opacity:.38;filter:grayscale(.5)}
+.et-lf-cell.pickable{cursor:pointer}
+.et-lf-cell.pickable:hover .cf{transform:translateY(-3px)}
+.et-lf-cell.sel .cf{box-shadow:0 0 0 3px #ff6f6f,0 0 18px rgba(255,90,90,.75);border-radius:10px}
+.et-lf-remove{width:250px;background:rgba(60,14,14,.55);border:2px solid #7a1f1f;border-radius:14px;padding:0 14px 14px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.et-lf-ribbon{margin-top:-2px;background:linear-gradient(#c43b3b,#8e2323);color:#fff;font-weight:800;font-size:20px;padding:6px 26px;border-radius:0 0 10px 10px;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+.et-lf-preview{width:210px;min-height:120px;display:flex;align-items:center;justify-content:center}
+.et-lf-empty{color:#e8dfc8;opacity:.8;text-align:center;font-size:13px;padding:30px 10px}
+.et-lf-rm{background:linear-gradient(#d24a4a,#9b2727)!important;color:#fff!important;font-size:18px!important;padding:8px 36px!important}
+.et-lf-rm:disabled{opacity:.45}
+.et-lf-actions{display:flex;gap:22px;justify-content:center;margin-top:20px}
+.et-lf-back{min-width:150px}
+.et-lf-go{min-width:150px;background:linear-gradient(#56a04a,#2f6d29)!important;color:#fff!important}
+@media (max-width:700px){.et-lf-cell{width:130px}.et-lf-newcard{width:140px}.et-lf-remove{width:100%}}
+
 .et-grid > .cf.v3card,.et-grid > .v3cell{align-self:flex-start}
 .v3-footbelow{max-width:186px;text-align:center;color:#e2cf9f;font-size:11.5px;line-height:1.35;padding:0 4px}
 .cf-v3 .cf-row.v3{background:none;border:0;color:#241c12;padding:3px 7px;line-height:1.32}
@@ -24457,6 +24490,94 @@ function SlotFrame({ L, empty, children, bare }) {
 }
 // V3 card face (Sep 25 2026, user reference art): the real card frame, art in its window,
 // the title on the banner, the slot rune over the badge, and the segmented ring top-left.
+// "Your Loadout is Full!" (Sep 29 2026, user mockups): replaces the old make-room popup. Step 1 shows the
+// new card and the whole loadout; step 2 picks what to remove — only the two reserves or the card holding
+// the new card's letter can go. Go back restores the snapshot mut() took before the pick.
+function LoadoutFullScreen({ g, mut }) {
+    const pe = g.pendingEquip;
+    const L = pe.card.slot;
+    const step = pe.step || 1;
+    const pickSel = pe.pick; // "slot" | "r0" | "r1"
+    const face = (entry, key, extra) => {
+        const def = CARD_BY[cardKey(entry.name, entry.lv)] || CARD_BY[cardKey(entry.name, 1)];
+        if (!def)
+            return null;
+        const rows = entry.isNew ? def.txt : grownRows(def.txt, entry);
+        return React.createElement(CardFace, Object.assign({ key, orb: true, v3: isV3(g) ? { txt: rows, max: def.c } : undefined,
+            name: dispName(entry.name, entry.slot || def.slot), slot: entry.slot || def.slot, lv: entry.lv, rows, activeIdx: null,
+            ring: { charge: 0, max: def.c }, bagSlots: entry.isNew ? undefined : bagSlotIcons(entry) }, extra || {}));
+    };
+    const newEntry = { name: pe.card.n, lv: pe.card.lv, slot: L, isNew: true };
+    const slotItems = "ABCDEFG".split("").filter((k) => g.slots[k]).map((k) => ({ id: k === L ? "slot" : "s" + k, entry: { ...g.slots[k], slot: k }, reserve: false }));
+    const resItems = g.reserves.map((r, ri) => r ? { id: "r" + ri, entry: { ...r, slot: r.slot }, reserve: true } : null).filter(Boolean);
+    const count = slotItems.length + resItems.length + 1;
+    const cap = 7 + g.reserves.length;
+    const removable = (id) => id === "slot" || id === "r0" || id === "r1";
+    const setPE = (patch) => mut((g2) => { Object.assign(g2.pendingEquip, patch); });
+    const goBack = () => mut((g2) => {
+        const undo = g2.pendingEquip && g2.pendingEquip.undo;
+        if (!undo)
+            return;
+        const prev = JSON.parse(undo);
+        Object.keys(g2).forEach((k) => delete g2[k]);
+        Object.assign(g2, prev);
+        g2.pendingEquip = null;
+    });
+    const doRemove = () => mut((g2) => {
+        const pe2 = g2.pendingEquip;
+        if (!pe2 || !pe2.pick)
+            return;
+        const sel = pe2.pick;
+        g2.pendingEquip = null;
+        if (sel === "slot") {
+            logDecision(g2, "make_room", { discarded: g2.slots[pe2.card.slot].name + " (slot)", kept: pe2.card.n });
+            g2.slots[pe2.card.slot] = { name: pe2.card.n, lv: pe2.card.lv, costMod: 0, plays: 0 };
+        }
+        else {
+            const ri = +sel.slice(1);
+            logDecision(g2, "make_room", { discarded: (g2.reserves[ri] || {}).name + " (reserve)", kept: pe2.card.n });
+            g2.reserves[ri] = null;
+            equipCard(g2, pe2.card, false);
+        }
+    });
+    const header = (title) => React.createElement("div", { className: "et-lf-head" },
+        React.createElement("h2", { className: "et-title" }, title),
+        React.createElement("div", { className: "et-lf-count" }, React.createElement("span", { className: "over" }, count), "/", cap));
+    const cell = (it, opts) => React.createElement("div", { key: it.id, className: "et-lf-cell" + (opts.dim ? " dim" : "") + (opts.sel ? " sel" : "") + (opts.click ? " pickable" : ""),
+            onClick: opts.click || undefined },
+        it.reserve ? React.createElement("div", { className: "et-lf-tag res" }, "Reserve") : React.createElement("div", { className: "et-lf-tag" }, "\u00a0"),
+        face(it.entry, it.id),
+        opts.sel ? React.createElement("div", { className: "et-lf-under boot" }, "Booted card")
+            : it.isNewCard ? React.createElement("div", { className: "et-lf-under new" }, "New Card!") : React.createElement("div", { className: "et-lf-under" }, "\u00a0"));
+    if (step === 1)
+        return React.createElement("div", { className: "et-lf" },
+            header("Your Loadout is Full!"),
+            React.createElement("div", { className: "et-lf-body" },
+                React.createElement("div", { className: "et-lf-newcol" },
+                    React.createElement("div", { className: "et-lf-hint" }, "Remove a card to free up space for the new card"),
+                    React.createElement("div", { className: "et-lf-newcard" }, face(newEntry, "new")),
+                    React.createElement("div", { className: "et-lf-under new" }, "New Card!")),
+                React.createElement("div", { className: "et-lf-grid" }, slotItems.concat(resItems).map((it) => cell(it, {})))),
+            React.createElement("div", { className: "et-lf-actions" },
+                pe.undo ? React.createElement("button", { className: "et-btn et-lf-back", onClick: goBack }, "Go back") : null,
+                React.createElement("button", { className: "et-btn et-lf-go", onClick: () => setPE({ step: 2 }) }, "Continue")));
+    const all = [{ id: "new", entry: newEntry, reserve: false, isNewCard: true }].concat(slotItems, resItems);
+    const selItem = all.find((it) => it.id === pickSel);
+    return React.createElement("div", { className: "et-lf" },
+        header("Remove a card"),
+        React.createElement("div", { className: "et-lf-body" },
+            React.createElement("div", { className: "et-lf-remove" },
+                React.createElement("div", { className: "et-lf-ribbon" }, "Remove Card"),
+                React.createElement("div", { className: "et-lf-preview" }, selItem ? face(selItem.entry, "prev") :
+                    React.createElement("div", { className: "et-lf-empty" }, "Choose a reserve card or your ", L, " card")),
+                React.createElement("button", { className: "et-btn et-lf-rm", disabled: !selItem, onClick: doRemove }, "Remove")),
+            React.createElement("div", { className: "et-lf-grid" }, all.map((it) => {
+                const ok = removable(it.id);
+                return cell(it, { dim: !ok, sel: it.id === pickSel, click: ok ? () => setPE({ pick: it.id }) : null });
+            }))),
+        React.createElement("div", { className: "et-lf-actions" },
+            React.createElement("button", { className: "et-btn et-lf-back", onClick: () => setPE({ step: 1, pick: null }) }, "Go back")));
+}
 function V3CardFace({ name, baseName, slot, lv, rows, cls, footer, extra, onClick, ready, locked, style, ring, fx, v3 }) {
     const art = V3_ART[baseName];
     const charge = v3.charge;
@@ -27801,7 +27922,20 @@ function EldertoneInner() {
     const [, tickSet] = useState(0);
     const gref = useRef(null);
     const setGame = (g) => { gref.current = g; setGameRaw(g); tickSet((t) => t + 1); };
-    const mut = (fn) => { const g = gref.current; fn(g); setGame(g); tickSet((t) => t + 1); };
+    const mut = (fn) => {
+        const g = gref.current;
+        // "Loadout full" Go back (Sep 29 2026): outside battle, remember the state before this action so a
+        // pick that raises the make-room screen can be undone exactly (gold refunded, reward/store/event back)
+        let snap = null;
+        if (g && !g.pendingEquip && g.screen !== "battle") {
+            try { snap = JSON.stringify(g); } catch (e) { snap = null; }
+        }
+        fn(g);
+        if (snap && g.pendingEquip && !g.pendingEquip.undo)
+            g.pendingEquip.undo = snap;
+        setGame(g);
+        tickSet((t) => t + 1);
+    };
     // on a WIN the battlefield lingers ~1s so the death smoke can play before
     // the reward screen; losses and bot/sim paths stay immediate
     const afterActionUI = (g) => {
@@ -29078,44 +29212,7 @@ function EldertoneInner() {
                     setTimeout(() => setLogResetMsg(""), 2500);
                 } }, logResetArmed ? "Erase?" : "Reset Stats"),
             logResetMsg ? " " + logResetMsg : ""),
-        g.pendingEquip && (() => {
-            const pe = g.pendingEquip;
-            const displaced = g.slots[pe.card.slot];
-            return (React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(10,8,5,.78)", zIndex: 210,
-                    display: "flex", alignItems: "center", justifyContent: "center" } },
-                React.createElement("div", { style: { background: "#2a2118", border: "1px solid #8a744c", borderRadius: 10, padding: 18,
-                        width: "min(520px, 92vw)" } },
-                    React.createElement("h3", { style: { color: "#e8c98a", marginTop: 0 } },
-                        "Make room for ",
-                        dispName(pe.card.n, pe.card.slot)),
-                    React.createElement("p", { style: { color: "#cfc4a8", fontSize: 13 } },
-                        "Slot ",
-                        pe.card.slot,
-                        " is taken and your reserves are full. Choose a chord to discard \\u2014 it will be gone for good."),
-                    React.createElement("button", { className: "et-btn", style: { marginBottom: 10, fontSize: 12, opacity: 0.85 }, onClick: () => setShowDeck(true) }, "\U0001F4DC View your chords first"),
-                    React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } },
-                        React.createElement("button", { className: "et-btn", onClick: () => mut((g) => {
-                                const pe2 = g.pendingEquip;
-                                g.pendingEquip = null;
-                                logDecision(g, "make_room", { discarded: displaced.name + " (slot)", kept: pe2.card.n });
-                                g.slots[pe2.card.slot] = { name: pe2.card.n, lv: pe2.card.lv, costMod: 0, plays: 0 };
-                            }) },
-                            "Discard ",
-                            dispName(displaced.name, pe.card.slot),
-                            " (the chord being replaced)"),
-                        g.reserves.map((r, ri) => r && (React.createElement("button", { key: ri, className: "et-btn", onClick: () => mut((g) => {
-                                const pe2 = g.pendingEquip;
-                                g.pendingEquip = null;
-                                logDecision(g, "make_room", { discarded: r.name + " (reserve)", kept: pe2.card.n });
-                                g.reserves[ri] = null;
-                                equipCard(g, pe2.card, false);
-                            }) },
-                            "Discard reserve: ",
-                            dispName(r.name, r.slot),
-                            " (lv ",
-                            r.lv,
-                            ")")))))));
-        })(),
+        g.pendingEquip && React.createElement(LoadoutFullScreen, { g, mut }),
         logExport != null && (React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(10,8,5,.75)", zIndex: 200,
                 display: "flex", alignItems: "center", justifyContent: "center" }, onClick: () => setLogExport(null) },
             React.createElement("div", { style: { background: "#2a2118", border: "1px solid #8a744c", borderRadius: 10, padding: 16,
