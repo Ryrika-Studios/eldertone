@@ -24496,7 +24496,7 @@ function SlotFrame({ L, empty, children, bare }) {
 function LoadoutFullScreen({ g, mut }) {
     const pe = g.pendingEquip;
     const L = pe.card.slot;
-    const step = pe.step || 1;
+    const step = 2; // single screen since Sep 30 2026 (user removed the overview step)
     const pickSel = pe.pick; // "slot" | "r0" | "r1"
     const face = (entry, key, extra) => {
         const def = CARD_BY[cardKey(entry.name, entry.lv)] || CARD_BY[cardKey(entry.name, 1)];
@@ -24564,7 +24564,7 @@ function LoadoutFullScreen({ g, mut }) {
     const all = [{ id: "new", entry: newEntry, reserve: false, isNewCard: true }].concat(slotItems, resItems);
     const selItem = all.find((it) => it.id === pickSel);
     return React.createElement("div", { className: "et-lf" },
-        header("Remove a card"),
+        header("Your loadout is full, remove a card"),
         React.createElement("div", { className: "et-lf-body" },
             React.createElement("div", { className: "et-lf-remove" },
                 React.createElement("div", { className: "et-lf-ribbon" }, "Remove Card"),
@@ -24576,7 +24576,7 @@ function LoadoutFullScreen({ g, mut }) {
                 return cell(it, { dim: !ok, sel: it.id === pickSel, click: ok ? () => setPE({ pick: it.id }) : null });
             }))),
         React.createElement("div", { className: "et-lf-actions" },
-            React.createElement("button", { className: "et-btn et-lf-back", onClick: () => setPE({ step: 1, pick: null }) }, "Go back")));
+            pe.undo ? React.createElement("button", { className: "et-btn et-lf-back", onClick: goBack }, "Go back") : null));
 }
 function V3CardFace({ name, baseName, slot, lv, rows, cls, footer, extra, onClick, ready, locked, style, ring, fx, v3 }) {
     const art = V3_ART[baseName];
