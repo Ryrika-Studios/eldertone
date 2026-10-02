@@ -19647,7 +19647,7 @@ function damageEnemy(b, g, en, raw, opts = {}) {
         return 0;
     }
     let n = raw;
-    if (!opts.flat && en.st.burn > 0) {
+    if (!opts.flat && !opts.noWall && en.st.burn > 0) { // noWall: shuriken volleys fly over the wall
         const d = en.st.burn;
         en.st.burn = Math.floor(en.st.burn * 0.75);
         log(b, "You strike through " + en.name + "'s Firewall and take " + d + "! (wall now " + en.st.burn + ")");
@@ -21377,7 +21377,9 @@ function shurikenStrike(b, g) {
     alive(b).forEach((e) => {
         if (b.over)
             return;
-        damageEnemy(b, g, e, sd, { src: "Shuriken" }); // true attack: strength applies, firewalls trigger
+        // true attack (Strength, Exposed, Dark Lord… all apply) but it does NOT set off enemy
+        // Firewalls — no recoil, the wall doesn't shrink (user, Oct 2 2026)
+        damageEnemy(b, g, e, sd, { src: "Shuriken", noWall: true });
         if (e.dead && !SYNTH.has(e.name) && !e.summonerId)
             kills += 1; // summoned units (Vine Arms, gnomes, parts…) never feed perm growth
     });
