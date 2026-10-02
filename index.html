@@ -17964,13 +17964,16 @@ function totemPoolIds(g) {
 }
 // ---- Heroes: each defines starting stats, card pools, and a UNIQUE Fury ----
 // furyCharge: what fills the orb · furyFx: what an unleash does
+// every Skeleton (fury burst, cards, X Upgrade, pending skeletons) strikes the front enemy for this
+// much each turn — 4 since Oct 2 2026 (user; was 5)
+const SKELETON_ATK = 4;
 const HEROES = {
     rogue: { name: "Rogue", hp: 75, furyMax: 7, gold: 0, deck: ["Feint", "Attack", "Defend"],
         pools: ["common", "rogue"], furyCharge: "hit", furyFx: "attack_x2",
         furyDesc: "Fury charges on every hit you land. Unleashed, her next damage chord triggers twice." },
     necromancer: { name: "Necromancer", hp: 70, furyMax: 6, gold: 0, deck: ["Amber wand", "Defend", "Fully committed"],
         pools: ["common", "necro"], furyCharge: "debuff", furyFx: "skeleton",
-        furyDesc: "Fury charges each time she applies a debuff. When the orb fills, her dark aura flares and a Skeleton claws up on its own (5 damage to the front enemy each turn)." },
+        furyDesc: "Fury charges each time she applies a debuff. When the orb fills, her dark aura flares and a Skeleton claws up on its own (4 damage to the front enemy each turn)." },
     iceknight: { name: "Ice Knight", hp: 80, furyMax: 5, gold: 0, deck: ["Attack", "Defend", "Blast"],
         pools: ["common", "ice"], furyCharge: "shield", furyFx: "iceshard",
         furyDesc: "Icy Shell charges every time he gains Shield. When the orb fills, an Ice Shard crystallizes on its own \u2014 each shard grants +1 Armored while it stands." },
@@ -19338,12 +19341,12 @@ function startBattle(game, enemyNames, kindLabel) {
     // X mastery passives: skeletons and darkness at battle start
     if (g.perm.skelStart)
         for (let ps2 = 0; ps2 < g.perm.skelStart; ps2++)
-            b.minions.push({ name: "Skeleton", ops: [["m_attack", 5, false, 1]], age: 0, procs: 1 });
+            b.minions.push({ name: "Skeleton", ops: [["m_attack", SKELETON_ATK, false, 1]], age: 0, procs: 1 });
     // (X-Upgrade Darkness mastery fires at the start of TURN 2 — see heroTurnStart)
     // Everlasting Servitude: souls bound last battle rise as Skeletons now
     if (game.pendingSkels) {
         for (let ps = 0; ps < game.pendingSkels; ps++)
-            b.minions.push({ name: "Skeleton", ops: [["m_attack", 5, false, 1]], age: 0, procs: 1 });
+            b.minions.push({ name: "Skeleton", ops: [["m_attack", SKELETON_ATK, false, 1]], age: 0, procs: 1 });
         log(b, game.pendingSkels + " bound soul(s) rise as Skeletons!");
         game.pendingSkels = 0;
     }
@@ -20484,7 +20487,7 @@ function runOps(b, g, ops, ctx) {
         // ---- Necromancer op set (Aug 2026 card import) ----
         else if (k === "summon_skel") {
             for (let si2 = 0; si2 < (op[1] || 1); si2++)
-                b.minions.push({ name: "Skeleton", ops: [["m_attack", 5, false, 1]], age: 0, procs: 1 });
+                b.minions.push({ name: "Skeleton", ops: [["m_attack", SKELETON_ATK, false, 1]], age: 0, procs: 1 });
             log(b, "A Skeleton claws up from the earth!" + ((op[1] || 1) > 1 ? " (×" + op[1] + ")" : ""));
         }
         else if (k === "damage_ls") {
@@ -20627,7 +20630,7 @@ function runOps(b, g, ops, ctx) {
         else if (k === "minions_to_skels") {
             const n2 = b.minions.length;
             b.minions.forEach((m2) => removeMinionGrants(b, m2));
-            b.minions = b.minions.map(() => ({ name: "Skeleton", ops: [["m_attack", 5, false, 1]], age: 0, procs: 1 }));
+            b.minions = b.minions.map(() => ({ name: "Skeleton", ops: [["m_attack", SKELETON_ATK, false, 1]], age: 0, procs: 1 }));
             if (n2)
                 log(b, "Dark rites reshape your minions — " + n2 + " Skeleton(s) now serve you.");
         }
@@ -21446,7 +21449,7 @@ function checkFuryBurst(b, g) {
     b.furyBurstSeq = (b.furyBurstSeq || 0) + 1;
     if (ffx === "skeleton") {
         log(b, "Your dark aura flares...");
-        b.minions.push({ name: "Skeleton", ops: [["m_attack", 5, false, 1]], age: 0, procs: 1, rise: true });
+        b.minions.push({ name: "Skeleton", ops: [["m_attack", SKELETON_ATK, false, 1]], age: 0, procs: 1, rise: true });
         log(b, "A Skeleton claws up from the earth!");
     }
     else {
@@ -24266,17 +24269,24 @@ function minionTipLines(m, g, b) {
     const tBonus = [0, 0, 2, 2, 3, 3][ml];
     const strLink = m.ops.some((mo) => mo[0] === "m_str_link");
     const strAdd = strLink ? (b.hero.st.strength || 0) : 0;
+    // the same flat attack bonuses the minion phase adds (Can-Do Attitude / Communism,
+    // Calcium supplements for Skeletons, Well Trained Minions, Double down), then the
+    // Band in Darkness x1.5 while the form is up — the tooltip used to show only the totem
+    const hf = b.hero.flags || {};
+    const atkAdd = tBonus + (hf.minion_atk_up || 0) + (m.name === "Skeleton" ? (hf.skel_atk_up || 0) : 0)
+        + ((g.perm && g.perm.minionAtk) || 0) + (hf.dd_bonus || 0);
+    const atkOf = (base) => { const d = base + strAdd + atkAdd; return b.darkLord && hf.dl_minion_buffs ? Math.round(d * 1.5) : d; };
     const sName = (s) => (STATUS_INFO[s] ? STATUS_INFO[s][0] : s);
     for (const mo of m.ops) {
         const k = mo[0];
         if (k === "m_attack") {
-            const eff = mo[1] + strAdd + tBonus;
+            const eff = atkOf(mo[1]);
             lines.push("Attacks " + (mo[5] === "rand" ? "a random enemy" : "the front enemy") + " for " + eff
                 + (mo[3] > 1 ? " ×" + mo[3] : "") + (mo[2] ? ", hitting all enemies" : "")
                 + (mo[4] === "ls" ? ", healing you for the damage dealt" : "") + ".");
         }
         else if (k === "m_dmg_if_hurt")
-            lines.push("Avenges you: attacks for " + (mo[1] + strAdd + tBonus) + " instead if you lost HP last turn.");
+            lines.push("Avenges you: attacks for " + atkOf(mo[1]) + " instead if you lost HP last turn.");
         else if (k === "m_str_link")
             lines.push("Its attacks add your Strength (included above).");
         else if (k === "m_apply") {
@@ -25255,7 +25265,7 @@ const BOT = {
             }
             // ---- Necromancer op set (Aug 2026): darkness / skeletons / debuff engines ----
             if (k === "summon_skel")
-                return (o[1] || 1) * 9; // a Skeleton swings for 5 every turn
+                return (o[1] || 1) * 9 * SKELETON_ATK / 5; // a Skeleton swings for SKELETON_ATK every turn (valued 9 at the old 5)
             if (k === "gain_per_minion")
                 return opv(["gain", o[1], (o[2] || 1) * b.minions.length]);
             if (k === "gain_per_skel")
@@ -26042,7 +26052,7 @@ const BOT = {
             if (op === "sac_all_dmg")
                 return (o[1] || 0) * 3 - 3; // flat AOE per minion, consumes them
             if (op === "summon_skel")
-                return 4.5 * (o[1] || 1);
+                return 4.5 * SKELETON_ATK / 5 * (o[1] || 1);
             if (op === "gain_per_minion")
                 return opVal(["gain", o[1], (o[2] || 1) * 2]);
             if (op === "gain_per_skel")
