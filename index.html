@@ -17365,8 +17365,8 @@ const ZOMBIE_STAGE_MOVES = [
 // hero's battle chords for a random chord of the SAME letter, handing back the
 // one it took last time. Battle-scoped — g.slots is never touched, so the run's
 // real loadout returns intact after the fight.
-// Growing Mass slam (Enemies Final, Special 2): 30% of its missing health
-function gmSlamDmg(en) { return Math.max(0, Math.floor((en.maxHp - en.hp) * 0.3)); }
+// Growing Mass slam: 40% of its missing health (user, Oct 2 2026 — was 30%)
+function gmSlamDmg(en) { return Math.max(0, Math.floor((en.maxHp - en.hp) * 0.4)); }
 function yetiSwapChord(b, g, en) {
     const held = en.flags.yetiHeld;
     if (held) {
@@ -19009,7 +19009,7 @@ function intentTipLines(b, en) {
         return n;
     };
     if (en.special === "growing_mass" && en.flags && en.flags.slamNext)
-        lines.push("Slam: attacks for 30% of its missing health (⚔" + eff(gmSlamDmg(en)) + ").");
+        lines.push("Slam: attacks for 40% of its missing health (⚔" + eff(gmSlamDmg(en)) + ").");
     if (en.special === "blimp" && en.flags && en.flags.boom && en.flags.boomDmg != null)
         lines.push("\u{1F4A5} Its crew is gone \u2014 on its next turn it self-destructs, hitting you for " + eff(en.flags.boomDmg) + (b.hero.shield > 0 ? " (your Shield absorbs first)" : "") + ".");
     for (const p of (en.intent.parts || [])) {
@@ -23903,7 +23903,7 @@ const ENEMY_SPECIAL_DESC = {
     "Troll King": ["Enraged", "Spends a turn strengthening, and every direct hit that costs him health makes him stronger."],
     Vineman: ["Vine Arms", "Regrows up to 3 Vine Arms that each attack every turn until destroyed."],
     Zombie: ["Falling Apart", "As he takes damage his Arm, Leg and Head break off and fight on their own \u2014 and what is left of him hits harder."],
-    "Growing Mass": ["Gorge & Slam", "On turn 2 and every 4th turn after, it grows (+10 max health), then slams you next turn for 30% of its missing health."],
+    "Growing Mass": ["Gorge & Slam", "On turn 2 and every 4th turn after, it grows (+10 max health), then slams you next turn for 40% of its missing health."],
     "Dwarf King": ["Boulder Toss", "Opens with a heavy blow, then cracks a boulder open every other turn to release a foe."],
     Phoenix: ["Rebirth", "Every defeat leaves an egg — destroy it within 2 turns or the Phoenix returns."],
     Salamander: ["Fire Spikes", "Periodically bristles with flame — striking it then burns you."],
