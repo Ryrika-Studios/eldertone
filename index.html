@@ -17248,8 +17248,12 @@ function migrateSaveNames(g) {
         return g;
     // V2 was retired (Sep 28 2026): a saved V2 run (item rules, old card face) continues as V3,
     // which plays by the same rules — cards it already holds stay usable even if V3's pool dropped them
-    if (g.itemMode && !g.v3)
+    // ...and Classic was removed (Oct 2 2026): a saved Classic run continues as V3 too. Its cards
+    // keep their levels (1/2 are valid V3 levels) and simply stop being upgradeable
+    if (!g.classicTest) {
+        g.itemMode = true;
         g.v3 = true;
+    }
     // a rename never applies to a name a LIVE card still uses — "Chill" was renamed to
     // Freeze and then reused by Glacial Force, so the old "Chill" -> "Freeze" rule turned
     // every saved (new) Chill into Freeze on load (Oct 2 2026 bug hunt)
@@ -22756,8 +22760,11 @@ function newGame(opts) {
         slots: { A: null, B: null, C: null, D: null, E: null, F: null, G: null },
         reserves: [null, null],
         relics: [], totems: [], gameMode: opts.gameMode || "relics", boosts: [], transTokens: 0,
-        itemMode: !!opts.itemMode, // Item Test build: found-level cards, no upgrades
-        v3: !!opts.v3, // V3: V2 rules, new card presentation
+        // CLASSIC REMOVED (Oct 2 2026, user): every run is V3 (found Lv1-3 cards, no upgrades,
+        // V3 card face). The classic engine paths remain only behind opts.classic === true (test hook)
+        itemMode: opts.classic !== true,
+        v3: opts.classic !== true,
+        classicTest: opts.classic === true || undefined,
         heroId: opts.hero || "rogue",
         perm: { strength: 0, armored: 0, dodge: 0, poisonBomb: 0, counter: 0, poisonBonus: 0, burnBonus: 0, minions: [] },
         seenEvents: [], egg: 0, lastEnc: null, plan: null, event: null, eventWin: null,
@@ -24162,16 +24169,16 @@ const TUT_STEPS = [
     { title: "Welcome to Eldertone", text: "This is a battle: your hero stands on the left, the enemy waits on the right. This short practice fight walks through everything you need — and remember, you can hover almost anything in the game for details." },
     { title: "Chord slots", text: "Your chords — your cards — sit in the lettered slots along the bottom. Every chord belongs to ONE letter (A–G) and can only ever occupy that slot: two chords sharing a letter compete for the same slot, so building a deck means finding good chords across different letters.", glow: "chords" },
     { title: "The Transmuter", text: "Stuck with two great chords fighting over one letter? Stores sell a TRANSMUTER (80 gold) that moves one of your chords into a different slot — the only way around the one-chord-per-letter rule. Keep it in mind before a reward tempts you into a crowded letter.", glow: "chords" },
-    { title: "Charging", text: "The ring on each chord is its CHARGE — every chord gains 1 at the start of your turn. Chords with several rows unlock stronger rows at higher charge (the bright row is what you'd get right now), and playing a chord spends ALL of its charge.", glow: "chords", aim: [0.5, -0.02], img: "ring" },
+    { title: "Charging", text: "The ring on each chord is its CHARGE — every chord gains 1 at the start of your turn. A value written like 2 / 6 / 11 grows with charge: the BOLD number is what you'd get right now, and the last one is full charge. Playing a chord spends ALL of its charge.", glow: "chords", aim: [0.5, -0.02], img: "ring" },
     { title: "Pick your target", text: "TWO enemies this time! Your attacks hit your TARGET — the enemy marked with the gold frame. Click the Grub (or press B, its letter) to target it instead of the Snail.", glow: "foe", sel: ".et-foes .et-foe:nth-child(2)", aim: [0.06, 0.42], require: (g, b) => b.enemies[1] && b.target === b.enemies[1].id },
-    { title: "Try it: play Attack", text: "Attack is fully charged — click it (or press 1) to strike your target at full power. One full-power hit should finish the Grub!", glow: "chords", sel: ".et-chords .cf:nth-child(1)", aim: [0.5, -0.02], require: (g, b) => b.log.some((l) => l.startsWith("You play Attack")) },
+    { title: "Try it: play Attack", text: "Attack is fully charged — click it (or press 1) to strike your target at full power. One full-power hit should finish the Grub!", glow: "chords", sel: ".et-chords .et-slot:nth-child(1) .cf", aim: [0.5, -0.02], require: (g, b) => b.log.some((l) => l.startsWith("You play Attack")) },
     { title: "Enemy intent", text: "The badge above each enemy is its INTENT — its next move. ⚔ numbers mean an incoming attack, 🛡 a shield, 💪 a power-up, ☠ a debuff aimed at you, and a ✦ star means a SPECIAL move unique to that enemy — a summon, a curse, a trick. Right now the Snail is winding up a ⚔3 attack…", glow: "foe", sel: ".et-foes .et-foe:nth-child(1)", aim: [0.06, 0.42] },
     { title: "The battle log", text: "When a ✦ special move (or anything else) happens, the full story is written in the BATTLE LOG up here — every hit, buff and surprise of the fight. Glance at it whenever something unexpected happens.", glow: "log" },
-    { title: "Block it: play Defend early", text: "You don't have to wait for FULL charge — a chord can be played at any row it has already reached. Defend has just 1 charge: its first row grants 3 Shield, exactly enough to blank the Snail's ⚔3. Play Defend now!", glow: "chords", sel: ".et-chords .cf:nth-child(2)", aim: [0.5, -0.02], require: (g, b) => b.log.some((l) => l.startsWith("You play Defend")) },
+    { title: "Block it: play Defend early", text: "You don't have to wait for FULL charge — a chord can be played at any charge it has reached. Defend has just 1 charge, so it grants its first value, 3 Shield — exactly enough to blank the Snail's ⚔3. Play Defend now!", glow: "chords", sel: ".et-chords .et-slot:nth-child(4) .cf", aim: [0.5, -0.02], require: (g, b) => b.log.some((l) => l.startsWith("You play Defend")) },
     { title: "End your turn", text: "Click the END TURN diamond (or press Space). The Snail's attack will break against your Shield — then a new turn begins and your chords charge.", glow: "end", aim: [0.5, -0.02], require: (g, b) => b.turn >= 2 },
     { title: "Fury", text: "The dark orb is FURY: every hit you land adds 1 charge. Unleashing a full orb has a DIFFERENT effect for every hero. You play the ROGUE — when she unleashes her fully charged Fury, her next chord attacks TWICE (all of its effects trigger a second time), and the orb empties. Fury fills at 3 in this tutorial (7 in a normal run, and some purchases lower it).", glow: "fury", aim: [0.5, -0.05] },
-    { title: "Totems", text: "Under the arrow sits your TOTEM: 🗿 Strength I, which granted +1 Strength when this battle began. Totems are run-long passives — you can hold up to three and level them to V, and each level makes them much stronger. You'll earn and upgrade them by defeating bosses.", glow: "totems", pos: "right", aim: [0.5, -0.1] },
-    { title: "Minions", text: "Your E-slot chord summons an Elephant. Play it once it's charged. MINIONS act automatically at the start of your every turn and live as little heads on your hero's ring — hover a head to see exactly what it does.", glow: "chords", sel: ".et-chords .cf:nth-child(3)", aim: [0.5, -0.02], require: (g, b) => b.minions.length > 0 },
+    { title: "Totems", text: "Under the arrow sits your TOTEM: 🗿 Strength I, which granted +1 Strength when this battle began. Totems are run-long passives — you can hold up to three and level them up to IV, and each level makes them much stronger. You'll earn and upgrade them by defeating bosses.", glow: "totems", pos: "right", aim: [0.5, -0.1] },
+    { title: "Minions", text: "Your E-slot chord summons an Elephant. Play it once it's charged. MINIONS act automatically at the start of your every turn and live as little heads on your hero's ring — hover a head to see exactly what it does.", glow: "chords", sel: ".et-chords .et-slot:nth-child(5) .cf", aim: [0.5, -0.02], require: (g, b) => b.minions.length > 0 },
     { title: "You're ready!", text: "That's the core loop: charge chords, read intents, spend Fury, and build up totems and minions as the run grows. Now finish off this Snail to complete the tutorial. Good luck out there!", last: true },
 ];
 const TUT_SEL = { chords: ".et-chords", foe: ".et-foe", end: ".et-endturn", fury: ".et-fury-orb", totems: ".et-totrow", log: ".et-log" };
@@ -28003,7 +28010,7 @@ const BOT = {
     simRunOne(menuCfg, ST, cfg) {
         BOT.__simming = true;
         try {
-            let g = newGame({ maxHp: menuCfg.maxHp, furyMax: menuCfg.furyMax, deck: menuCfg.deck, gameMode: menuCfg.gameMode, hero: menuCfg.hero, itemMode: menuCfg.itemMode, v3: menuCfg.v3 });
+            let g = newGame({ maxHp: menuCfg.maxHp, furyMax: menuCfg.furyMax, deck: menuCfg.deck, gameMode: menuCfg.gameMode, hero: menuCfg.hero, classic: menuCfg.classic });
             let steps = 0;
             const inject = menuCfg.inject ? { atScore: menuCfg.inject.atScore, cards: menuCfg.inject.cards, done: false } : null;
             while (g && steps++ < 3000) {
@@ -28328,12 +28335,12 @@ function EldertoneInner() {
     const [showDeck, setShowDeck] = useState(false);
     const [showMap, setShowMap] = useState(false);
     const [heroSel, setHeroSel] = useState("rogue");
-    const [verSel, setVerSel] = useState("v3"); // game version: V3 (default) or the classic run — V2 retired Sep 28 2026
+    const verSel = "v3"; // V3 is the only version: V2 retired Sep 28 2026, Classic removed Oct 2 2026
     const [maxHp, setMaxHp] = useState(75);
     const [furyMax, setFuryMax] = useState(7);
     const heroSelDef = HEROES[heroSel] || { name: "Random", pools: ["common", "rogue", "necro", "ice"],
         furyDesc: "A random hero — health, Fury and starting chords are rolled fresh when the run begins." };
-    const startNames = useMemo(() => Array.from(new Set(L1_POOL.filter((c) => heroSelDef.pools.includes(c.cls) && (verSel === "classic" || (verSel === "v3" ? V3_POOL : ITEM_POOL).has(c.n))).map((c) => c.n))).sort(), [heroSel, verSel]);
+    const startNames = useMemo(() => Array.from(new Set(L1_POOL.filter((c) => heroSelDef.pools.includes(c.cls) && V3_POOL.has(c.n)).map((c) => c.n))).sort(), [heroSel, verSel]);
     const [d1, setD1] = useState("Feint");
     const [d2, setD2] = useState("Attack");
     const [d3, setD3] = useState("Defend");
@@ -28350,7 +28357,7 @@ function EldertoneInner() {
     };
     const randomizeDeck = () => {
         // pick 3 random starting chords, preferring 3 different slots so none start benched
-        const shuffled = L1_POOL.filter((c) => heroSelDef.pools.includes(c.cls) && (verSel === "classic" || (verSel === "v3" ? V3_POOL : ITEM_POOL).has(c.n))).sort(() => Math.random() - 0.5);
+        const shuffled = L1_POOL.filter((c) => heroSelDef.pools.includes(c.cls) && V3_POOL.has(c.n)).sort(() => Math.random() - 0.5);
         const picked = [];
         const slotsUsed = new Set();
         for (const c of shuffled) {
@@ -28365,7 +28372,7 @@ function EldertoneInner() {
             picked.push(c);
         }
         while (picked.length < 3)
-            picked.push(pick(L1_POOL.filter((c) => heroSelDef.pools.includes(c.cls) && (verSel === "classic" || (verSel === "v3" ? V3_POOL : ITEM_POOL).has(c.n)))));
+            picked.push(pick(L1_POOL.filter((c) => heroSelDef.pools.includes(c.cls) && V3_POOL.has(c.n))));
         setD1(picked[0].n);
         setD2(picked[1].n);
         setD3(picked[2].n);
@@ -28470,7 +28477,7 @@ function EldertoneInner() {
             window.__eldertoneTestOpts = (testBiome > 0 || testArena || anySlot || tt.length) ? { biome: testBiome, arena: testArena, slots: sl, totems: tt } : null;
     }
     const botCfgRef = useRef({});
-    botCfgRef.current = { maxHp, furyMax, deck: [d1, d2, d3], gameMode: LOCKED_MODE || gameModeSel, hero: heroSel, itemMode: verSel !== "classic", v3: verSel === "v3" };
+    botCfgRef.current = { maxHp, furyMax, deck: [d1, d2, d3], gameMode: LOCKED_MODE || gameModeSel, hero: heroSel };
     const botStateRef = useRef({ mode: "off", step: false, speed: 350, runs: 0, wins: 0, losses: 0, lastNode: 0, actions: 0, timer: null });
     useEffect(() => {
         if (!botEnabled)
@@ -28482,7 +28489,7 @@ function EldertoneInner() {
             // start / loop new runs automatically
             if (!g) {
                 const cf = botCfgRef.current;
-                const ng = newGame({ maxHp: cf.maxHp, furyMax: cf.furyMax, deck: cf.deck, gameMode: cf.gameMode, hero: cf.hero, itemMode: cf.itemMode, v3: cf.v3 });
+                const ng = newGame({ maxHp: cf.maxHp, furyMax: cf.furyMax, deck: cf.deck, gameMode: cf.gameMode, hero: cf.hero });
                 logDecision(ng, "run_start", { deck: cf.deck, maxHp: cf.maxHp, furyMax: cf.furyMax, gameMode: ng.gameMode });
                 S.actions = 0;
                 setGame(ng);
@@ -29250,12 +29257,7 @@ function EldertoneInner() {
                     React.createElement("label", null, "Hero"),
                     React.createElement("select", { value: heroSel, onChange: (e) => pickHero(e.target.value) }, [...Object.keys(HEROES).map((h) => React.createElement("option", { key: h, value: h }, HEROES[h].name)), React.createElement("option", { key: "random", value: "random" }, "🎲 Random")])),
                 React.createElement("div", { className: "et-note", style: { fontSize: 11.5, margin: "2px 0 6px" } }, heroSelDef.furyDesc),
-                React.createElement("div", { className: "et-field" },
-                    React.createElement("label", null, "Version"),
-                    React.createElement("select", { value: verSel, onChange: (e) => setVerSel(e.target.value) },
-                        React.createElement("option", { value: "v3" }, "V3"),
-                        React.createElement("option", { value: "classic" }, "Classic"))),
-                verSel === "v3" ? React.createElement("div", { className: "et-note", style: { fontSize: 11.5, margin: "2px 0 6px" } }, "V3: chords are FOUND at Level 1\u20133 (deeper biomes find higher levels) and are never upgraded, shown on the new card face \u2014 one line per effect, scaling values written 1 / 2 / 3 with the live one bold, and an aqua segmented charge ring.") : null,
+                React.createElement("div", { className: "et-note", style: { fontSize: 11.5, margin: "2px 0 6px" } }, "Chords are FOUND at Level 1\u20133 (deeper biomes find higher levels) and are never upgraded."),
                 React.createElement("div", { className: "et-field" },
                     React.createElement("label", null, "Max health"),
                     React.createElement("input", { type: "number", value: maxHp, onChange: (e) => setMaxHp(+e.target.value || 75) })),
@@ -29340,7 +29342,7 @@ function EldertoneInner() {
                                 "\u26a1",
                                 " simulations. Single battle jumps straight into the chosen fight and the run ends when it does.")))),
                     React.createElement("button", { className: "et-btn", onClick: () => {
-                            const ng = newGame({ maxHp, furyMax, deck: [d1, d2, d3], gameMode: LOCKED_MODE || gameModeSel, hero: heroSel, itemMode: verSel !== "classic", v3: verSel === "v3" });
+                            const ng = newGame({ maxHp, furyMax, deck: [d1, d2, d3], gameMode: LOCKED_MODE || gameModeSel, hero: heroSel });
                             logDecision(ng, "run_start", { deck: [d1, d2, d3], maxHp, furyMax, gameMode: ng.gameMode, hero: heroSel });
                             setGame(ng);
                         } }, "Begin the run"),
@@ -29722,10 +29724,10 @@ function EldertoneInner() {
                             React.createElement("div", { style: { marginTop: 4 } }, st.text),
                             st.img === "ring" && React.createElement("div", { style: { display: "flex", gap: 14, justifyContent: "center", alignItems: "center", marginTop: 8 } },
                                 React.createElement("span", { style: { display: "inline-flex", alignItems: "center", gap: 6 } },
-                                    React.createElement(ChargeRing, { charge: 1, max: 3 }),
-                                    React.createElement("span", { style: { fontSize: 11.5, opacity: 0.85 } }, "1/3 — first row only")),
+                                    React.createElement(ChargeRingV3, { charge: 1, max: 3 }),
+                                    React.createElement("span", { style: { fontSize: 11.5, opacity: 0.85 } }, "1/3 — first value")),
                                 React.createElement("span", { style: { display: "inline-flex", alignItems: "center", gap: 6 } },
-                                    React.createElement(ChargeRing, { charge: 3, max: 3 }),
+                                    React.createElement(ChargeRingV3, { charge: 3, max: 3 }),
                                     React.createElement("span", { style: { fontSize: 11.5, opacity: 0.85 } }, "3/3 — full power"))),
                             React.createElement("div", { style: { marginTop: 8, display: "flex", gap: 8, justifyContent: "center", alignItems: "center" } },
                                 g.tutorial.step > 0 && React.createElement("button", { className: "et-btn", style: { opacity: 0.75 }, onClick: () => mut((g2) => { g2.tutorial.step -= 1; }) }, "\u2190 Back"),
