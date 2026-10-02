@@ -24089,6 +24089,7 @@ const MINION_EMOJI = {
 };
 // ---- Simple art: per-event illustrations and per-card icon strips (StS-style) ----
 const EVENT_ART = {
+    healthcentre: "\u2764\uFE0F\u200D\u{1FA79}",
     squirrel: "🐿️", birdsnest: "🪺", diceroll: "🎲", petparty: "🐾", trollcamp: "🧌",
     cleric: "🙏", frogprince: "🐸", skeletalhost: "💀", merchant: "🧳", blizzard: "🌨️",
     termite: "🐜", lostsign: "🧭", thinice: "🧊", amulet: "🥊", lemonade: "🍋",
@@ -30434,6 +30435,7 @@ function EldertoneInner() {
     return null;
 }
 // ---------- flow helpers (mutate game) ----------
+const HEALTH_CENTRE_PCT = 0.15; // share of max health the node-5 Health Centre restores
 function enterNode(g, laneIdx) {
     // dragon egg incubation: 1 tick per interaction
     if (g.egg > 0) {
@@ -30468,7 +30470,17 @@ function enterNode(g, laneIdx) {
         g.rewardOptions = drawRewardOptions(g, 4);
         g.screen = "reward";
     }
-    else if (t === "store" || t === "care") {
+    else if (t === "care") {
+        // the mid-biome HEALTH CENTRE (user, Oct 2 2026): an automatic 15% max-health heal,
+        // no store — shown as an already-resolved event so the player just reads + Continues
+        const heal = Math.min(g.maxHp - g.hp, Math.ceil(g.maxHp * HEALTH_CENTRE_PCT));
+        g.hp += heal;
+        g.event = { id: "healthcentre", name: "Health Centre", flavor: "", options: null, redirect: null, continueTo: null,
+            result: { text: heal > 0 ? "The healers tend your wounds. You recover " + heal + " health (" + g.hp + "/" + g.maxHp + ")."
+                    : "The healers look you over \u2014 you're already in perfect health." } };
+        g.screen = "event";
+    }
+    else if (t === "store") {
         g.store = makeStore(g);
         g.screen = "store";
     }
