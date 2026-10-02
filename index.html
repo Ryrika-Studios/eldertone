@@ -26339,7 +26339,61 @@ const BOT = {
     STORE_BAR: 0.15, // store-card synergy bar (normal)
     STORE_DISPLACE_MARGIN: 1.2, // occupied-slot store buy must beat the displaced card by this
     BAG_TGT_BAR: 1.6, // grab-bag buys need a target card at least this strong (synergy+power)
-    BAG_MAX_BUYS: 2, // grab bags per store visit
+    BAG_MAX_BUYS: 2, // grab bags per store visit (early run; grows with BAG_PROG_BUYS)
+    // Oct 2 2026 (user: "buy them more as the game progresses, on cards that likely won't be
+    // replaced"). p = run progress 0..1 (biome*9+node over 45). All 0 = the old flat behaviour.
+    // A/B V3 7.2k runs/arm pooled over 3 heroes: these defaults 10.2% / 2.8 bags per run vs the
+    // old flat rule (all 0) 7.8% / 1.9; without the keeper term 9.2%; harder (2.0/6/1.5/1) 9.5%
+    BAG_PROG_W: 1.4, // the target bar drops by this × p
+    BAG_PROG_BUYS: 4, // extra bags allowed per visit at p = 1
+    BAG_KEEP_W: 1.5, // weight of the keeper bonus (bagged / grown / found-Lv2-3 cards, rising with p)
+    BAG_BANK_RELAX: 1, // late game: hold back less gold for Daily Deals (floor × (1 − this × p))
+    bagProgress(g) { return Math.min(1, ((g.biomeIdx || 0) * 9 + (g.node || 0)) / 45); },
+    // how unlikely a card is to be swapped out: already carrying bags, banked growth, or (V3)
+    // found at a higher level — and late in a run few remaining offers will displace anything
+    bagKeeper(e, g, p) {
+        if (!e)
+            return 0;
+        let k = 0.35 * bagUpCount(e) + ((e.growth || 0) > 0 ? 0.3 : 0);
+        if (itemMode(g))
+            k += 0.25 * (lvNum(e.lv) - 1);
+        return k * (0.5 + p);
+    },
+    buyGrabBags(g, s, it, P, bankFloor, canClose) {
+        const p = BOT.bagProgress(g);
+        const bar = BOT.BAG_TGT_BAR - BOT.BAG_PROG_W * p;
+        const maxBuys = BOT.BAG_MAX_BUYS + Math.round(BOT.BAG_PROG_BUYS * p);
+        const floor = bankFloor * (1 - BOT.BAG_BANK_RELAX * p);
+        const scoreT = (t2) => {
+            const e2 = t2.where === "slot" ? g.slots[t2.L] : g.reserves[t2.i];
+            const cd2 = e2 && CARD_BY[cardKey(e2.name, e2.lv)];
+            return { t2, e2, sc: (cd2 ? BOT.synergy(cd2, g) + BOT.cardPower(cd2) * 0.15 : 0) + (t2.where === "slot" ? 0.4 : 0)
+                    + BOT.BAG_KEEP_W * BOT.bagKeeper(e2, g, p) };
+        };
+        let bagN = 0;
+        while (!s.closed && bagN < maxBuys) {
+            const bagCost = P(it.cost) + 15 * (g.store.bagBought || 0); // +15 per buy, resets next store
+            if (g.gold < bagCost || g.gold - bagCost < floor)
+                break;
+            // purchases are final (no picker cancel): buy only while some owned card clears
+            // the bar for at least one rollable bag kind
+            if (!BAG_ROLLS.some((r0) => bagTargets(g, r0.k).some((t2) => scoreT(t2).sc >= bar)))
+                break;
+            g.gold -= bagCost;
+            g.store.bagBought = (g.store.bagBought || 0) + 1;
+            const roll = nextBagRoll(g);
+            if (!roll)
+                break;
+            const cand = bagTargets(g, roll.kind).map(scoreT).sort((a2, b2) => b2.sc - a2.sc)[0];
+            if (cand)
+                bagApply(g, cand.t2, roll.kind, roll.n);
+            bagN += 1;
+            if (BOT.note)
+                BOT.note("store: grab bag " + bagLabel(g, roll.kind, roll.n) + " \u2192 " + (cand ? cand.e2.name : "?") + " (" + bagCost + "g)");
+            if (canClose())
+                s.closed = true;
+        }
+    },
     STORE_FILL_BAR: -0.3, // store-card bar when it fills an empty slot
     STORE_RICH_BAR: 0.15, // store-card bar when 150g+ would remain after buying
     BANK_HP_GATE: 0, // no big-ticket banking below this HP fraction
@@ -27859,36 +27913,8 @@ const BOT = {
                     }
                     return;
                 } if (t === "bag") {
-                    // grab bag (45g, repeatable): a permanent stat rider on one card —
-                    // strong value ONLY on a clearly strong keeper; skip on mediocre decks
-                    let bagN = 0;
-                    while (!s.closed && bagN < BOT.BAG_MAX_BUYS) {
-                        const bagCost = P(it.cost) + 15 * (g.store.bagBought || 0); // +15 per buy, resets next store
-                        if (g.gold < bagCost || g.gold - bagCost < bankFloor)
-                            break;
-                        const scoreT = (t2) => {
-                            const e2 = t2.where === "slot" ? g.slots[t2.L] : g.reserves[t2.i];
-                            const cd2 = e2 && CARD_BY[cardKey(e2.name, e2.lv)];
-                            return { t2, e2, sc: (cd2 ? BOT.synergy(cd2, g) + BOT.cardPower(cd2) * 0.15 : 0) + (t2.where === "slot" ? 0.4 : 0) };
-                        };
-                        // purchases are final now (no picker cancel): buy only while some owned
-                        // card clears the bar for at least one rollable bag kind
-                        if (!BAG_ROLLS.some((r0) => bagTargets(g, r0.k).some((t2) => scoreT(t2).sc >= BOT.BAG_TGT_BAR)))
-                            break;
-                        g.gold -= bagCost;
-                        g.store.bagBought = (g.store.bagBought || 0) + 1;
-                        const roll = nextBagRoll(g);
-                        if (!roll)
-                            break;
-                        const cand = bagTargets(g, roll.kind).map(scoreT).sort((a2, b2) => b2.sc - a2.sc)[0];
-                        if (cand)
-                            bagApply(g, cand.t2, roll.kind, roll.n);
-                        bagN += 1;
-                        if (BOT.note)
-                            BOT.note("store: grab bag " + bagLabel(g, roll.kind, roll.n) + " \u2192 " + (cand ? cand.e2.name : "?") + " (" + bagCost + "g)");
-                        if (canClose())
-                            s.closed = true;
-                    }
+                    // grab bags: shared buy routine (progress- and keeper-aware, Oct 2 2026)
+                    BOT.buyGrabBags(g, s, it, P, bankFloor, canClose);
                     return;
                 } if (t === "upcard") {
                     // the 90g upgrade is the main late-game scaling — buy for the best target
@@ -28787,36 +28813,8 @@ function EldertoneInner() {
                     }
                     return;
                 } if (t === "bag") {
-                    // grab bag (45g, repeatable): a permanent stat rider on one card —
-                    // strong value ONLY on a clearly strong keeper; skip on mediocre decks
-                    let bagN = 0;
-                    while (!s.closed && bagN < BOT.BAG_MAX_BUYS) {
-                        const bagCost = P(it.cost) + 15 * (g.store.bagBought || 0); // +15 per buy, resets next store
-                        if (g.gold < bagCost || g.gold - bagCost < bankFloor)
-                            break;
-                        const scoreT = (t2) => {
-                            const e2 = t2.where === "slot" ? g.slots[t2.L] : g.reserves[t2.i];
-                            const cd2 = e2 && CARD_BY[cardKey(e2.name, e2.lv)];
-                            return { t2, e2, sc: (cd2 ? BOT.synergy(cd2, g) + BOT.cardPower(cd2) * 0.15 : 0) + (t2.where === "slot" ? 0.4 : 0) };
-                        };
-                        // purchases are final now (no picker cancel): buy only while some owned
-                        // card clears the bar for at least one rollable bag kind
-                        if (!BAG_ROLLS.some((r0) => bagTargets(g, r0.k).some((t2) => scoreT(t2).sc >= BOT.BAG_TGT_BAR)))
-                            break;
-                        g.gold -= bagCost;
-                        g.store.bagBought = (g.store.bagBought || 0) + 1;
-                        const roll = nextBagRoll(g);
-                        if (!roll)
-                            break;
-                        const cand = bagTargets(g, roll.kind).map(scoreT).sort((a2, b2) => b2.sc - a2.sc)[0];
-                        if (cand)
-                            bagApply(g, cand.t2, roll.kind, roll.n);
-                        bagN += 1;
-                        if (BOT.note)
-                            BOT.note("store: grab bag " + bagLabel(g, roll.kind, roll.n) + " \u2192 " + (cand ? cand.e2.name : "?") + " (" + bagCost + "g)");
-                        if (canClose())
-                            s.closed = true;
-                    }
+                    // grab bags: shared buy routine (progress- and keeper-aware, Oct 2 2026)
+                    BOT.buyGrabBags(g, s, it, P, bankFloor, canClose);
                     return;
                 } if (t === "upcard") {
                     // the 90g upgrade is the main late-game scaling — buy for the best target
