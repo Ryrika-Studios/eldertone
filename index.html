@@ -19091,7 +19091,7 @@ function volleyPreviewDmg(b, g) {
         hi = Math.max(...av.map(vs));
     if (av.length && av.every((e) => e.special === "ten_hits"))
         dmg = Math.min(dmg, 1);
-    return { dmg, hi, base, single: av.length === 1 };
+    return { dmg, hi, base, single: av.length === 1, per: av.map((e) => ({ e, v: vs(e) })) };
 }
 function startBattle(game, enemyNames, kindLabel) {
     UID = 1;
@@ -21362,8 +21362,13 @@ function shurikenStrike(b, g) {
     const sd = 5 + (g.perm.shurikenBonus || 0) + (h.flags.shuriken_bonus || 0) + (TOTEM_FX.ninjaShur[totemLv(g, "Ninja")] || 0);
     const allTen = alive(b).length && alive(b).every((e) => e.special === "ten_hits");
     const vp = volleyPreviewDmg(b, g);
+    // each enemy takes its own amount (Exposed/Corroded add 10% per stack, Ice Wraith caps at 1):
+    // when they differ, name who takes what instead of printing a bare "5–6" range (user, Oct 2 2026)
+    const why = (e) => (e.special === "ten_hits" ? "ethereal" : (e.st.exposed || 0) > 0 ? "Exposed" : (e.st.acid || 0) > 0 ? "Corroded" : "");
+    const vals = new Set(vp.per.map((x) => x.v));
     log(b, allTen ? "Shurikens fly \u2014 the ethereal form lets only 1 damage through per hit!"
-        : "Shurikens fly, dealing " + (vp.hi > vp.dmg ? vp.dmg + "\u2013" + vp.hi : vp.dmg) + " damage to all enemies!");
+        : vals.size <= 1 ? "Shurikens fly, dealing " + vp.dmg + " damage to all enemies!"
+        : "Shurikens fly at every enemy: " + vp.per.map((x) => x.v + " to " + x.e.name + (why(x.e) ? " (" + why(x.e) + ")" : "")).join(", ") + ".");
     let kills = 0;
     alive(b).forEach((e) => {
         if (b.over)
@@ -21849,7 +21854,9 @@ function heroTurnStart(b, g) {
             log(b, "Your minions stand idle, confused.");
     }
     else
-        b.minions.forEach((m) => {
+        minionActOrder(b).forEach((m) => {
+            if (!b.minions.includes(m))
+                return; // gone mid-phase (the copy keeps the damage-first order stable)
             m.age += 1;
             const hurtOp = m.ops.find((mo) => mo[0] === "m_dmg_if_hurt");
             const strLink = m.ops.some((mo) => mo[0] === "m_str_link");
@@ -22803,7 +22810,14 @@ function planBiome(g) {
         }
         return lane;
     };
-    const A = mkLane(), B = mkLane();
+    // every split must be a real choice (user, Oct 2 2026): ~75% of biomes used to show at
+    // least one split whose two paths were identical (e.g. Battle | Battle). Re-roll lane B
+    // — still satisfying every lane rule above — until each segment differs from lane A.
+    const SEGS = [[2], [4], [6, 7]];
+    const A = mkLane();
+    let B = mkLane();
+    for (let tries = 0; tries < 500 && SEGS.some((sg) => sg.every((n) => A[n] === B[n])); tries++)
+        B = mkLane();
     const plan = { 1: "battle", 3: "reward", 5: "care", 8: "store", 9: "boss" };
     for (const n of SPLITS)
         plan[n] = [A[n], B[n]];
@@ -24295,9 +24309,23 @@ function procMinionsOnce(b, g) {
         b.__minionAct = was;
     }
 }
+// minions that DEAL DAMAGE act before everyone else (user, Oct 2 2026): a debuff minion
+// acting first wasted its stacks on an enemy the damage minions then killed. Stable within
+// each group (summon order); m_choice minions (Donkey) count as damage if any branch hits.
+const MINION_DMG_OPS = ["m_attack", "m_atk_poison", "m_dino", "m_burst", "m_dmg_if_hurt"];
+function minionDealsDamage(m) {
+    const hit = (ops) => (ops || []).some((o) => MINION_DMG_OPS.includes(o[0]) || (o[0] === "m_choice" && (o[1] || []).some((br) => hit(br))));
+    return hit(m.ops);
+}
+function minionActOrder(b) {
+    const ms = b.minions.slice();
+    return ms.filter(minionDealsDamage).concat(ms.filter((m) => !minionDealsDamage(m)));
+}
 function procMinionsOnceInner(b, g) {
     const h = b.hero;
-    for (const m of b.minions.slice()) {
+    for (const m of minionActOrder(b)) {
+        if (!b.minions.includes(m))
+            continue; // gone mid-phase
         const strLink = m.ops.some((mo) => mo[0] === "m_str_link");
         for (const mo of minionOpsResolved(b, m)) {
             if (b.over)
