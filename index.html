@@ -23278,6 +23278,20 @@ function bagRoll(g) {
     }
     return { kind: sel.k, n: ri(sel.a, sel.b) };
 }
+// Grab Bags are rolled when the store OPENS (user, Oct 2 2026): the queue is saved with
+// the store, so reloading the page can't re-roll a bag — every purchase takes the next
+// queued roll. A queued roll that no longer fits any owned card (the deck changed in the
+// store) is skipped; an old save's store without a queue falls back to a live roll.
+const BAG_QUEUE = 20;
+function nextBagRoll(g) {
+    const q = g.store && g.store.bagRolls;
+    while (q && q.length) {
+        const r = q.shift();
+        if (r && bagTargets(g, r.kind).length)
+            return r;
+    }
+    return bagRoll(g);
+}
 function bagLabel(g, kind, n) {
     if (kind === "damage")
         return "+" + n + " damage";
@@ -23548,6 +23562,8 @@ function makeStore(g, variant) {
     }
     const store = { title: variant === "free_one" ? "Free Pick" : careOnly ? "Health Centre" : full ? "Store" : SEC_TITLE[secList[0]],
         secList, cards, relics: [], items, variant: variant || null };
+    if (items.some((it) => it.t === "bag"))
+        store.bagRolls = Array.from({ length: BAG_QUEUE }, () => bagRoll(g)).filter(Boolean);
     return store;
 }
 // Set to "relics" or "totems" to emit a standalone single-variant build (build_variants.py stamps this).
@@ -27846,7 +27862,7 @@ const BOT = {
                             break;
                         g.gold -= bagCost;
                         g.store.bagBought = (g.store.bagBought || 0) + 1;
-                        const roll = bagRoll(g);
+                        const roll = nextBagRoll(g);
                         if (!roll)
                             break;
                         const cand = bagTargets(g, roll.kind).map(scoreT).sort((a2, b2) => b2.sc - a2.sc)[0];
@@ -28774,7 +28790,7 @@ function EldertoneInner() {
                             break;
                         g.gold -= bagCost;
                         g.store.bagBought = (g.store.bagBought || 0) + 1;
-                        const roll = bagRoll(g);
+                        const roll = nextBagRoll(g);
                         if (!roll)
                             break;
                         const cand = bagTargets(g, roll.kind).map(scoreT).sort((a2, b2) => b2.sc - a2.sc)[0];
@@ -30245,7 +30261,7 @@ function EldertoneInner() {
                                 const bc = P(it.cost) + 15 * (g.store.bagBought || 0);
                                 if (g.gold < bc || g.store.closed)
                                     return;
-                                const roll = bagRoll(g);
+                                const roll = nextBagRoll(g);
                                 if (!roll)
                                     return;
                                 // the purchase is final at buy time — the roll must go onto a chord
