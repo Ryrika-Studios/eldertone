@@ -22415,8 +22415,11 @@ function enemyPhase(b, g) {
         // specials pre-move
         if (en.special === "dragon_flight" && b.turn % 3 === 0) {
             en.flags.untargetable = true;
-            b.hero.st.burn += 7;
-            log(b, en.name + " takes flight and breathes fire! (7 Firewall)");
+            // user, Oct 2 2026: the flight wraps the DRAGON in 8 Firewall (it used to add 7 to
+            // the hero's wall — a self-buff for the player under the current Firewall rules)
+            en.st.burn = (en.st.burn || 0) + 8;
+            fxPush(b, "burn", en.id);
+            log(b, en.name + " takes flight, wreathed in flame! (+8 Firewall, " + en.st.burn + " total)");
             rollIntent(en, b);
             continue;
         }
@@ -23570,8 +23573,14 @@ function makeStore(g, variant) {
 const LOCKED_MODE = "totems"; // totem build only (relic machinery dormant)
 // ============================== UI ==============================
 const CSS = `
-.et-gmgrow{display:inline-block;transform-origin:50% 100%;transition:transform .6s cubic-bezier(.3,1.6,.5,1)}
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+SC:wght@500;600;700&family=Alegreya:ital,wght@0,400;0,500;0,700;1,400&display=swap');
+.et-flying{position:relative;display:inline-block}
+.et-fly-body{animation:flyTakeoff .7s ease-out both, flyHover 1.8s ease-in-out .7s infinite}
+.et-fly-shadow{position:absolute;left:50%;bottom:-4px;width:70%;height:10px;margin-left:-35%;border-radius:50%;background:radial-gradient(ellipse at center,rgba(0,0,0,.45),rgba(0,0,0,0) 70%);animation:flyShadow 1.8s ease-in-out .7s infinite;pointer-events:none}
+@keyframes flyTakeoff{from{transform:translateY(0) rotate(0)}to{transform:translateY(-38px) rotate(-6deg)}}
+@keyframes flyHover{0%,100%{transform:translateY(-38px) rotate(-6deg)}50%{transform:translateY(-48px) rotate(-3deg)}}
+@keyframes flyShadow{0%,100%{transform:scaleX(1);opacity:.8}50%{transform:scaleX(.8);opacity:.55}}
+.et-gmgrow{display:inline-block;transform-origin:50% 100%;transition:transform .6s cubic-bezier(.3,1.6,.5,1)}
 .et-root{min-height:100vh;background:radial-gradient(1200px 800px at 50% -10%, #2c221a 0%, #201914 55%, #17120e 100%);color:#efe6d0;font-family:'Alegreya',Georgia,serif;padding:14px 12px 40px;box-sizing:border-box;}
 .et-root *{box-sizing:border-box}
 .et-title{font-family:'Cormorant SC',serif;letter-spacing:.06em}
@@ -23989,7 +23998,7 @@ const ENEMY_SPECIAL_DESC = {
     "Dwarf King": ["Boulder Toss", "Opens with a heavy blow, then cracks a boulder open every other turn to release a foe."],
     Phoenix: ["Rebirth", "Every defeat leaves an egg — destroy it within 2 turns or the Phoenix returns."],
     Salamander: ["Fire Spikes", "Periodically bristles with flame — striking it then burns you."],
-    Dragon: ["Take Flight", "Every third turn it flies out of reach and breathes fire."],
+    Dragon: ["Take Flight", "Every third turn it takes flight: it can't be hit until its next turn and gains 8 Firewall."],
     "Snow Golem": ["Chilling Blows", "Every hit it lands leaves you Weakened."],
     "Ice Hedgehog": ["Burrowed In", "Starts entrenched, shielding itself every turn."],
     "Sled Catapult": ["Crewed Weapon", "Devastating volleys — but only while a Sled Goblin crews it."],
@@ -24197,11 +24206,16 @@ function TutArrow({ toSel, aim }) {
 }
 // Growing Mass visibly swells: +15% size per growth (sheet), capped so it never swallows the scene
 function FoeSpriteView(en) {
-    const v = FoeSpriteViewBase(en);
+    let v = FoeSpriteViewBase(en);
     const gr = en && en.special === "growing_mass" && en.flags && en.flags.grows;
-    if (!gr)
-        return v;
-    return React.createElement("div", { className: "et-gmgrow", style: { transform: "scale(" + Math.min(1.6, 1 + 0.15 * gr) + ")" } }, v);
+    if (gr)
+        v = React.createElement("div", { className: "et-gmgrow", style: { transform: "scale(" + Math.min(1.6, 1 + 0.15 * gr) + ")" } }, v);
+    // Dragon Flight (and anything else untargetable): lift off and hover above a ground shadow
+    if (en && en.flags && en.flags.untargetable)
+        v = React.createElement("div", { className: "et-flying" },
+            React.createElement("span", { className: "et-fly-shadow" }),
+            React.createElement("div", { className: "et-fly-body" }, v));
+    return v;
 }
 function FoeSpriteViewBase(en) {
                                 const kindCls = en.kind === "boss" ? " esp-boss" : en.kind === "elite" ? " esp-elite" : "";
