@@ -18501,9 +18501,10 @@ function makeEnemy(name) {
 // (battle start, end of the enemy phase, intent scrambles). A wolf whose roll
 // duplicates a packmate's re-rolls from the unused moves (still weighted, still
 // honouring the no-repeat / no-double-shield rules where the pool allows); if
-// nobody ended up attacking, one wolf takes an unused attack move.
-// attackOnly (a packmate died mid-turn): only restore the attack guarantee.
-function direWolfPack(b, attackOnly) {
+// nobody ended up attacking, one wolf takes an unused attack move. Deliberately
+// NOT re-run when a wolf dies mid-turn (user design): killing the pack's only
+// attacker is how the player prevents that turn's damage.
+function direWolfPack(b) {
     if (!b || !Array.isArray(b.enemies) || b.over)
         return;
     const pack = b.enemies.filter((e) => !e.dead && e.name === "Dire Wolf" && !e.charging && e.intent && e.intent.kind === "move" && e.lastMoveKey);
@@ -18529,16 +18530,14 @@ function direWolfPack(b, attackOnly) {
         w.__forceMove = wpick(p);
         rollIntent(w, b);
     };
-    if (!attackOnly) {
-        const used = new Set();
-        for (const w of pack) {
-            if (used.has(w.lastMoveKey)) {
-                const free = moves.filter((m) => !used.has(keyOf(m)));
-                if (free.length)
-                    reroll(w, free);
-            }
-            used.add(w.lastMoveKey);
+    const used = new Set();
+    for (const w of pack) {
+        if (used.has(w.lastMoveKey)) {
+            const free = moves.filter((m) => !used.has(keyOf(m)));
+            if (free.length)
+                reroll(w, free);
         }
+        used.add(w.lastMoveKey);
     }
     const ready = pack.filter((w) => !(w.st.stun > 0)); // a stunned wolf's attack won't land
     if (ready.some((w) => isAtk(w.lastMoveKey)))
@@ -18547,11 +18546,8 @@ function direWolfPack(b, attackOnly) {
     const w = pool[Math.floor(Math.random() * pool.length)];
     const others = new Set(pack.filter((x) => x !== w).map((x) => x.lastMoveKey));
     const atk = moves.filter((m) => isAtk(keyOf(m)) && !others.has(keyOf(m)));
-    if (atk.length) {
+    if (atk.length)
         reroll(w, atk);
-        if (attackOnly)
-            log(b, "The pack regroups — " + w.name + " bares its fangs.");
-    }
 }
 function rollIntent(en, b) {
     const e = ENEMIES[en.name];
@@ -19776,8 +19772,6 @@ function killEnemy(b, g, en) {
     log(b, en.name + " is defeated" + (en._slainBy ? " by " + en._slainBy : "") + ".");
     b.killLog = b.killLog || [];
     b.killLog.push(en.name + " — slain by " + (en._slainBy || "you"));
-    if (en.name === "Dire Wolf") // the fallen wolf may have been the pack's only attacker
-        direWolfPack(b, true);
     if (en.special === "siren_curse" && !alive(b).some((e) => e.special === "siren_curse")) {
         b.sirenMark = null;
         log(b, "The cursed melody fades.");
