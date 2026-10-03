@@ -19740,7 +19740,7 @@ function damageEnemy(b, g, en, raw, opts = {}) {
         }
         // Rogue's fury builds per damage instance (other heroes charge differently);
         // minion actions never charge the hero's fury (user rule, Sep 30 2026)
-        if (heroDef(g).furyCharge === "hit" && !opts.minion && !b.__minionAct)
+        if (heroDef(g).furyCharge === "hit" && !opts.minion && !b.__minionAct && !opts.noFury) // noFury: shuriken volleys
             g.fury = Math.min(g.furyMax, g.fury + 1);
         const F = h.flags || {};
         let burnAdd = (F.attack_burn_turn || 0) + (F.attack_burn_battle || 0);
@@ -21379,7 +21379,7 @@ function shurikenStrike(b, g) {
             return;
         // true attack (Strength, Exposed, Dark Lord… all apply) but it does NOT set off enemy
         // Firewalls — no recoil, the wall doesn't shrink (user, Oct 2 2026)
-        damageEnemy(b, g, e, sd, { src: "Shuriken", noWall: true });
+        damageEnemy(b, g, e, sd, { src: "Shuriken", noWall: true, noFury: true }); // volleys don't charge Fury either (user, Oct 2 2026)
         if (e.dead && !SYNTH.has(e.name) && !e.summonerId)
             kills += 1; // summoned units (Vine Arms, gnomes, parts…) never feed perm growth
     });
