@@ -9,6 +9,58 @@
 // artifact, a saved local file) this does nothing.
 (function () {
   var h = location.hostname;
+  // COMPACT LANDSCAPE FIT (Oct 4 2026): on a short landscape screen (phone held sideways) zoom
+  // the whole game so the battle fits the screen height — runs everywhere, not just the app
+  (function fit() {
+    var mq = window.matchMedia("(orientation:landscape) and (max-height:520px)");
+    var busy = false;
+    function apply() {
+      busy = false;
+      var root = document.getElementById("root");
+      if (!root) return;
+      if (!mq.matches || !document.querySelector(".et-scene")) { if (root.style.zoom) root.style.zoom = ""; return; }
+      root.style.zoom = "1";
+      var need = root.scrollHeight, wide = Math.max(root.scrollWidth, document.documentElement.scrollWidth);
+      // fit the height, and never let the one-row top bar push the page sideways on narrow phones
+      var z = Math.max(0.55, Math.min(1, (window.innerHeight - 2) / need, window.innerWidth / wide));
+      root.style.zoom = String(Math.round(z * 1000) / 1000);
+    }
+    function soon() { if (!busy) { busy = true; setTimeout(apply, 250); } } // throttled (no rAF: it never fires in hidden tabs)
+    window.addEventListener("resize", soon);
+    window.addEventListener("orientationchange", soon);
+    document.addEventListener("DOMContentLoaded", function () {
+      var root = document.getElementById("root");
+      if (root && window.MutationObserver) new MutationObserver(soon).observe(root, { childList: true, subtree: true });
+      soon();
+    });
+  })();
+  // ROTATE PROMPT (installed app only, Oct 4 2026): iOS ignores manifest orientation, so a home-screen
+  // launch held upright gets a "turn sideways" card; "Play upright anyway" hides it for this session
+  (function rotatePrompt() {
+    var standalone = window.navigator.standalone === true || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
+    if (!standalone) return;
+    document.documentElement.classList.add("et-app");
+    var st = document.createElement("style");
+    st.textContent = "#et-rotate{display:none}" +
+      "@media (orientation:portrait) and (max-width:600px){html.et-app:not(.et-upright) #et-rotate{display:flex}}" +
+      "#et-rotate{position:fixed;inset:0;z-index:100000;background:#000;color:#e8dfc8;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;padding:24px;font-family:Georgia,serif}" +
+      "#et-rotate .ic{font-size:64px;animation:etTurn 2.4s ease-in-out infinite}" +
+      "@keyframes etTurn{0%,30%{transform:rotate(0)}60%,100%{transform:rotate(-90deg)}}" +
+      "#et-rotate b{color:#f2b65a;font-size:22px;letter-spacing:.04em}" +
+      "#et-rotate button{margin-top:10px;background:none;border:1px solid #6b5a3d;color:#bfae8a;border-radius:8px;padding:8px 14px;font:14px Georgia,serif}";
+    document.head.appendChild(st);
+    try { if (sessionStorage.getItem("et-upright") === "1") document.documentElement.classList.add("et-upright"); } catch (e) {}
+    document.addEventListener("DOMContentLoaded", function () {
+      var d = document.createElement("div");
+      d.id = "et-rotate";
+      d.innerHTML = '<div class="ic">\uD83D\uDCF1</div><b>Turn your phone sideways</b><div>Eldertone plays in widescreen.</div><button type="button">Play upright anyway</button>';
+      d.querySelector("button").onclick = function () {
+        document.documentElement.classList.add("et-upright");
+        try { sessionStorage.setItem("et-upright", "1"); } catch (e) {}
+      };
+      document.body.appendChild(d);
+    });
+  })();
   if (!/github\.io$|^localhost$|^127\.0\.0\.1$/.test(h) || location.protocol === "file:") return;
   var head = document.head;
   function link(rel, href, sizes) { var l = document.createElement("link"); l.rel = rel; l.href = href; if (sizes) l.sizes = sizes; head.appendChild(l); }
@@ -23643,6 +23695,23 @@ const LOCKED_MODE = "totems"; // totem build only (relic machinery dormant)
 // ============================== UI ==============================
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+SC:wght@500;600;700&family=Alegreya:ital,wght@0,400;0,500;0,700;1,400&display=swap');
+/* COMPACT LANDSCAPE (phones held sideways, Oct 4 2026): one-row top bar, the log floats over
+   the empty sky, fighters scaled down, fixed-width cards; a fit-to-height zoom (head script) does the rest */
+@media (orientation:landscape) and (max-height:520px){
+html body .et-root{padding:4px 8px 6px;min-height:0}
+html body .et-topbar{flex-wrap:nowrap;gap:4px 10px;padding:3px 8px;margin:0 auto 4px;font-size:12px;max-width:none;white-space:nowrap}
+html body .et-topbar .et-title{display:none}
+html body .et-topbar .et-btn{padding:2px 7px;font-size:11px}
+html body .et-hpbar{width:70px}html body .et-furybar{width:56px}
+html body .et-battlehud{position:relative;height:0;z-index:6;width:100%;max-width:960px;margin:0 auto;align-self:center}
+html body .et-turnline{position:absolute;top:4px;left:0;right:0;margin:0;font-size:12px;pointer-events:none;text-shadow:0 1px 2px #000}
+html body .et-keyhelp{display:none}
+html body .et-battlehud .et-log{position:absolute;top:22px;left:50%;transform:translateX(-50%);width:240px;height:62px;padding:4px 8px;font-size:11px;background:rgba(0,0,0,.5);max-width:none;margin:0}
+html body .et-scene{min-height:0;margin-bottom:0}
+html body .et-scene-inner{min-height:0;margin-top:0;padding-top:34px;padding-bottom:4px;zoom:.78}
+html body .et-scene .et-chords.v3slots{grid-template-columns:repeat(7,92px);justify-content:center;margin:2px 8px 4px}
+html body .et-scene .et-chords.v3slots .et-slot{grid-column:auto}
+}
 .et-flying{position:relative;display:inline-block}
 .et-fly-body{animation:flyTakeoff .7s ease-out both, flyHover 1.8s ease-in-out .7s infinite}
 .et-fly-shadow{position:absolute;left:50%;bottom:-4px;width:70%;height:10px;margin-left:-35%;border-radius:50%;background:radial-gradient(ellipse at center,rgba(0,0,0,.45),rgba(0,0,0,0) 70%);animation:flyShadow 1.8s ease-in-out .7s infinite;pointer-events:none}
@@ -29757,12 +29826,13 @@ function EldertoneInner() {
             React.createElement("style", null, CSS),
             React.createElement(TopBar, null),
             React.createElement(DeckOverlay, null),
-            React.createElement("div", { style: { textAlign: "center", color: "#9d9078", marginBottom: 8 } },
-                "Turn ",
-                b.turn,
-                " \u00B7 A\u2013G targets an enemy \u00B7 1\u20137 plays chord A\u2013G \u00B7 Space ends the turn (G\u266F)",
-                b.heroStunned ? " · YOU ARE STUNNED" : ""),
-            React.createElement("div", { className: "et-log" + tutGlow(g, "log"), ref: logRef }, b.log.map((l, i) => React.createElement("div", { key: i }, l))),
+            React.createElement("div", { className: "et-battlehud" },
+                React.createElement("div", { className: "et-turnline", style: { textAlign: "center", color: "#9d9078", marginBottom: 8 } },
+                    "Turn ",
+                    b.turn,
+                    React.createElement("span", { className: "et-keyhelp" }, " \u00B7 A\u2013G targets an enemy \u00B7 1\u20137 plays chord A\u2013G \u00B7 Space ends the turn (G\u266F)"),
+                    b.heroStunned ? " · YOU ARE STUNNED" : ""),
+                React.createElement("div", { className: "et-log" + tutGlow(g, "log"), ref: logRef }, b.log.map((l, i) => React.createElement("div", { key: i }, l)))),
             React.createElement("div", { className: "et-scene et-biome-" + biome + (BATTLE_BG[biome] ? " has-bgart" : "") },
                 g.tutorial && TUT_STEPS[g.tutorial.step] && (() => {
                     const st = TUT_STEPS[g.tutorial.step];
