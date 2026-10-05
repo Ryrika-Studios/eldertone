@@ -17881,11 +17881,21 @@ function v3LiveTxt(b, g, c) {
         return (c && c.txt) || [];
     const grown = (c.shieldGrow || 0) || (c.dmgGrow || 0) || (c.idleBonus || 0) ||
         ((g.slots[c.slot] && g.slots[c.slot].growth) || 0) ||
-        (b.hero.st.strength || 0) || (b.hero.st._tempStr || 0) || (b.hero.st.armored || 0);
+        (b.hero.st.strength || 0) || (b.hero.st._tempStr || 0) || (b.hero.st.armored || 0) || (c.timesGrow || 0);
     if (!grown)
         return c.txt;
     const nSt = (c.stages || []).length;
-    return c.txt.map((row, si) => String(row).replace(/(\d+)(\s*(?:AOE\s+)?(Shield|shield|Damage|damage))/g,
+    // battle hit-count growth (Chu Ko Nu "+1 time per play", Exponential energy, Diminishing
+    // Returns fading) — the card kept printing its base "2 times" (user, Oct 4 2026). The
+    // "Add 1 time per play" increment itself is left alone; floors at 1 like the preview/engine.
+    const tg = c.timesGrow || 0;
+    const withTimes = (row) => (!tg ? row : row.replace(/(\d+)(\s+)(times?)\b/g, (mm, n, sp, w, off) => {
+        if (/\b(adds?|by)\s*$/i.test(row.slice(0, off))) // "Add 1 time" / "Reduce by 1 time" are increments
+            return mm;
+        const t = Math.max(1, +n + tg);
+        return t + sp + (t === 1 ? "time" : "times");
+    }));
+    return c.txt.map((row, si) => withTimes(String(row)).replace(/(\d+)(\s*(?:AOE\s+)?(Shield|shield|Damage|damage))/g,
         (mm, n, tail, kw, off) => {
             // "Add 1 shield each time this is played" is an increment, not the payload
             if (/\b(adds?|add)\s*$/i.test(String(row).slice(0, off)))
