@@ -17906,6 +17906,21 @@ function v3LiveTxt(b, g, c) {
             // partial-charge rows scale growth + Strength down the charge curve, exactly as
             // playChord does (mirrors fxRow) — full charge shows the full bonus
             const sIdx = Math.min(si, Math.max(0, nSt - 1));
+            // only numbers that belong to a real damage effect get Strength/growth folded in —
+            // a flag's rider (Dagger Spray's flat AOE echo) printed 2 / 3 with 1 Strength while
+            // still dealing 1 / 2 (user, Oct 4 2026)
+            const dmgVals = [];
+            const walk = (ops) => (ops || []).forEach((o) => {
+                if (!Array.isArray(o) || o[0] === "flag")
+                    return;
+                // self-damage ("Take 2 damage") is never Strength-boosted either
+                if (/damage|dmg/.test(o[0]) && !/^self_/.test(o[0]) && typeof o[1] === "number")
+                    dmgVals.push(o[1]);
+                o.forEach((x) => Array.isArray(x) && walk(Array.isArray(x[0]) ? x : [x]));
+            });
+            walk((c.stages || [])[sIdx]);
+            if (!dmgVals.includes(base))
+                return mm;
             const dOps = ((c.stages || [])[sIdx] || []).filter((o) => o[0] === "damage");
             const di = dOps.findIndex((o) => o[1] === base);
             const sc = strScaleFor(c, sIdx, "damage", di >= 0 ? di : 0, base);
