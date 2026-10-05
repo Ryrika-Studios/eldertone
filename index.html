@@ -23583,8 +23583,7 @@ function makeStore(g, variant) {
     if (secList.includes("care")) {
         items.push({ t: "heal", n: 5, cost: 7, repeat: true, sec: "care" });
         items.push({ t: "healfull", cost: 60, sec: "care" });
-        const mh = pick([{ n: 4, cost: 40 }, { n: 7, cost: 60 }, { n: 10, cost: 80 }]);
-        items.push({ t: "maxhp", n: mh.n, cost: mh.cost, sec: "care" });
+        // max-health purchases removed from stores (user, Oct 4 2026)
     }
     const store = { title: variant === "free_one" ? "Free Pick" : careOnly ? "Health Centre" : full ? "Store" : SEC_TITLE[secList[0]],
         secList, cards, relics: [], items, variant: variant || null };
