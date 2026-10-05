@@ -3,6 +3,28 @@
 <title>Eldertone</title>
 <style>html,body{margin:0;background:#120d08;color:#e8dfc8;font-family:system-ui,sans-serif}#root{min-height:100vh}
 #errbox{display:none;position:fixed;left:8px;right:8px;bottom:8px;z-index:99999;background:#3a1512;color:#ffd9d4;border:1px solid #a4574d;border-radius:8px;padding:10px 12px;font:12px/1.45 monospace;white-space:pre-wrap;max-height:40vh;overflow:auto}</style>
+<script>
+// Installable app (PWA) — only on the public GitHub Pages site (and localhost for testing), where
+// manifest.webmanifest, sw.js and the icons sit next to index.html. Anywhere else (the claude.ai
+// artifact, a saved local file) this does nothing.
+(function () {
+  var h = location.hostname;
+  if (!/github\.io$|^localhost$|^127\.0\.0\.1$/.test(h) || location.protocol === "file:") return;
+  var head = document.head;
+  function link(rel, href, sizes) { var l = document.createElement("link"); l.rel = rel; l.href = href; if (sizes) l.sizes = sizes; head.appendChild(l); }
+  function meta(name, content) { var m = document.createElement("meta"); m.name = name; m.content = content; head.appendChild(m); }
+  link("manifest", "manifest.webmanifest");
+  link("icon", "icon-192.png", "192x192");
+  link("apple-touch-icon", "apple-touch-icon.png");
+  meta("theme-color", "#000000");
+  meta("mobile-web-app-capable", "yes");
+  meta("apple-mobile-web-app-capable", "yes");
+  meta("apple-mobile-web-app-title", "Eldertone");
+  meta("apple-mobile-web-app-status-bar-style", "black");
+  if ("serviceWorker" in navigator)
+    window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
+})();
+</script>
 </head><body>
 <div id="root"><div style="padding:24px;text-align:center;color:#c9a24b">Loading Eldertone…</div></div>
 <div id="errbox"></div>
