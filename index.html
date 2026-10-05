@@ -18,7 +18,7 @@
       busy = false;
       var root = document.getElementById("root");
       if (!root) return;
-      if (!mq.matches || !document.querySelector(".et-scene")) { if (root.style.zoom) root.style.zoom = ""; return; }
+      if (!mq.matches || !document.querySelector(".et-topbar")) { if (root.style.zoom) root.style.zoom = ""; return; }
       root.style.zoom = "1";
       var need = root.scrollHeight, wide = Math.max(root.scrollWidth, document.documentElement.scrollWidth);
       // fit the height, and never let the one-row top bar push the page sideways on narrow phones
@@ -23699,7 +23699,7 @@ const CSS = `
    the empty sky, fighters scaled down, fixed-width cards; a fit-to-height zoom (head script) does the rest */
 @media (orientation:landscape) and (max-height:520px){
 html body .et-root{padding:4px 8px 6px;min-height:0}
-html body .et-topbar{flex-wrap:nowrap;gap:4px 10px;padding:3px 8px;margin:0 auto 4px;font-size:12px;max-width:none;white-space:nowrap}
+html body .et-topbar{flex-wrap:nowrap;gap:4px 10px;padding:3px 8px;margin:0 auto 4px;font-size:12px;max-width:none;white-space:nowrap;width:max-content;justify-content:flex-start}
 html body .et-topbar .et-title{display:none}
 html body .et-topbar .et-btn{padding:2px 7px;font-size:11px}
 html body .et-hpbar{width:70px}html body .et-furybar{width:56px}
@@ -23711,6 +23711,43 @@ html body .et-scene{min-height:0;margin-bottom:0}
 html body .et-scene-inner{min-height:0;margin-top:0;padding-top:34px;padding-bottom:4px;zoom:.78}
 html body .et-scene .et-chords.v3slots{grid-template-columns:repeat(7,92px);justify-content:center;margin:2px 8px 4px}
 html body .et-scene .et-chords.v3slots .et-slot{grid-column:auto}
+html body .et-root h2.et-title{font-size:18px;margin:0 0 4px}
+html body .et-root > .et-note{margin:2px auto 4px}
+html body .et-grid{gap:6px}
+html body .et-grid .cf.v3card,html body .et-slotgrid .cf.v3card{width:100px}
+html body .et-actions{margin:6px 0}
+html body .et-encprev{margin:2px auto 6px;gap:8px}
+html body .et-encfoe{width:150px;padding:6px 8px}
+html body .et-encfoe .et-esprite{zoom:.6}
+html body .et-encfoe .ef-sp{font-size:11px;line-height:1.25}
+html body .et-storesecs{display:flex;flex-wrap:nowrap;gap:12px;align-items:flex-start;justify-content:flex-start;width:max-content;margin:0 auto}
+html body .et-storesec{margin-bottom:4px !important}
+html body .et-storesec .et-note{display:none}
+html body .et-storesec h3.et-title{font-size:15px;margin:0 0 4px !important}
+html body .et-pick{width:150px;padding:8px}
+html body .et-evbg{max-height:110px;margin-bottom:6px}
+html body .et-evart{height:70px;font-size:40px;margin-bottom:6px}
+html body .et-loadout{display:grid;grid-template-columns:1fr auto;column-gap:14px;align-items:start;
+  grid-template-areas:"top top" "title title" "enc res" "enc go" "act act"}
+html body .et-loadout > .et-topbar{grid-area:top}
+html body .et-loadout > h2.et-title{grid-area:title}
+html body .et-loadout > .et-encprev{grid-area:enc;justify-content:flex-start;margin:0}
+html body .et-loadout > .et-lo-res{grid-area:res;margin:0;flex-wrap:nowrap;width:max-content;max-width:none}
+html body .et-loadout > .et-lo-go{grid-area:go;margin:6px 0 0}
+html body .et-loadout > .et-lo-act{grid-area:act;margin-top:6px;flex-wrap:nowrap;width:max-content;max-width:none}
+html body .et-loadout > .et-lo-actnote,html body .et-loadout > .et-lo-resnote{display:none}
+html body .et-lo-res > .et-panel{width:100px;height:139px;padding:6px;font-size:11px;display:flex;align-items:center;justify-content:center}
+html body .et-lo-res .v3-footbelow{font-size:10px}
+html body .et-grid .v3cell{width:100px}
+html body .v3-footbelow{font-size:10px;line-height:1.2}
+html body .v3cell .et-btn{padding:3px 8px;font-size:12px}
+html body .et-pick{padding:6px 8px}
+html body .et-pick h4{font-size:13px;margin:0 0 2px}
+html body .et-pick .fx{font-size:11px;line-height:1.25}
+html body .et-pick .et-btn{padding:3px 8px;font-size:12px;margin-top:4px}
+html body .et-storesecs .et-grid{gap:5px;flex-wrap:nowrap;max-width:none;align-items:flex-start}
+html body .et-storesec{flex:0 0 auto}
+html body .et-storesec:not(:first-child) .et-grid{flex-direction:column}
 }
 .et-flying{position:relative;display:inline-block}
 .et-fly-body{animation:flyTakeoff .7s ease-out both, flyHover 1.8s ease-in-out .7s infinite}
@@ -30303,7 +30340,7 @@ function EldertoneInner() {
     }
     // ---------- screen: loadout (pre-battle) ----------
     if (g.screen === "loadout") {
-        return (React.createElement("div", { className: "et-root" },
+        return (React.createElement("div", { className: "et-root et-loadout" },
             React.createElement("style", null, CSS),
             React.createElement(TopBar, null),
             React.createElement(DeckOverlay, null),
@@ -30326,14 +30363,14 @@ function EldertoneInner() {
                             React.createElement("div", null, sp[1])));
                 });
             })()),
-            React.createElement("div", { className: "et-note" }, "Active chords"),
-            React.createElement("div", { className: "et-grid" }, "ABCDEFG".split("").filter((L) => g.slots[L]).map((L) => {
+            React.createElement("div", { className: "et-note et-lo-actnote" }, "Active chords"),
+            React.createElement("div", { className: "et-grid et-lo-act" }, "ABCDEFG".split("").filter((L) => g.slots[L]).map((L) => {
                 const c = CARD_BY[cardKey(g.slots[L].name, g.slots[L].lv)];
                 return React.createElement(CardFace, { key: L, v3: isV3(g) ? { txt: grownRows(c.txt, g.slots[L]), max: c.c } : undefined, name: dispName(g.slots[L].name, L), slot: L, lv: g.slots[L].lv, rows: grownRows(c.txt, g.slots[L]), activeIdx: null, ring: { charge: 0, max: c.c }, footer: [g.slots[L].growth ? "+" + g.slots[L].growth + " permanent damage" : "", bagDesc(g, g.slots[L])].filter(Boolean).join(" \u00b7 ") || undefined });
             })),
-            React.createElement("div", { className: "et-note" }, "Reserves \u2014 tap to swap into the matching slot"),
-            React.createElement("div", { className: "et-grid" }, g.reserves.map((r, i) => r ? (React.createElement(CardFace, { key: i, v3: isV3(g) ? { txt: grownRows(CARD_BY[cardKey(r.name, r.lv)].txt, r), max: CARD_BY[cardKey(r.name, r.lv)].c } : undefined, name: dispName(r.name, r.slot), slot: r.slot, lv: r.lv, rows: grownRows(CARD_BY[cardKey(r.name, r.lv)].txt, r), bagSlots: bagSlotIcons(r), activeIdx: null, ring: { charge: 0, max: CARD_BY[cardKey(r.name, r.lv)].c }, footer: g.slots[r.slot] ? "swaps with " + dispName(g.slots[r.slot].name, r.slot) : "fills empty " + r.slot + " slot", onClick: () => mut((g) => swapReserve(g, i)) })) : (React.createElement("div", { key: i, className: "et-panel et-pick", style: { opacity: 0.5, textAlign: "center" } }, "Empty reserve")))),
-            React.createElement("div", { className: "et-actions" },
+            React.createElement("div", { className: "et-note et-lo-resnote" }, "Reserves \u2014 tap to swap into the matching slot"),
+            React.createElement("div", { className: "et-grid et-lo-res" }, g.reserves.map((r, i) => r ? (React.createElement(CardFace, { key: i, v3: isV3(g) ? { txt: grownRows(CARD_BY[cardKey(r.name, r.lv)].txt, r), max: CARD_BY[cardKey(r.name, r.lv)].c } : undefined, name: dispName(r.name, r.slot), slot: r.slot, lv: r.lv, rows: grownRows(CARD_BY[cardKey(r.name, r.lv)].txt, r), bagSlots: bagSlotIcons(r), activeIdx: null, ring: { charge: 0, max: CARD_BY[cardKey(r.name, r.lv)].c }, footer: g.slots[r.slot] ? "swaps with " + dispName(g.slots[r.slot].name, r.slot) : "fills empty " + r.slot + " slot", onClick: () => mut((g) => swapReserve(g, i)) })) : (React.createElement("div", { key: i, className: "et-panel et-pick", style: { opacity: 0.5, textAlign: "center" } }, "Empty reserve")))),
+            React.createElement("div", { className: "et-actions et-lo-go" },
                 React.createElement("button", { className: "et-btn", onClick: () => mut((g) => {
                         const enc = g.pendingEnc;
                         g.pendingEnc = null;
@@ -30481,13 +30518,13 @@ function EldertoneInner() {
                     "g")))); };
         const SEC_META = { armory: ["Armory", "Chords, a transmuter, and a chord upgrade."],
             daily: ["Daily Deal", "One deal per store \u00b7 Grab Bags repeat \u2014 each costs 15g more (resets at the next store)."],
-            care: ["Care Center", "Heal 5 repeats as often as you can pay. One max-health boost per store."] };
+            care: ["Care Center", "Heal 5 repeats as often as you can pay."] };
         const secBlock = (sec) => {
             const cs = s.cards.map((it, i) => (!s.closed && !it.sold && it.sec === sec) ? renderCard(it, i) : null).filter(Boolean);
             const is2 = s.items.map((it, i) => (!s.closed && !it.sold && it.sec === sec) ? renderItem(it, i) : null).filter(Boolean);
             if (!cs.length && !is2.length)
                 return null;
-            return (React.createElement("div", { key: sec, style: { marginBottom: 14 } },
+            return (React.createElement("div", { key: sec, className: "et-storesec", style: { marginBottom: 14 } },
                 (s.secList || []).length > 1 && React.createElement("h3", { className: "et-title", style: { color: "#d8b97a", textAlign: "center", margin: "10px 0 2px" } }, SEC_META[sec][0]),
                 React.createElement("div", { className: "et-note", style: { textAlign: "center", marginBottom: 6 } }, SEC_META[sec][1]),
                 React.createElement("div", { className: "et-grid" }, cs, is2)));
@@ -30554,7 +30591,7 @@ function EldertoneInner() {
                         React.createElement("h4", null, dispName(entry.name, cd ? cd.slot : "") + lvMark(entry.lv) + (t.where === "res" ? " (reserve)" : " (" + t.L + ")")),
                         React.createElement("div", { className: "fx" }, (bagDesc(g, entry) || "no grab-bag upgrades yet") + " \u2192 " + bagLabel(g, bp.kind, bp.n)));
                 })),
-                null)) : s.secList ? (s.secList.map(secBlock)) : (React.createElement("div", { className: "et-grid" },
+                null)) : s.secList ? React.createElement("div", { className: "et-storesecs" }, s.secList.map(secBlock)) : (React.createElement("div", { className: "et-grid" },
                 !s.closed && s.cards.map((it, i) => !it.sold && renderCard(it, i)),
                 !s.closed && s.relics.map((it, i) => !it.sold && renderRelic(it, i)),
                 !s.closed && s.items.map((it, i) => !it.sold && renderItem(it, i)))),
