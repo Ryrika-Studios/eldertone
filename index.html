@@ -13,15 +13,18 @@
   // the whole game so the battle fits the screen height — runs everywhere, not just the app
   (function fit() {
     var mq = window.matchMedia("(orientation:landscape) and (max-height:520px)");
+    var mqDesk = window.matchMedia("(min-width:900px) and (min-height:521px)"); // desktop: every in-run screen fits one window
     var busy = false;
     function apply() {
       busy = false;
       var root = document.getElementById("root");
       if (!root) return;
-      if (!mq.matches || !document.querySelector(".et-topbar")) { if (root.style.zoom) root.style.zoom = ""; return; }
+      if (!(mq.matches || mqDesk.matches) || !document.querySelector(".et-topbar")) { if (root.style.zoom) root.style.zoom = ""; return; }
       root.style.zoom = "1";
       var need = root.scrollHeight, wide = Math.max(root.scrollWidth, document.documentElement.scrollWidth);
       // fit the height, and never let the one-row top bar push the page sideways on narrow phones
+      // already fits (the page's own min-height makes need == innerHeight) -> leave it at exactly 1
+      if (need <= window.innerHeight + 1 && wide <= window.innerWidth + 1) { root.style.zoom = ""; return; }
       var z = Math.max(0.55, Math.min(1, (window.innerHeight - 2) / need, window.innerWidth / wide));
       root.style.zoom = String(Math.round(z * 1000) / 1000);
     }
@@ -23695,6 +23698,31 @@ const LOCKED_MODE = "totems"; // totem build only (relic machinery dormant)
 // ============================== UI ==============================
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+SC:wght@500;600;700&family=Alegreya:ital,wght@0,400;0,500;0,700;1,400&display=swap');
+/* DESKTOP ONE-SCREEN LAYOUTS (Oct 5 2026): loadout as two columns + one chord row, store
+   sections side by side, less empty sky on short windows; the head-script fit zoom covers the rest */
+@media (min-width:900px) and (min-height:521px){
+html body .et-loadout{display:grid;grid-template-columns:auto auto;justify-content:start;justify-content:safe center;column-gap:22px;align-items:start;
+  grid-template-areas:"top top" "title title" "enc res" "enc go" "act act"}
+html body .et-loadout > .et-topbar{grid-area:top;justify-self:center}
+html body .et-loadout > h2.et-title{grid-area:title}
+html body .et-loadout > .et-encprev{grid-area:enc;justify-content:flex-start;margin:0;max-width:680px}
+html body .et-loadout > .et-lo-res{grid-area:res;margin:0;flex-wrap:nowrap;width:max-content;max-width:none}
+html body .et-loadout > .et-lo-go{grid-area:go;margin:10px 0 0}
+html body .et-loadout > .et-lo-act{grid-area:act;margin-top:12px;flex-wrap:nowrap;width:max-content;max-width:none;justify-self:center}
+html body .et-loadout > .et-lo-actnote,html body .et-loadout > .et-lo-resnote{display:none}
+html body .et-loadout .et-grid .cf.v3card,html body .et-loadout .et-grid .v3cell{width:150px}
+html body .et-lo-res > .et-panel{width:150px;height:209px;display:flex;align-items:center;justify-content:center}
+html body .et-storesecs{display:flex;flex-wrap:nowrap;gap:20px;align-items:flex-start;justify-content:flex-start;width:max-content;margin:0 auto}
+html body .et-storesec{flex:0 0 auto;margin-bottom:6px !important}
+html body .et-storesec .et-note{max-width:230px;margin-left:auto;margin-right:auto;font-size:12px}
+html body .et-storesec:first-child .et-note{max-width:none}
+html body .et-storesecs .et-grid{flex-wrap:nowrap;max-width:none;align-items:flex-start;gap:8px}
+html body .et-storesec:not(:first-child) .et-grid{flex-direction:column}
+html body .et-storesecs .cf.v3card,html body .et-storesecs .v3cell{width:150px}
+}
+@media (min-width:900px) and (min-height:521px) and (max-height:880px){
+html body .et-scene-inner{min-height:330px}
+}
 /* COMPACT LANDSCAPE (phones held sideways, Oct 4 2026): one-row top bar, the log floats over
    the empty sky, fighters scaled down, fixed-width cards; a fit-to-height zoom (head script) does the rest */
 @media (orientation:landscape) and (max-height:520px){
