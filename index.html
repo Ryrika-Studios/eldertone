@@ -23726,7 +23726,7 @@ html body .et-scene-inner{min-height:330px}
 /* COMPACT LANDSCAPE (phones held sideways, Oct 4 2026): one-row top bar, the log floats over
    the empty sky, fighters scaled down, fixed-width cards; a fit-to-height zoom (head script) does the rest */
 @media (orientation:landscape) and (max-height:520px){
-html body .et-root{padding:4px 8px 6px;min-height:0}
+html body .et-root{padding:4px 4px 4px;min-height:0}
 html body .et-topbar{flex-wrap:nowrap;gap:4px 10px;padding:3px 8px;margin:0 auto 4px;font-size:12px;max-width:none;white-space:nowrap;width:max-content;justify-content:flex-start}
 html body .et-topbar .et-title{display:none}
 html body .et-topbar .et-btn{padding:2px 7px;font-size:11px}
@@ -23736,9 +23736,13 @@ html body .et-turnline{position:absolute;top:4px;left:0;right:0;margin:0;font-si
 html body .et-keyhelp{display:none}
 html body .et-battlehud .et-log{position:absolute;top:22px;left:50%;transform:translateX(-50%);width:240px;height:62px;padding:4px 8px;font-size:11px;background:rgba(0,0,0,.5);max-width:none;margin:0}
 html body .et-scene{min-height:0;margin-bottom:0}
-html body .et-scene-inner{min-height:0;margin-top:0;padding-top:34px;padding-bottom:4px;padding-right:132px;zoom:.78}
-html body .et-endturn{width:62px;height:62px;right:16px}
-html body .et-scene .et-chords.v3slots{grid-template-columns:repeat(7,92px);justify-content:center;margin:2px 8px 4px}
+html body .et-battle > .et-topbar{position:relative;z-index:7;margin-bottom:-27px;background:rgba(0,0,0,.55)}
+html body .et-battle .et-turnline{top:31px;left:182px;right:auto;text-align:left}
+html body .et-battle .et-battlehud .et-log{top:51px;left:178px;transform:none;width:220px;height:46px}
+html body .et-battle .et-battlehud,html body .et-battle .et-scene{max-width:none}
+html body .et-scene-inner{min-height:0;margin-top:0;padding-top:34px;padding-bottom:4px;padding-right:146px;zoom:.71}
+html body .et-endturn{width:62px;height:62px;right:16px;top:136px}
+html body .et-scene .et-chords.v3slots{grid-template-columns:repeat(7,1fr);gap:4px;margin:2px 4px 3px}
 html body .et-scene .et-chords.v3slots .et-slot{grid-column:auto}
 html body .et-root h2.et-title{font-size:18px;margin:0 0 4px}
 html body .et-root > .et-note{margin:2px auto 4px}
@@ -23750,10 +23754,12 @@ html body .et-encfoe{width:150px;padding:6px 8px}
 html body .et-encfoe .et-esprite{zoom:.6}
 html body .et-encfoe .ef-sp{font-size:11px;line-height:1.25}
 html body .et-storesecs{display:flex;flex-wrap:nowrap;gap:12px;align-items:flex-start;justify-content:flex-start;width:max-content;margin:0 auto}
-html body .et-storesec{margin-bottom:4px !important}
+html body .et-storesec{flex:0 0 auto;margin-bottom:4px !important}
+html body .et-storesecs .et-grid{flex-wrap:nowrap}
 html body .et-storesec .et-note{display:none}
 html body .et-storesec h3.et-title{font-size:15px;margin:0 0 4px !important}
-html body .et-pick{width:150px;padding:8px}
+html body .et-pick{width:120px;padding:8px}
+html body .et-storesecs .et-grid .cf.v3card,html body .et-storesecs .et-grid .v3cell{width:112px}
 html body .et-evbg{max-height:110px;margin-bottom:6px}
 html body .et-evart{height:70px;font-size:40px;margin-bottom:6px}
 html body .et-loadout{display:grid;grid-template-columns:1fr auto;column-gap:14px;align-items:start;
@@ -23768,6 +23774,7 @@ html body .et-loadout > .et-lo-actnote,html body .et-loadout > .et-lo-resnote{di
 html body .et-lo-res > .et-panel{width:100px;height:139px;padding:6px;font-size:11px;display:flex;align-items:center;justify-content:center}
 html body .et-lo-res .v3-footbelow{font-size:10px}
 html body .et-grid .v3cell{width:100px}
+html body .et-root:not(.et-loadout) > .et-grid .cf.v3card,html body .et-root:not(.et-loadout) > .et-grid .v3cell{width:150px}
 html body .v3-footbelow{font-size:10px;line-height:1.2}
 html body .v3cell .et-btn{padding:3px 8px;font-size:12px}
 html body .et-pick{padding:6px 8px}
@@ -29586,7 +29593,35 @@ function EldertoneInner() {
                                 }
                                 catch (e) { }
                                 setLogsView({ runs: runs.slice().reverse() });
-                            } }, "Run logs"),
+                            } }, "\ud83d\udcca Stats"),
+                        React.createElement("button", { className: "et-btn", style: { opacity: 0.7, fontSize: 12, marginLeft: 6, background: logResetArmed ? "#7a2a22" : undefined }, title: "Erase ALL archived run stats and the saved run's stats", onClick: async () => {
+                                if (!logResetArmed) {
+                                    setLogResetArmed(true);
+                                    setLogResetMsg("tap again to erase all stats");
+                                    setTimeout(() => { setLogResetArmed(false); setLogResetMsg(""); }, 4000);
+                                    return;
+                                }
+                                setLogResetArmed(false);
+                                try {
+                                    if (window.storage) {
+                                        try {
+                                            await window.storage.delete(ARCHIVE_KEY);
+                                        }
+                                        catch (e) {
+                                            await window.storage.set(ARCHIVE_KEY, JSON.stringify({ runs: [] }));
+                                        }
+                                        if (saved) {
+                                            const sv = Object.assign({}, saved, { decisionLog: [], runStats: null, __statsDone: false });
+                                            setSaved(sv);
+                                            await window.storage.set(SAVE_KEY, JSON.stringify(sv));
+                                        }
+                                    }
+                                }
+                                catch (e) { }
+                                setLogResetMsg("stats erased \u2713");
+                                setTimeout(() => setLogResetMsg(""), 2500);
+                            } }, logResetArmed ? "Erase?" : "Reset stats"),
+                        logResetMsg ? React.createElement("span", { className: "et-note", style: { marginLeft: 8 } }, logResetMsg) : null,
                         importOpen && (React.createElement("div", { style: { margin: "8px auto 0", maxWidth: 420 } },
                             React.createElement("textarea", { value: importText, onChange: (e) => setImportText(e.target.value), placeholder: "paste an ET1. save code here",
                                 style: { width: "100%", height: 80, boxSizing: "border-box", background: "#1c150e", color: "#cfc4a8",
@@ -29684,8 +29719,8 @@ function EldertoneInner() {
             React.createElement("b", null, g.gold)),
         React.createElement("span", { className: "et-stat" },
             React.createElement("button", { className: "et-btn", style: { padding: "2px 10px", fontSize: 12 }, onClick: () => saveNow(false) }, "Save"),
-            React.createElement("button", { className: "et-btn", style: { padding: "2px 10px", fontSize: 12, marginLeft: 4 }, title: "Show a copyable save code for this run", onClick: () => { saveNow(true, true); setCodeBox(encodeSaveCode(gref.current)); } }, "Code"),
             React.createElement("button", { className: "et-btn", style: { padding: "2px 10px", fontSize: 12, marginLeft: 4 }, title: "Save this run and return to the title screen", onClick: async () => {
+                    await archiveRun();
                     await saveNow(true, true);
                     const gg = gref.current;
                     if (gg)
@@ -29693,44 +29728,6 @@ function EldertoneInner() {
                     setGame(null);
                 } }, "Menu"),
             saveMsg ? " " + saveMsg : ""),
-        React.createElement("span", { className: "et-stat" },
-            React.createElement("button", { className: "et-btn", style: { padding: "2px 10px", fontSize: 12 }, title: "Show this run's stats report (same format as bot simulations)", onClick: async () => {
-                    const gg = gref.current;
-                    if (!gg)
-                        return;
-                    await archiveRun();
-                    if (gg.battle && gg.battle.over && !gg.battle.__simFlushed)
-                        BOT.simFlushBattle(gg.battle, gg.runStats = gg.runStats || BOT.simNewST());
-                    setLogCopied(false);
-                    setLogExport(gg.runStats ? BOT.simReport(gg.runStats).text : "No battles recorded yet this run.");
-                } },
-                "\ud83d\udcca Stats")),
-        React.createElement("span", { className: "et-stat" },
-            React.createElement("button", { className: "et-btn", style: { padding: "2px 10px", fontSize: 12,
-                    background: logResetArmed ? "#7a2a22" : undefined }, title: "Erase ALL archived run stats and the current run's stats", onClick: async () => {
-                    if (!logResetArmed) {
-                        setLogResetArmed(true);
-                        setLogResetMsg("tap again to erase all logs");
-                        setTimeout(() => { setLogResetArmed(false); setLogResetMsg(""); }, 4000);
-                        return;
-                    }
-                    setLogResetArmed(false);
-                    try {
-                        if (window.storage) {
-                            try {
-                                await window.storage.delete(ARCHIVE_KEY);
-                            }
-                            catch (e) {
-                                await window.storage.set(ARCHIVE_KEY, JSON.stringify({ runs: [] }));
-                            }
-                        }
-                    }
-                    catch (e) { }
-                    mut((g2) => { g2.decisionLog = []; g2.runStats = null; g2.__statsDone = false; });
-                    setLogResetMsg("logs erased \u2713");
-                    setTimeout(() => setLogResetMsg(""), 2500);
-                } }, logResetArmed ? "Erase?" : "Reset Stats"),
-            logResetMsg ? " " + logResetMsg : ""),
         g.pendingEquip && React.createElement(LoadoutFullScreen, { g, mut }),
         logExport != null && (React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(10,8,5,.75)", zIndex: 200,
                 display: "flex", alignItems: "center", justifyContent: "center" }, onClick: () => setLogExport(null) },
