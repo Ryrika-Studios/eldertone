@@ -18098,9 +18098,9 @@ const HEROES = {
     necromancer: { name: "Necromancer", hp: 70, furyMax: 6, gold: 0, deck: ["Amber wand", "Defend", "Fully committed"],
         pools: ["common", "necro"], furyCharge: "debuff", furyFx: "skeleton",
         furyDesc: "Fury charges each time she applies a debuff. When the orb fills, her dark aura flares and a Skeleton claws up on its own (4 damage to the front enemy each turn)." },
-    iceknight: { name: "Ice Knight", hp: 80, furyMax: 3, gold: 0, deck: ["Attack", "Defend", "Blast"],
-        pools: ["common", "ice"], furyCharge: "attacked", furyFx: "iceshard",
-        furyDesc: "Icy Shell charges every time an enemy attacks him \u2014 hit, blocked, dodged or missed. When the orb fills, an Ice Shard crystallizes on its own \u2014 each shard grants +1 Armored while it stands." },
+    iceknight: { name: "Ice Knight", hp: 80, furyMax: 4, gold: 0, deck: ["Attack", "Defend", "Blast"],
+        pools: ["common", "ice"], furyCharge: "shield", furyFx: "iceshard",
+        furyDesc: "Icy Shell charges every time he gains Shield. When the orb fills, an Ice Shard crystallizes on its own \u2014 each shard grants +1 Armored while it stands." },
 };
 function heroDef(g) { return HEROES[(g && g.heroId) || "rogue"] || HEROES.rogue; }
 function cardPoolOf(g) { return isV3(g) ? V3_POOL : ITEM_POOL; }
