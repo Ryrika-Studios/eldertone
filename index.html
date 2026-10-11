@@ -18091,6 +18091,8 @@ function totemPoolIds(g) {
 // every Skeleton (fury burst, cards, X Upgrade, pending skeletons) strikes the front enemy for this
 // much each turn — 4 since Oct 2 2026 (user; was 5)
 const SKELETON_ATK = 4;
+// Armored each Ice Shard (the Ice Knight's fury burst) grants while it stands — 2 since Oct 10 2026 (user; was 1)
+const ICE_SHARD_ARMORED = 2;
 const HEROES = {
     rogue: { name: "Rogue", hp: 75, furyMax: 7, gold: 0, deck: ["Feint", "Attack", "Defend"],
         pools: ["common", "rogue"], furyCharge: "hit", furyFx: "attack_x2",
@@ -18100,7 +18102,7 @@ const HEROES = {
         furyDesc: "Fury charges each time she applies a debuff. When the orb fills, her dark aura flares and a Skeleton claws up on its own (4 damage to the front enemy each turn)." },
     iceknight: { name: "Ice Knight", hp: 80, furyMax: 4, gold: 0, deck: ["Attack", "Defend", "Blast"],
         pools: ["common", "ice"], furyCharge: "shield", furyFx: "iceshard",
-        furyDesc: "Icy Shell charges every time he gains Shield. When the orb fills, an Ice Shard crystallizes on its own \u2014 each shard grants +1 Armored while it stands." },
+        furyDesc: "Icy Shell charges every time he gains Shield. When the orb fills, an Ice Shard crystallizes on its own \u2014 each shard grants +" + ICE_SHARD_ARMORED + " Armored while it stands." },
 };
 function heroDef(g) { return HEROES[(g && g.heroId) || "rogue"] || HEROES.rogue; }
 function cardPoolOf(g) { return isV3(g) ? V3_POOL : ITEM_POOL; }
@@ -21611,10 +21613,10 @@ function checkFuryBurst(b, g) {
             b.hero.flags.unleash_mult = 0;
         }
         for (let si2 = 0; si2 < shards; si2++) {
-            b.minions.push({ name: "Ice Shard", ops: [["gain", "armored", 1]], age: 0, procs: 1, rise: true });
-            b.hero.st.armored = (b.hero.st.armored || 0) + 1;
+            b.minions.push({ name: "Ice Shard", ops: [["gain", "armored", ICE_SHARD_ARMORED]], age: 0, procs: 1, rise: true });
+            b.hero.st.armored = (b.hero.st.armored || 0) + ICE_SHARD_ARMORED;
         }
-        log(b, (shards > 1 ? shards + " Ice Shards form" : "An Ice Shard forms") + " \u2014 +1 Armored each while they stand!");
+        log(b, (shards > 1 ? shards + " Ice Shards form" : "An Ice Shard forms") + " \u2014 +" + ICE_SHARD_ARMORED + " Armored each while they stand!");
     }
     unleashHooks(b, g);
     // queued "next time your Fury unleashes…" effects (on_unleash shells; stackable)
