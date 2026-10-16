@@ -18100,7 +18100,10 @@ function totemPoolIds(g) {
 // much each turn — 4 since Oct 2 2026 (user; was 5)
 const SKELETON_ATK = 4;
 // Armored each Ice Shard (the Ice Knight's fury burst) grants while it stands — 2 since Oct 10 2026 (user; was 1)
-const ICE_SHARD_ARMORED = 2;
+const ICE_SHARD_ARMORED = 2; // amount per shard (name kept for old notes)
+// Oct 15 2026 (user): shards grant ENTRENCHED (Shield at the start of every turn) instead of Armored
+const ICE_SHARD_STAT = "entrenched";
+const ICE_SHARD_STAT_NAME = "Entrenched";
 const HEROES = {
     rogue: { name: "Rogue", hp: 75, furyMax: 7, gold: 0, deck: ["Feint", "Attack", "Defend"],
         pools: ["common", "rogue"], furyCharge: "hit", furyFx: "attack_x2",
@@ -18110,7 +18113,7 @@ const HEROES = {
         furyDesc: "Fury charges each time she applies a debuff. When the orb fills, her dark aura flares and a Skeleton claws up on its own (4 damage to the front enemy each turn)." },
     iceknight: { name: "Ice Knight", hp: 80, furyMax: 4, gold: 0, deck: ["Attack", "Defend", "Blast"],
         pools: ["common", "ice"], furyCharge: "shield", furyFx: "iceshard",
-        furyDesc: "Icy Shell charges every time he gains Shield. When the orb fills, an Ice Shard crystallizes on its own \u2014 each shard grants +" + ICE_SHARD_ARMORED + " Armored while it stands." },
+        furyDesc: "Icy Shell charges every time he gains Shield. When the orb fills, an Ice Shard crystallizes on its own \u2014 each shard grants +" + ICE_SHARD_ARMORED + " " + ICE_SHARD_STAT_NAME + " while it stands." },
 };
 function heroDef(g) { return HEROES[(g && g.heroId) || "rogue"] || HEROES.rogue; }
 function cardPoolOf(g) { return isV3(g) ? V3_POOL : ITEM_POOL; }
@@ -21625,10 +21628,10 @@ function checkFuryBurst(b, g) {
             b.hero.flags.unleash_mult = 0;
         }
         for (let si2 = 0; si2 < shards; si2++) {
-            b.minions.push({ name: "Ice Shard", ops: [["gain", "armored", ICE_SHARD_ARMORED]], age: 0, procs: 1, rise: true });
-            b.hero.st.armored = (b.hero.st.armored || 0) + ICE_SHARD_ARMORED;
+            b.minions.push({ name: "Ice Shard", ops: [["gain", ICE_SHARD_STAT, ICE_SHARD_ARMORED]], age: 0, procs: 1, rise: true });
+            b.hero.st[ICE_SHARD_STAT] = (b.hero.st[ICE_SHARD_STAT] || 0) + ICE_SHARD_ARMORED;
         }
-        log(b, (shards > 1 ? shards + " Ice Shards form" : "An Ice Shard forms") + " \u2014 +" + ICE_SHARD_ARMORED + " Armored each while they stand!");
+        log(b, (shards > 1 ? shards + " Ice Shards form" : "An Ice Shard forms") + " \u2014 +" + ICE_SHARD_ARMORED + " " + ICE_SHARD_STAT_NAME + " each while they stand!");
     }
     unleashHooks(b, g);
     // queued "next time your Fury unleashes…" effects (on_unleash shells; stackable)
@@ -25919,6 +25922,44 @@ const BOT = {
         return { dmg: best, turns: bestTurns };
     },
     // Decide ONE battle action from live state. Driver executes it, then re-decides.
+    // HP the hero would lose to her OWN chord at stage si (self_damage, per-minion, Forced March, an immediate
+    // recurring tick, the worse branch of a gamble/conditional) — after Sharper Swords; Shield is NOT subtracted
+    selfDmgOf(b, g, c, si) {
+        const ops = (c.stages && c.stages[Math.min(si, c.stages.length - 1)]) || [];
+        const red = (g.perm && g.perm.selfDmgRed) || 0;
+        const mult = (b.hero.flags && b.hero.flags.dmg_in_mult > 1) ? b.hero.flags.dmg_in_mult : 1;
+        const hit = (n) => n > 0 ? Math.max(0, Math.round(n * mult) - red) : 0;
+        const walk = (list) => {
+            let t = 0;
+            for (const o of list || []) {
+                if (!Array.isArray(o))
+                    continue;
+                const k = o[0];
+                if (k === "self_damage")
+                    t += hit(o[1] || 0);
+                else if (k === "self_damage_per_minion")
+                    t += b.minions.length ? hit((o[1] || 1) * b.minions.length) : 0;
+                else if (k === "charge_all_selfdmg") {
+                    const nAff = b.chords.filter((c2) => c2 !== c && !c2.locked && c2.charge < c2.max).length + (o[3] === "self" ? 1 : 0);
+                    t += nAff ? hit((o[2] || 1) * nAff) : 0;
+                }
+                else if (k === "recurring" && o[5] === "now")
+                    t += walk(o[1]);
+                else if (k === "cond" || k === "cond2" || k === "pct_choice" || k === "choose")
+                    t += Math.max(0, ...o.filter(Array.isArray).map((br) => walk(Array.isArray(br[0]) ? br : [br])));
+            }
+            return t;
+        };
+        return walk(ops);
+    },
+    shieldGainOf(c, si) {
+        const ops = (c.stages && c.stages[Math.min(si, c.stages.length - 1)]) || [];
+        let t = 0;
+        for (const o of ops)
+            if (Array.isArray(o) && o[0] === "gain" && o[1] === "shield")
+                t += o[2] || 0;
+        return t;
+    },
     battleAction(b, g, cfg) {
         cfg = cfg || BOT_CFG;
         if (b.over || b.heroStunned)
@@ -25930,7 +25971,15 @@ const BOT = {
         // the hold-the-orb logic only applies to heroes whose unleash doubles attacks
         const furyFull = g.fury >= g.furyMax && heroDef(g).furyFx === "attack_x2";
         const incoming = BOT.incoming(b);
-        const skip = (c) => c.locked || c.charge < 1 ||
+        // never play a chord whose own self-damage would kill us (user, Oct 15 2026)
+        // (a fully charged shield chord we can raise first counts — the ordering below plays it before the hurt)
+        const shieldReady = (except) => b.chords.reduce((m2, c2) => (c2 !== except && !c2.locked && c2.charge >= c2.max ? Math.max(m2, BOT.shieldGainOf(c2, BOT.nStages(c2) - 1)) : m2), 0);
+        const selfKill = (c) => {
+            const n2 = BOT.nStages(c);
+            const si2 = n2 === 1 ? 0 : Math.min(c.charge, n2) - 1;
+            return si2 >= 0 && BOT.selfDmgOf(b, g, c, si2) >= g.hp + b.hero.shield + shieldReady(c);
+        };
+        const skip = (c) => c.locked || c.charge < 1 || selfKill(c) ||
             (JSON.stringify(c.stages).includes('"req_minion"') && b.minions.length === 0) ||
             (b.noTarget && /"damage|"dmg_|"drain_all_dmg"/.test(JSON.stringify(c.stages)));
         // planned kill: the deck can't kill this target THIS turn but CAN next
@@ -26353,7 +26402,31 @@ const BOT = {
         });
         // in-turn order: lethal kill > buffs/debuffs > attacks > shields —
         // attacks first so a killed attacker never wastes a shield play
-        const mk = (x) => ({ kind: "play", idx: x.idx, chord: x.c.name, slot: x.c.slot, stage: x.si, tgtId: x.tgtId });
+        const mk0 = (x) => ({ kind: "play", idx: x.idx, chord: x.c.name, slot: x.c.slot, stage: x.si, tgtId: x.tgtId });
+        // shield BEFORE a chord that hurts us (user, Oct 15 2026): Shield absorbs self-damage, so when the chosen
+        // play's recoil would get past our current Shield, raise a Shield first — the best shield play if the bot
+        // already wants one, else any fully charged shield chord
+        const recoilOf = (x) => x && x.c ? BOT.selfDmgOf(b, g, x.c, x.si) : 0;
+        const shieldBefore = (x) => {
+            const r2 = recoilOf(x);
+            if (r2 <= b.hero.shield)
+                return null;
+            // survival case: the hurt would kill us through today's Shield — raise the BIGGEST ready shield
+            const mustCover = r2 >= g.hp + b.hero.shield;
+            if (!mustCover && bestShield && bestShield.c !== x.c)
+                return bestShield;
+            let alt = null;
+            b.chords.forEach((c2, i2) => {
+                if (c2 === x.c || c2.locked || c2.charge < c2.max || skip(c2))
+                    return;
+                const si2 = BOT.nStages(c2) - 1;
+                const sh2 = BOT.shieldGainOf(c2, si2);
+                if (sh2 > 0 && (!alt || sh2 > alt.value))
+                    alt = { idx: i2, c: c2, si: si2, value: sh2, tgtId: null };
+            });
+            return alt;
+        };
+        const mk = (x) => { const s2 = x === bestShield ? null : shieldBefore(x); return mk0(s2 || x); };
         // 1-charge compounding shield engines (Evolving Equipment) OPEN the turn
         // (user design): they play every turn regardless — bank the growth before
         // attacks can end the battle and skip the play
