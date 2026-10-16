@@ -18100,7 +18100,7 @@ function totemPoolIds(g) {
 // much each turn — 4 since Oct 2 2026 (user; was 5)
 const SKELETON_ATK = 4;
 // Armored each Ice Shard (the Ice Knight's fury burst) grants while it stands — 2 since Oct 10 2026 (user; was 1)
-const ICE_SHARD_ARMORED = 3; // amount per shard (2 -> 3 Oct 15 2026, user) (name kept for old notes)
+const ICE_SHARD_ARMORED = 2; // amount per shard (Entrenched; 3 tried and reverted to 2 Oct 15 2026, user) (name kept for old notes)
 // Oct 15 2026 (user): shards grant ENTRENCHED (Shield at the start of every turn) instead of Armored
 const ICE_SHARD_STAT = "entrenched";
 const ICE_SHARD_STAT_NAME = "Entrenched";
@@ -18648,8 +18648,12 @@ function makeEnemy(name) {
 // (rolled by startBattle's pre-roll, while b.turn is still 0) comes from their non-attacking moves.
 // A slow charge-up (charge_D) is allowed: it strikes on a later turn.
 const BIG_FOES_HOLD_T1 = true;
+// exempt (user, same day): the Dire Wolf pack, and every Hydra head except the opening Nature head
+function t1Exempt(en) {
+    return en.name === "Dire Wolf" || (en.name.startsWith("Hydra ") && en.name !== "Hydra Nature Head");
+}
 function holdsFirstTurn(en, b) {
-    return BIG_FOES_HOLD_T1 && (en.kind === "elite" || en.kind === "boss") && !en.lastMoveKey
+    return BIG_FOES_HOLD_T1 && (en.kind === "elite" || en.kind === "boss") && !t1Exempt(en) && !en.lastMoveKey
         && (!b || typeof b !== "object" || !b.turn);
 }
 const isPlainAtkMove = (mv) => mv.some((p) => p[0] === "D" || p[0] === "lifesteal_D");
@@ -18679,7 +18683,7 @@ function direWolfPack(b) {
         w.__forceMove = wpick(p);
         rollIntent(w, b);
     };
-    const t1 = BIG_FOES_HOLD_T1 && !b.turn && pack.every((w) => w.kind === "elite" || w.kind === "boss"); // opening roll
+    const t1 = BIG_FOES_HOLD_T1 && !b.turn && pack.every((w) => (w.kind === "elite" || w.kind === "boss") && !t1Exempt(w)); // opening roll (wolves are exempt, so normally false)
     const used = new Set();
     for (const w of pack) {
         if (used.has(w.lastMoveKey)) {
