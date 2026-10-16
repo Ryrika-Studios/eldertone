@@ -18644,6 +18644,15 @@ function makeEnemy(name) {
 // nobody ended up attacking, one wolf takes an unused attack move. Deliberately
 // NOT re-run when a wolf dies mid-turn (user design): killing the pack's only
 // attacker is how the player prevents that turn's damage.
+// Oct 15 2026 (user): elites and bosses never ATTACK on the first turn of a battle — their opening intent
+// (rolled by startBattle's pre-roll, while b.turn is still 0) comes from their non-attacking moves.
+// A slow charge-up (charge_D) is allowed: it strikes on a later turn.
+const BIG_FOES_HOLD_T1 = true;
+function holdsFirstTurn(en, b) {
+    return BIG_FOES_HOLD_T1 && (en.kind === "elite" || en.kind === "boss") && !en.lastMoveKey
+        && (!b || typeof b !== "object" || !b.turn);
+}
+const isPlainAtkMove = (mv) => mv.some((p) => p[0] === "D" || p[0] === "lifesteal_D");
 function direWolfPack(b) {
     if (!b || !Array.isArray(b.enemies) || b.over)
         return;
@@ -18670,15 +18679,18 @@ function direWolfPack(b) {
         w.__forceMove = wpick(p);
         rollIntent(w, b);
     };
+    const t1 = BIG_FOES_HOLD_T1 && !b.turn && pack.every((w) => w.kind === "elite" || w.kind === "boss"); // opening roll
     const used = new Set();
     for (const w of pack) {
         if (used.has(w.lastMoveKey)) {
-            const free = moves.filter((m) => !used.has(keyOf(m)));
+            const free = moves.filter((m) => !used.has(keyOf(m)) && !(t1 && isAtk(keyOf(m))));
             if (free.length)
                 reroll(w, free);
         }
         used.add(w.lastMoveKey);
     }
+    if (t1)
+        return; // first turn: the pack sizes you up instead of attacking
     const ready = pack.filter((w) => !(w.st.stun > 0)); // a stunned wolf's attack won't land
     if (ready.some((w) => isAtk(w.lastMoveKey)))
         return;
@@ -18700,7 +18712,7 @@ function rollIntent(en, b) {
         en.intent = { kind: "charge", label: "💪 buffing…" };
         return;
     }
-    if (en.special === "dwarf_boulders" && !en.lastMoveKey) {
+    if (en.special === "dwarf_boulders" && !en.lastMoveKey && !holdsFirstTurn(en, b)) {
         // sheet Move1: "Turn 1, 100% — D3". The startBattle pre-roll is his
         // FIRST intent ever (makeEnemy leaves intent null and the pre-roll is
         // called without b), so "no lastMoveKey yet" == his turn-1 action.
@@ -18766,7 +18778,21 @@ function rollIntent(en, b) {
         }
         return wpick(pool);
     };
-    let eff = pickAvoidRepeat(moves);
+    // first turn of a battle: elites/bosses pick from their non-attacking moves (or just size you up)
+    let pool0 = moves;
+    if (holdsFirstTurn(en, b)) {
+        const calm = moves.filter((m) => !isPlainAtkMove(m[1]));
+        if (!calm.length) {
+            en.intent = { kind: "charge", label: "\u{1F441} sizing you up\u2026", parts: [], hold: true };
+            en.lastMoveKey = '"t1hold"';
+            en.moveRepeat = 1;
+            en.noAtk = (en.noAtk || 0) + 1;
+            en.lastPureShield = false;
+            return;
+        }
+        pool0 = calm;
+    }
+    let eff = pickAvoidRepeat(pool0);
     if ((en.noAtk || 0) >= 2) {
         const atk = moves.filter((m) => isAtkMove(m[1]));
         if (atk.length)
@@ -19154,6 +19180,10 @@ function intentTipLines(b, en) {
     }
     if (en.intent.kind === "flee") {
         lines.push("↪ About to flutter away — another foe will take its place!");
+        return lines;
+    }
+    if (en.intent.hold) {
+        lines.push("\u{1F441} Sizing you up — it won't attack on the first turn.");
         return lines;
     }
     const red = heroDmgRedPct(b);
