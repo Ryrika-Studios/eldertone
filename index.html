@@ -19265,7 +19265,7 @@ function volleyPreviewDmg(b, g) {
         dmg = Math.min(dmg, 1);
     return { dmg, hi, base, single: av.length === 1, per: av.map((e) => ({ e, v: vs(e) })) };
 }
-function startBattle(game, enemyNames, kindLabel) {
+function startBattle(game, enemyNames, kindLabel, hps) {
     UID = 1;
     const chords = [];
     "ABCDEFG".split("").forEach((L) => {
@@ -19326,7 +19326,7 @@ function startBattle(game, enemyNames, kindLabel) {
     // death context for run stats: state walking INTO this battle
     game.__preBattle = { hp: game.hp, gold: game.gold };
     const b = {
-        kind: kindLabel, turn: 0, enemies: expandEnemyUnits(enemyNames).map(makeEnemy),
+        kind: kindLabel, turn: 0, enemies: expandEnemyUnits(enemyNames).map((nm, i) => { const en = makeEnemy(nm); if (hps && hps[i] > 0) en.hp = en.maxHp = hps[i]; return en; }), // hps: pre-rolled on the pre-battle screen
         hero: { shield: 0, st: newStatuses(), attacks: 0, flags: {} },
         chords, minions: [], delayed: [], delayedOps: [], recurring: [], furySchedule: [], log: [], target: 0, over: null,
         fxQueue: [], fxSeq: 1,
@@ -24376,10 +24376,20 @@ function enemyTagline(name) {
 }
 // units shown on the pre-battle screens: the expanded encounter (escorts, wolf pack),
 // plus — for a Gnome Village — every gnome colour it can summon
+// each unit's health is rolled when the encounter is set up (Oct 17 2026, user) so the
+// pre-battle screens show the REAL numbers; startBattle uses them (index = expanded unit)
+function encRollHp(pe) {
+    if (!pe || !Array.isArray(pe.names))
+        return [];
+    const units = expandEnemyUnits(pe.names);
+    if (!Array.isArray(pe.hps) || pe.hps.length !== units.length)
+        pe.hps = units.map((nm) => { const d = ENEMIES[nm]; return !d ? 0 : d.special === "ten_hits" ? 10 : rollTier("H", d.biome, d.hp); });
+    return pe.hps;
+}
 function encounterPreviewUnits(names) {
-    const counts = {};
-    expandEnemyUnits(names).forEach((nm) => counts[nm] = (counts[nm] || 0) + 1);
-    const out = Object.keys(counts).map((nm) => ({ nm, n: counts[nm] }));
+    const counts = {}, idx = {};
+    expandEnemyUnits(names).forEach((nm, i) => { counts[nm] = (counts[nm] || 0) + 1; (idx[nm] = idx[nm] || []).push(i); });
+    const out = Object.keys(counts).map((nm) => ({ nm, n: counts[nm], idx: idx[nm] }));
     if (counts["Gnome Village"])
         ["Red Gnome", "Yellow Gnome", "Gray Gnome"].forEach((nm) => { if (!counts[nm]) out.push({ nm, n: 0, joins: true }); });
     return out;
@@ -28159,7 +28169,7 @@ const BOT = {
         if (scr === "loadout") {
             const enc = g.pendingEnc;
             g.pendingEnc = null;
-            g.battle = startBattle(g, enc.names, enc.kind);
+            g.battle = startBattle(g, enc.names, enc.kind, enc.hps);
             g.screen = "battle";
             return g;
         }
@@ -29101,7 +29111,7 @@ function EldertoneInner() {
                 return;
             }
             if (scr === "loadout") {
-                mut((g) => { const enc = g.pendingEnc; g.pendingEnc = null; g.battle = startBattle(g, enc.names, enc.kind); g.screen = "battle"; });
+                mut((g) => { const enc = g.pendingEnc; g.pendingEnc = null; g.battle = startBattle(g, enc.names, enc.kind, enc.hps); g.screen = "battle"; });
                 return;
             }
             if (scr === "battle") {
@@ -30758,7 +30768,10 @@ function EldertoneInner() {
         const pe = g.pendingEnc;
         const kindTxt = pe && pe.kind !== "battle" ? (pe.kind === "elite" ? "ELITE" : "BOSS") : "";
         const units = pe ? encounterPreviewUnits(pe.names) : [];
+        const hps = pe ? encRollHp(pe) : [];
         const hpRange = (nm) => { const def = ENEMIES[nm] || {}; return def.biome && DATA.HP[def.biome] ? DATA.HP[def.biome][def.hp] : null; };
+        // rolled health for units in the encounter; a summon that "may join" hasn't rolled yet -> its range
+        const hpText = (u) => { if (!u.joins && u.idx && u.idx.every((i) => hps[i] > 0)) return "\u2764 " + u.idx.map((i) => hps[i]).join(" \u00b7 "); const r = hpRange(u.nm); return r ? "\u2764 " + r[0] + "\u2013" + r[1] : null; };
         const foeName = (u) => { const def = ENEMIES[u.nm] || {}; return u.nm + (u.n > 1 ? " ×" + u.n : "") + (def.kind && def.kind !== "normal" ? " ★" : ""); };
         // PRE-BATTLE SCREEN 1 (Oct 17 2026, user): meet the enemies — health + tagline — then the loadout
         if (pe && !pe.met) {
@@ -30770,18 +30783,14 @@ function EldertoneInner() {
                     kindTxt ? kindTxt + " BATTLE" : "Enemies approach"),
                 React.createElement("div", { className: "et-encprev et-encmeet" }, units.map((u, k) => {
                     const def = ENEMIES[u.nm] || {};
-                    const hpR = hpRange(u.nm);
+                    const hpT = hpText(u);
                     const tag = enemyTagline(u.nm);
-                    const sp = NO_PREVIEW_DESC.has(u.nm) ? null : enemyPreview(u.nm);
                     return React.createElement("div", { key: k, className: "et-encfoe" + (u.joins ? " joins" : "") },
                         u.joins && React.createElement("div", { className: "ef-joins" }, "may join the fight"),
                         FoeSpriteView({ name: u.nm, kind: def.kind || "normal", flags: {}, st: {} }),
                         React.createElement("div", { className: "ef-name" }, foeName(u)),
-                        hpR && React.createElement("div", { className: "ef-hp" }, "\u2764 " + hpR[0] + "\u2013" + hpR[1]),
-                        tag && React.createElement("div", { className: "ef-tag" }, tag),
-                        sp && React.createElement("div", { className: "ef-sp" },
-                            React.createElement("b", null, sp[0]),
-                            React.createElement("div", null, sp[1])));
+                        hpT && React.createElement("div", { className: "ef-hp" }, hpT),
+                        tag && React.createElement("div", { className: "ef-tag" }, tag));
                 })),
                 React.createElement("div", { className: "et-actions" },
                     React.createElement("button", { className: "et-btn", onClick: () => mut((g) => { if (g.pendingEnc) g.pendingEnc.met = true; }) }, "Prepare your chords \u2192"))));
@@ -30795,11 +30804,11 @@ function EldertoneInner() {
                 kindTxt ? " \u2014 " + kindTxt : ""),
             pe && React.createElement("div", { className: "et-encprev et-encmini" }, units.filter((u) => !u.joins).map((u, k) => {
                 const def = ENEMIES[u.nm] || {};
-                const hpR = hpRange(u.nm);
+                const hpT = hpText(u);
                 return React.createElement("div", { key: k, className: "et-encfoe" },
                     FoeSpriteView({ name: u.nm, kind: def.kind || "normal", flags: {}, st: {} }),
                     React.createElement("div", { className: "ef-name" }, foeName(u)),
-                    hpR && React.createElement("div", { className: "ef-hp" }, "\u2764 " + hpR[0] + "\u2013" + hpR[1]));
+                    hpT && React.createElement("div", { className: "ef-hp" }, hpT));
             })),
             React.createElement("div", { className: "et-note et-lo-actnote" }, "Active chords"),
             React.createElement("div", { className: "et-grid et-lo-act" }, "ABCDEFG".split("").filter((L) => g.slots[L]).map((L) => {
@@ -30813,7 +30822,7 @@ function EldertoneInner() {
                 React.createElement("button", { className: "et-btn", onClick: () => mut((g) => {
                         const enc = g.pendingEnc;
                         g.pendingEnc = null;
-                        g.battle = startBattle(g, enc.names, enc.kind);
+                        g.battle = startBattle(g, enc.names, enc.kind, enc.hps);
                         g.screen = "battle";
                     }) }, "Fight"))));
     }
@@ -31109,6 +31118,7 @@ function enterNode(g, laneIdx) {
     else {
         const enc = encounterFor(g);
         g.pendingEnc = enc;
+        encRollHp(g.pendingEnc);
         autoEquipReserves(g);
         g.screen = "loadout";
     }
@@ -31161,6 +31171,7 @@ function startEvent(g) {
     const pool = EVENTS.filter((e) => (e.loc === "any" || e.loc === biome) && !g.seenEvents.includes(e.id));
     if (!pool.length) { // fallback: fight instead
         g.pendingEnc = { names: encounterForBattleFallback(g), kind: "battle" };
+        encRollHp(g.pendingEnc);
         autoEquipReserves(g);
         g.screen = "loadout";
         return;
@@ -31341,6 +31352,7 @@ function eventContinue(g) {
         const names = resolveEncSpec(g, rd.spec.names);
         g.eventWin = rd.spec.winFx || rd.spec.winText || rd.spec.winChoice ? { fx: rd.spec.winFx || [], text: rd.spec.winText || null, choice: rd.spec.winChoice || null } : null;
         g.pendingEnc = { names, kind: "battle" };
+        encRollHp(g.pendingEnc);
         autoEquipReserves(g);
         g.screen = "loadout";
         return;
