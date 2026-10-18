@@ -23912,6 +23912,13 @@ html body .et-storesec:not(:first-child) .et-grid{flex-direction:column}
 @keyframes flyTakeoff{from{transform:translateY(0) rotate(0)}to{transform:translateY(-38px) rotate(-6deg)}}
 @keyframes flyHover{0%,100%{transform:translateY(-38px) rotate(-6deg)}50%{transform:translateY(-48px) rotate(-3deg)}}
 @keyframes flyShadow{0%,100%{transform:scaleX(1);opacity:.8}50%{transform:scaleX(.8);opacity:.55}}
+/* battle enemy sizes (see ENEMY_SIZE): --h = own height, shrunk by the row's shared fit factor */
+html body .et-foes{container-type:inline-size}
+html body .et-foe.sized{--u:min(1px, calc(100cqw / var(--fs)));--h:calc(var(--ehn) * var(--u));width:max(calc(104 * var(--u)), calc(var(--h) * var(--ea)));flex:0 0 auto}
+html body .et-foe.sized .et-eimg img{height:var(--h);max-width:none;width:auto}
+html body .et-foe.sized .et-esprite.et-eanim{font-size:var(--h)}
+html body .et-foe.sized .et-esprite:not(.et-eimg):not(.et-eanim):not(.et-ezomb){font-size:calc(var(--h) * .82);line-height:1}
+html body .et-foe.sized .et-esprite.et-egroup{font-size:calc(var(--h) * .6)}
 .et-gmgrow{display:inline-block;transform-origin:50% 100%;transition:transform .6s cubic-bezier(.3,1.6,.5,1)}
 .et-root{min-height:100vh;background:radial-gradient(1200px 800px at 50% -10%, #2c221a 0%, #201914 55%, #17120e 100%);color:#efe6d0;font-family:'Alegreya',Georgia,serif;padding:14px 12px 40px;box-sizing:border-box;}
 .et-root *{box-sizing:border-box}
@@ -24643,6 +24650,19 @@ function EnemyAnim({ name, atk, hit, cls, data, fitH }) {
             React.createElement("span", { ref, className: "et-eanim-sheet", role: "img", "aria-label": name, style: { left: em(-bx), top: em(-by), width: em(A.cw), height: em(A.ch), backgroundImage: "url(" + A.src + ")", backgroundSize: (A.cols * 100) + "% " + (A.rows * 100) + "%" } })));
 }
 // Growing Mass visibly swells: +15% size per growth (sheet), capped so it never swallows the scene
+// BATTLE SIZES (Oct 17 2026, user): every enemy is drawn relative to the hero's 140px idle pose —
+// humanoids ~1.0, small critters smaller, big beasts bigger. ENEMY_ASPECT = width / height of the drawn
+// sprite (measured from ENEMY_ART / ENEMY_ANIM; emoji fallbacks ~1). The battle row shrinks every foe by
+// ONE shared factor when their widths would overflow it (see foeRowSizing), so proportions hold.
+const HERO_DRAW_H = 140;
+const ENEMY_SIZE = {"Magpie": 0.45, "Bruiser": 1.05, "Assassin": 1.0, "Snail": 0.4, "Lizard Rider": 1.1, "Troll": 1.15, "Troll Hoard": 1.15, "Red Gnome": 0.6, "Yellow Gnome": 0.6, "Gray Gnome": 0.6, "Gnome Village": 0.85, "Snake": 0.5, "Troll King": 1.3, "Vineman": 1.25, "Vine Arm": 0.7, "Mushroom": 0.55, "Grub": 0.4, "Grub Group": 0.55, "Skeleton Warrior": 1.0, "Skeleton Archer": 1.0, "Golem": 1.2, "Zombie": 1.0, "Growing Mass": 0.85, "Lich King": 1.15, "Dwarf Queen": 0.85, "Boulder": 0.6, "Fire Imp": 0.6, "Fireworks Vendor": 1.0, "Glow Worm": 0.45, "Red Wand Fairy": 0.55, "Blue Wand Fairy": 0.55, "Yellow Wand Fairy": 0.55, "Phoenix": 1.1, "Phoenix Egg": 0.45, "Salamander": 0.65, "Dragon": 1.4, "Chimera Lion": 0.9, "Chimera Goat": 0.8, "Chimera Snake": 0.6, "Snow Golem": 1.2, "Ice Hedgehog": 0.5, "Ice Troll Chieftain": 1.25, "Ice Troll Axeman": 1.15, "Sled Catapult": 0.9, "Sled Goblin": 0.7, "Ice Wraith": 1.05, "Yeti": 1.3, "Ice Shell": 0.6, "Dire Wolf": 0.7, "Blimp": 1.1, "Elf": 0.9, "Butterfly": 0.45, "Gryphon": 1.15, "Griffin Egg": 0.35, "Baby Gryphon": 0.55, "Centaur": 1.2, "Siren": 1.0, "Sunguard Knight": 1.05, "Sunguard Mage": 1.0};
+const ENEMY_ASPECT = {"Magpie": 1.25, "Bruiser": 0.71, "Assassin": 0.99, "Snail": 1.85, "Troll": 1.06, "Troll Hoard": 0.79, "Red Gnome": 0.75, "Yellow Gnome": 0.75, "Gray Gnome": 0.75, "Snake": 1.25, "Troll King": 1.19, "Vineman": 1.56, "Mushroom": 0.82, "Grub": 1.46, "Grub Group": 1.04, "Skeleton Warrior": 0.81, "Skeleton Archer": 0.97, "Golem": 1.27, "Zombie": 0.93, "Growing Mass": 1.42, "Lich King": 0.98, "Dwarf Queen": 1.75, "Fire Imp": 1.22, "Fireworks Vendor": 1.12, "Glow Worm": 1.88, "Red Wand Fairy": 1.28, "Blue Wand Fairy": 1.33, "Yellow Wand Fairy": 1.35, "Phoenix": 1.68, "Salamander": 1.59, "Dragon": 1.62, "Snow Golem": 1.83, "Ice Hedgehog": 1.13, "Ice Troll Chieftain": 1.2, "Ice Troll Axeman": 1.2, "Sled Catapult": 1.59, "Ice Wraith": 0.69, "Yeti": 0.86, "Butterfly": 0.66, "Centaur": 1.1, "Siren": 0.48, "Gnome Village": 1.6};
+function foeSize(en) {
+    const nm = en.name;
+    const rel = ENEMY_SIZE[nm] || (nm.indexOf("Hydra ") === 0 ? 1.2 : nm.indexOf("Zombie ") === 0 ? 0 : 0.8);
+    return { h: Math.round(rel * HERO_DRAW_H), a: ENEMY_ASPECT[nm] || 1 };
+}
+const FOE_MIN_W = 104, FOE_GAP = 14; // gap counted a bit wide: real gaps are 8px and don't shrink with the row
 function FoeSpriteView(en) {
     let v = FoeSpriteViewBase(en);
     const gr = en && en.special === "growing_mass" && en.flags && en.flags.grows;
@@ -24658,7 +24678,7 @@ function FoeSpriteView(en) {
 function FoeSpriteViewBase(en) {
                                 const kindCls = en.kind === "boss" ? " esp-boss" : en.kind === "elite" ? " esp-elite" : "";
                                 if (ENEMY_ANIM[en.name])
-                                    return React.createElement(EnemyAnim, { name: en.name, atk: en.animAtk || 0, hit: en.animHit || 0, cls: kindCls });
+                                    return React.createElement(EnemyAnim, { name: en.name, atk: en.animAtk || 0, hit: en.animHit || 0, cls: kindCls, fitH: en.id != null });
                                 if (ENEMY_ART[en.name])
                                     return React.createElement("div", { className: "et-esprite et-eimg" + kindCls },
                                         React.createElement("img", { src: ENEMY_ART[en.name], alt: en.name }));
@@ -30420,12 +30440,13 @@ function EldertoneInner() {
                 React.createElement("div", { className: "et-hill", style: { left: "55%", width: "48%", top: "15%" } }),
                 React.createElement("div", { className: "et-scene-inner" },
                     React.createElement(HeroFigure, { g: g, b: b }),
-                    React.createElement("div", { className: "et-foes" }, b.enemies.map((en, ei) => {
+                    React.createElement("div", { className: "et-foes", style: { "--fs": b.enemies.filter((e) => !e.dead).reduce((t, e) => { const z = foeSize(e); return t + Math.max(FOE_MIN_W, z.h ? z.h * z.a : FOE_MIN_W) + FOE_GAP; }, 0) || 1 } }, b.enemies.map((en, ei) => {
                         const L = SLOT_LETTERS[ei];
                         if (en.dead)
                             return en.puff ? (React.createElement("div", { key: en.id, className: "et-foe et-dead" },
                                 React.createElement("div", { className: "et-smoke" }, [0, 1, 2, 3, 4, 5].map((i) => React.createElement("span", { key: i, className: "et-pf et-pf" + i }))))) : null;
-                        return (React.createElement("div", { key: en.id, className: "et-foe" + (tgt && tgt.id === en.id ? " tgt" : "") + tutGlow(g, "foe"), onClick: () => mut((g) => { logDecision(g, "target", { enemy: en.name, via: "click" }); g.battle.target = en.id; logAfter(g); }) },
+                        const fz = foeSize(en);
+                        return (React.createElement("div", { key: en.id, className: "et-foe" + (fz.h ? " sized" : "") + (tgt && tgt.id === en.id ? " tgt" : "") + tutGlow(g, "foe"), style: fz.h ? { "--ehn": fz.h, "--ea": fz.a } : undefined, onClick: () => mut((g) => { logDecision(g, "target", { enemy: en.name, via: "click" }); g.battle.target = en.id; logAfter(g); }) },
                             React.createElement(FxHost, { b, tgt: en.id }),
                             React.createElement("div", { className: "et-intent-top" }, en.intent ? React.createElement("span", { className: "pill" },
                                 iconizeLabel(intentLabel(b, en)),
