@@ -17966,7 +17966,8 @@ function v3LiveTxt(b, g, c) {
         return (c && c.txt) || [];
     const grown = (c.shieldGrow || 0) || (c.dmgGrow || 0) || (c.idleBonus || 0) ||
         ((g.slots[c.slot] && g.slots[c.slot].growth) || 0) ||
-        (b.hero.st.strength || 0) || (b.hero.st._tempStr || 0) || (b.hero.st.armored || 0) || (c.timesGrow || 0);
+        (b.hero.st.strength || 0) || (b.hero.st._tempStr || 0) || (b.hero.st.armored || 0) || (c.timesGrow || 0) ||
+        b.darkLord || (b.hero.flags && b.hero.flags.dmg_out_mult > 1); // Dark Lord x1.5 etc. (effHitNum folds them in)
     if (!grown)
         return c.txt;
     const nSt = (c.stages || []).length;
