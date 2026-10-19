@@ -17961,13 +17961,29 @@ function isV3(g) { return !!(g && g.v3); }
 // V3 battle text: fold the live numbers into a chord's printed rows the way the classic
 // renderer's fxRow does — Evolving Equipment's growing Shield, slot/idle/dmgGrow damage
 // growth and Strength — and hand back plain strings so v3Rows can still merge the ladder.
+// Exposed a stage applies BEFORE its first hit (Chip Away, Gotcha!, Glimmering Strike…) — it lands on the target
+// in time to boost that hit, so the printed damage folds it in (user, Oct 19 2026; the ≈ preview already did)
+function selfExposedBeforeHit(stage) {
+    let n = 0;
+    for (const o of stage || []) {
+        if (!Array.isArray(o))
+            continue;
+        if (/damage|dmg/.test(o[0]) && !/^self_/.test(o[0]))
+            break;
+        if (o[0] === "apply" && o[1] === "exposed")
+            n += o[2] || 0;
+    }
+    return n;
+}
 function v3LiveTxt(b, g, c) {
     if (!b || !c || !c.txt || !c.stages)
         return (c && c.txt) || [];
     const grown = (c.shieldGrow || 0) || (c.dmgGrow || 0) || (c.idleBonus || 0) ||
         ((g.slots[c.slot] && g.slots[c.slot].growth) || 0) ||
         (b.hero.st.strength || 0) || (b.hero.st._tempStr || 0) || (b.hero.st.armored || 0) || (c.timesGrow || 0) ||
-        b.darkLord || (b.hero.flags && b.hero.flags.dmg_out_mult > 1); // Dark Lord x1.5 etc. (effHitNum folds them in)
+        b.darkLord || (b.hero.flags && b.hero.flags.dmg_out_mult > 1) || // Dark Lord x1.5 etc. (effHitNum folds them in)
+        (() => { const t = targetEnemy(b); return t && ((t.st.exposed || 0) + (t.st.acid || 0)) > 0; })() ||
+        (c.stages || []).some((st) => selfExposedBeforeHit(st) > 0);
     if (!grown)
         return c.txt;
     const nSt = (c.stages || []).length;
@@ -18015,7 +18031,7 @@ function v3LiveTxt(b, g, c) {
             const sc = ex ? strScaleFor(c, sIdx, "damage_execute", 0, base, ex[2] === base && ex[1] !== base ? 2 : 1)
                 : strScaleFor(c, sIdx, "damage", di >= 0 ? di : 0, base);
             const ratio = nSt > 1 ? Math.pow((sIdx + 1) / nSt, 1.5) : 1;
-            return effHitNum(b, g, c, base, 0, sc, ratio) + tail;
+            return effHitNum(b, g, c, base, 0, sc, ratio, selfExposedBeforeHit((c.stages || [])[sIdx])) + tail;
         }));
 }
 function v3Rows(txt, max) {
@@ -18975,7 +18991,7 @@ function effDamagePreview(b, g, c, stageIdx) {
     }
 }
 // effective per-hit damage for a printed base number (mirrors damageEnemy, minus randomness)
-function effHitNum(b, g, c, base, extra, strScale, bonusRatio) {
+function effHitNum(b, g, c, base, extra, strScale, bonusRatio, selfExp) {
     if (b.noDmgAll)
         return 0;
     const h = b.hero;
@@ -18991,7 +19007,7 @@ function effHitNum(b, g, c, base, extra, strScale, bonusRatio) {
         v = Math.round(v * 1.5);
     v = Math.round(v * (1 - 0.1 * Math.min(10, h.st.weaken || 0)));
     if (tgt)
-        v = Math.round(v * (1 + 0.1 * ((tgt.st.exposed || 0) + (tgt.st.acid || 0))));
+        v = Math.round(v * (1 + 0.1 * ((tgt.st.exposed || 0) + (tgt.st.acid || 0) + (selfExp || 0))));
     if (g.relics.includes("Lucky 7") && b.turn === 7)
         v *= 2;
     if (g.relics.includes("Twin Daggers"))
