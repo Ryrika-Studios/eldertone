@@ -19894,8 +19894,10 @@ function damageEnemy(b, g, en, raw, opts = {}) {
     if (!opts.minion && !b.__enemyPhase)
         b.hero.animAtk = (b.hero.animAtk || 0) + 1; // the hero's own attack (minion hits and enemy-phase recoil don't swing)
     b.lastDealtDamage = true;
-    if (en.special === "magpie_gold")
+    if (en.special === "magpie_gold") {
         g.gold += 1; // magpie drops a coin whenever damaged
+        fxPush(b, "coin", en.id);
+    }
     if (en.special === "griffin_egg" && !opts.minion) {
         // same rule as the Troll King's rage: MINION pecks at the nest don't
         // enrage the Gryphon — otherwise a Minion-totem AOE minion hands it
@@ -19907,6 +19909,8 @@ function damageEnemy(b, g, en, raw, opts = {}) {
         }
     }
     log(b, (opts.src || "You") + (opts.flat ? (opts.src ? " deals " : " deal ") : (opts.src ? " hits " : " hit ")) + en.name + " for " + n + ".");
+    if (en.special === "magpie_gold")
+        log(b, en.name + " drops a coin! +1 Gold (" + g.gold + ")");
     if (!opts.flat) {
         h.attacks += 1;
         b.turnHits = (b.turnHits || 0) + 1; // Double down counts this turn's hits
@@ -24212,6 +24216,9 @@ html body .et-encmeet .et-esprite.et-eanim{font-size:140px}
 .et-fx.swish{animation:fxSwish .55s ease-out forwards}
 @keyframes fxSwish{0%{opacity:0;transform:translate(-46%,12%) rotate(-24deg)}22%{opacity:1}70%{opacity:1;transform:translate(28%,-8%) rotate(10deg)}100%{opacity:0;transform:translate(52%,-16%) rotate(18deg)}}
 .et-fx.pop{animation:fxPop .85s ease-out forwards}
+.et-fx.coin{z-index:9;animation:fxCoin 1s ease-out forwards}
+.et-fx.coin .et-fx-svg{width:34%;height:34%;filter:drop-shadow(0 0 6px rgba(255,214,90,.85))}
+@keyframes fxCoin{0%{opacity:0;transform:translate(0,10%) scale(.5) rotateY(0deg)}15%{opacity:1;transform:translate(6%,-14%) scale(1) rotateY(180deg)}55%{opacity:1;transform:translate(14%,-38%) scale(1) rotateY(540deg)}100%{opacity:0;transform:translate(18%,-52%) scale(.85) rotateY(720deg)}}
 @keyframes fxPop{0%{opacity:0;transform:scale(.4)}25%{opacity:1;transform:scale(1.06)}70%{opacity:.95;transform:scale(1)}100%{opacity:0;transform:scale(1.1) translateY(-9%)}}
 .et-fx.shieldclose{animation:fxShieldFade 1s ease-out forwards}
 @keyframes fxShieldFade{0%{opacity:0}18%{opacity:1}75%{opacity:1}100%{opacity:0}}
@@ -24994,6 +25001,7 @@ const FX_ART = {
     block: { anim: "pop", svg: '<svg viewBox="0 0 100 100"><path d="M30 18 A40 40 0 0 1 30 82" fill="none" stroke="#dff1ff" stroke-width="10" stroke-linecap="round"/><path d="M46 30 A26 26 0 0 1 46 70" fill="none" stroke="#9cc9ee" stroke-width="7" stroke-linecap="round"/></svg>' },
     dodge: { anim: "pop", svg: '<svg viewBox="0 0 100 100"><g fill="none" stroke="#ffab47" stroke-width="6" stroke-linecap="round" opacity=".9"><path d="M26 30 Q10 50 26 70"/><path d="M44 24 Q24 50 44 76"/><path d="M62 20 Q40 50 62 80"/></g></svg>' },
     buff: { anim: "pop", svg: '<svg viewBox="0 0 100 100"><path d="M50 12 78 44 h-16 v34 h-24 V44 H22 Z" fill="#ffd76a" stroke="#c99b2e" stroke-width="3" stroke-linejoin="round"/></svg>' },
+    coin: { anim: "coin", svg: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="30" fill="#f5c542" stroke="#a87a12" stroke-width="5"/><circle cx="50" cy="50" r="20" fill="none" stroke="#d9a21f" stroke-width="3"/><text x="50" y="61" text-anchor="middle" font-size="30" font-weight="700" font-family="Georgia,serif" fill="#8a5f0a">G</text><path d="M34 34 Q40 28 48 27" fill="none" stroke="#fff3c4" stroke-width="4" stroke-linecap="round"/></svg>' },
     lifesteal: { anim: "pop", svg: '<svg viewBox="0 0 100 100"><path d="M50 16 Q70 42 70 58 a20 20 0 0 1 -40 0 Q30 42 50 16 Z" fill="#e0455c" stroke="#a41f34" stroke-width="3"/><circle cx="44" cy="70" r="4" fill="#e0455c"/></svg>' },
 };
 FX_ART.freeze = { anim: "pop", svg: '<svg viewBox="0 0 100 100"><g fill="#bfeaff" stroke="#6cb8e8" stroke-width="3"><path d="M40 88 26 60 40 34 54 44 Z"/><path d="M56 84 50 56 66 30 78 48 Z"/></g></svg>' };
