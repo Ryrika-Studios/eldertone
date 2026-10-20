@@ -20,12 +20,16 @@
       var root = document.getElementById("root");
       if (!root) return;
       if (!(mq.matches || mqDesk.matches) || !document.querySelector(".et-topbar")) { if (root.style.zoom) root.style.zoom = ""; return; }
+      var prev = parseFloat(root.style.zoom) || 0;
       root.style.zoom = "1";
       var need = root.scrollHeight, wide = Math.max(root.scrollWidth, document.documentElement.scrollWidth);
       // fit the height, and never let the one-row top bar push the page sideways on narrow phones
       // already fits (the page's own min-height makes need == innerHeight) -> leave it at exactly 1
       if (need <= window.innerHeight + 1 && wide <= window.innerWidth + 1) { root.style.zoom = ""; return; }
       var z = Math.max(0.55, Math.min(1, (window.innerHeight - 2) / need, window.innerWidth / wide));
+      // ignore tiny re-measures (card FX, attack frames, a longer log line) so the screen doesn't jitter
+      // during play; real changes (new screen, resize, more enemies) still move it (Oct 19 2026)
+      if (prev && ((z > prev && z - prev < 0.03) || (z < prev && prev - z < 0.01))) z = prev;
       root.style.zoom = String(Math.round(z * 1000) / 1000);
     }
     function soon() { if (!busy) { busy = true; setTimeout(apply, 250); } } // throttled (no rAF: it never fires in hidden tabs)
@@ -24706,6 +24710,8 @@ function foeSize(en) {
     return { h: Math.round(rel * HERO_DRAW_H), a: ENEMY_ASPECT[nm] || 1 };
 }
 const FOE_MIN_W = 104, FOE_GAP = 14; // gap counted a bit wide: real gaps are 8px and don't shrink with the row
+// b.__fsMax: the row's crowding only ever grows within a battle — a kill used to let the survivors GROW, which
+// made the scene taller and the page fit-zoom shrink the whole screen mid-fight (user, Oct 19 2026)
 // THE CHIMERA (Oct 17 2026, user): ONE picture (GPT Enemies/Chimera.png) split into a body layer that always stays
 // and three HEAD layers — the Lion, Goat and Snake units are the heads; a slain head's layer vanishes while the body
 // and legs remain. Each unit's column draws its vertical slice [cuts] of the shared composite, and the columns sit
@@ -30508,7 +30514,7 @@ function EldertoneInner() {
                 React.createElement("div", { className: "et-hill", style: { left: "55%", width: "48%", top: "15%" } }),
                 React.createElement("div", { className: "et-scene-inner" },
                     React.createElement(HeroFigure, { g: g, b: b }),
-                    React.createElement("div", { className: "et-foes", style: { "--fs": b.enemies.filter((e) => !e.dead || (CHIMERA_PART[e.name] && b.enemies.some((x) => !x.dead && CHIMERA_PART[x.name]))).reduce((t, e) => { const z = foeSize(e); return t + Math.max(FOE_MIN_W, z.h ? z.h * z.a : FOE_MIN_W) + FOE_GAP; }, 0) || 1 } }, b.enemies.map((en, ei) => {
+                    React.createElement("div", { className: "et-foes", style: { "--fs": (b.__fsMax = Math.max(b.__fsMax || 0, b.enemies.filter((e) => !e.dead || (CHIMERA_PART[e.name] && b.enemies.some((x) => !x.dead && CHIMERA_PART[x.name]))).reduce((t, e) => { const z = foeSize(e); return t + Math.max(FOE_MIN_W, z.h ? z.h * z.a : FOE_MIN_W) + FOE_GAP; }, 0) || 1)) } }, b.enemies.map((en, ei) => {
                         const L = SLOT_LETTERS[ei];
                         if (en.dead && CHIMERA_PART[en.name] && b.enemies.some((x) => !x.dead && CHIMERA_PART[x.name])) {
                             const fzd = foeSize(en);
