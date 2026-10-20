@@ -18728,8 +18728,8 @@ function rollIntent(en, b) {
         en.intent = { kind: "idle", label: "—", parts: [], eff: [] };
         return;
     }
-    if (en.special === "troll_king" && !en.flags.tkRage) {
-        // Enemies Final (Oct 20 2026): his FIRST action of the battle is the rage buff
+    if (en.special === "troll_king" && !en.flags.tkRage && b && b.turn >= 2) {
+        // his turn-3 action is the rage buff — telegraph it on the turn-2 roll (user, Oct 20 2026: keep turn 3)
         en.intent = { kind: "charge", label: "💪 buffing…" };
         return;
     }
@@ -22754,7 +22754,7 @@ function enemyPhase(b, g) {
             }
             continue;
         }
-        if (en.special === "troll_king" && !en.flags.tkRage) {
+        if (en.special === "troll_king" && !en.flags.tkRage && b.turn >= 3) {
             en.flags.tkRage = true;
             log(b, en.name + " spends the turn buffing \u2014 attacks that draw his blood now grant him 1 Strength!");
             rollIntent(en, b);
@@ -24431,7 +24431,7 @@ const ENEMY_SPECIAL_DESC = {
     "Dire Wolf": ["Pack Bond", "Hunts in a pack of three \u2014 every wolf picks a different move each turn and at least one always attacks. When one wolf drains life, every living wolf heals."],
     Magpie: ["Coin Purse", "Drops a gold coin every time you damage it."],
     "Gnome Village": ["The Village", "Summons gnome after gnome. Fell the village and every gnome flees."],
-    "Troll King": ["Enraged", "Spends his first turn strengthening, then every direct hit that costs him health makes him stronger."],
+    "Troll King": ["Enraged", "Spends his third turn strengthening, then every direct hit that costs him health makes him stronger."],
     Vineman: ["Vine Arms", "Regrows up to 3 Vine Arms that each attack every turn until destroyed."],
     Zombie: ["Falling Apart", "As he takes damage his Arm, Leg and Head break off and fight on their own \u2014 and what is left of him hits harder."],
     "Growing Mass": ["Gorge & Slam", "On turn 2 and every 4th turn after, it grows (+10 max health), then slams you next turn for 40% of its missing health."],
