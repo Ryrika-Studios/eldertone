@@ -19925,6 +19925,7 @@ function damageEnemy(b, g, en, raw, opts = {}) {
         }
     }
     log(b, (opts.src || "You") + (opts.flat ? (opts.src ? " deals " : " deal ") : (opts.src ? " hits " : " hit ")) + en.name + " for " + n + ".");
+    zombieBreakOff(b, en); // after the hit line so the log reads hit -> part breaks off
     if (en.special === "magpie_gold")
         log(b, en.name + " drops a coin! +1 Gold (" + g.gold + ")");
     if (!opts.flat) {
@@ -19980,6 +19981,25 @@ function damageEnemy(b, g, en, raw, opts = {}) {
         }
     }
     return n;
+}
+// Zombie dismemberment (user, Oct 20 2026): a part breaks off the MOMENT his health crosses
+// 75% / 50% / 25% — called from every enemy-hp-loss site — and it never costs him his move.
+// A part that breaks off during the player's turn telegraphs and acts in the next enemy phase;
+// one that breaks off mid enemy phase waits a phase (like the hydra waves).
+function zombieBreakOff(b, en) {
+    if (!en || en.special !== "zombie_parts" || en.dead || en.hp <= 0)
+        return;
+    const pct = en.hp / en.maxHp;
+    [["Zombie Arm", 0.75], ["Zombie Leg", 0.5], ["Zombie Head", 0.25]].forEach(([pn, th], i) => {
+        if (pct <= th && !en.flags["p" + i]) {
+            en.flags["p" + i] = true;
+            const e2 = makeEnemy(pn);
+            e2._justSpawned = !!b.__enemyPhase;
+            rollIntent(e2, b);
+            b.enemies.push(e2);
+            log(b, "A " + pn + " breaks off!");
+        }
+    });
 }
 function killEnemy(b, g, en) {
     if (en.dead)
@@ -22525,6 +22545,7 @@ function enemyAttackHero(b, g, en, dmg, lifesteal) {
         log(b, en.name + " crashes into your Firewall and takes " + d + "! (wall " + b.hero.st.burn + ")");
         en._slainBy = "your Firewall";
         en.hp -= d;
+        zombieBreakOff(b, en);
         if (en.hp <= 0) {
             killEnemy(b, g, en);
             if (en.dead)
@@ -22978,20 +22999,7 @@ function enemyPhase(b, g) {
             en.intent = { kind: "flee", label: "↪ leaving…" };
             continue;
         }
-        // zombie parts thresholds
-        if (en.special === "zombie_parts") {
-            const pct = en.hp / en.maxHp;
-            [["Zombie Arm", 0.75], ["Zombie Leg", 0.5], ["Zombie Head", 0.25]].forEach(([pn, th], i) => {
-                if (pct <= th && !en.flags["p" + i]) {
-                    en.flags["p" + i] = true;
-                    const e2 = makeEnemy(pn);
-                    rollIntent(e2, b);
-                    e2._justSpawned = true;
-                    b.enemies.push(e2);
-                    log(b, "A " + pn + " breaks off!");
-                }
-            });
-        }
+        zombieBreakOff(b, en); // safety net — parts normally break off the moment he is hurt
         rollIntent(en, b);
     }
     b.__enemyPhase = false;
@@ -23011,6 +23019,7 @@ function enemyPhase(b, g) {
         en._slainBy = "Poison";
         const pLoss = en.special === "ten_hits" ? Math.min(1, Math.max(0, en.st.poison - pAbs)) : (en.st.poison - pAbs);
         en.hp -= pLoss;
+        zombieBreakOff(b, en);
         {
             // V2 Poison totem: L1 still decays, L2+ stops decay, L4 grows 10%/turn
             const ptl2 = totemLv(g, "Poison");
