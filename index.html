@@ -18994,7 +18994,7 @@ function effDamagePreview(b, g, c, stageIdx) {
         if (!found || total <= 0)
             return null;
         // only attack_x2 heroes double damage on unleash (Necromancer's fury summons instead)
-        const mult = g.fury >= g.furyMax && heroDef(g).furyFx === "attack_x2" ? (g.relics.includes("Triple Daggers") ? 3 : 2) : 1;
+        const mult = (g.fury >= g.furyMax || (g.battle && g.battle.freeUnleash > 0)) && heroDef(g).furyFx === "attack_x2" ? (g.relics.includes("Triple Daggers") ? 3 : 2) : 1;
         return "≈" + total * mult + " dmg" + (mult > 1 ? " (fury!)" : "");
     }
     catch (e) {
@@ -21101,8 +21101,16 @@ function runOps(b, g, ops, ctx) {
         else if (k === "fury_zero")
             g.fury = 0;
         else if (k === "fury_free") {
-            unleashHooks(b, g);
-            ctx.attackMult = Math.max(ctx.attackMult || 1, R("Triple Daggers") ? 3 : 2);
+            // Explode (Oct 24 2026 fix): it used to double its OWN damage-less play, i.e. nothing.
+            // Now it fires the hero's Fury effect without touching the orb: the Rogue's next
+            // damage chord is unleashed (x2), the Necromancer raises a Skeleton, the Ice Knight
+            // forms an Ice Shard
+            if (heroDef(g).furyFx === "attack_x2") {
+                b.freeUnleash = (b.freeUnleash || 0) + 1;
+                log(b, "Your Fury surges \u2014 your next attack is unleashed, and your Fury orb keeps its charge!");
+            }
+            else
+                furyBurst(b, g, true);
         }
         else if (k === "next_chord_mult")
             b.nextMult = op[1];
@@ -21715,10 +21723,17 @@ function skeletonStrike(b, g, times) {
 // after every in-battle fury gain; the UI keys its glow off b.furyBurstSeq and
 // the skeleton's delayed rise off the minion's `rise` flag.
 function checkFuryBurst(b, g) {
-    const ffx = heroDef(g).furyFx;
-    if (!b || b.over || g.fury < g.furyMax || (ffx !== "skeleton" && ffx !== "iceshard"))
+    if (!b || b.over || g.fury < g.furyMax)
         return;
-    g.fury = 0;
+    furyBurst(b, g, false);
+}
+// the Necromancer / Ice Knight Fury effect; free = Explode (the orb is not spent)
+function furyBurst(b, g, free) {
+    const ffx = heroDef(g).furyFx;
+    if (!b || b.over || (ffx !== "skeleton" && ffx !== "iceshard"))
+        return;
+    if (!free)
+        g.fury = 0;
     b.furyBurstSeq = (b.furyBurstSeq || 0) + 1;
     if (ffx === "skeleton") {
         log(b, "Your dark aura flares...");
@@ -21786,13 +21801,14 @@ function opsDealDamage(list, intoChoice) {
 }
 // spend a FULL fury orb: pays out every unleash hook and returns the attack
 // multiplier the play should run at (attack_x2 heroes only — callers check)
-function unleashFury(b, g) {
+function unleashFury(b, g, free) {
     let mult = g.relics.includes("Triple Daggers") ? 3 : 2;
     if (b.hero.flags.unleash_mult > 1) {
         mult *= b.hero.flags.unleash_mult;
         b.hero.flags.unleash_mult = 0;
     }
-    g.fury = 0;
+    if (!free)
+        g.fury = 0;
     unleashHooks(b, g);
     // queued "next time your Fury unleashes…" effects (Necromancer shells; stackable)
     if (b.onUnleash && b.onUnleash.length) {
@@ -21982,7 +21998,13 @@ function playChord(b, g, idx) {
     // "skeleton" fury no longer unleashes on a card play — a full orb bursts on
     // its own the moment it fills (checkFuryBurst); only attack_x2 unleashes here
     const furyReady = g.fury >= g.furyMax && hfx === "attack_x2";
-    if (furyReady && opsDealDamage(ops)) {
+    if (b.freeUnleash > 0 && hfx === "attack_x2" && opsDealDamage(ops)) {
+        // Explode armed a free unleash: double this attack, the orb keeps its charge
+        b.freeUnleash -= 1;
+        ctx.attackMult = unleashFury(b, g, true);
+        ctx.unleashed = true;
+    }
+    else if (furyReady && opsDealDamage(ops)) {
         ctx.attackMult = unleashFury(b, g);
         ctx.unleashed = true; // the unleashed attack itself never refills the orb (user, Oct 9 2026)
     }
@@ -25660,7 +25682,7 @@ function copyTextRobust(text, done) {
 // synergy, strike-vs-wait, shield timing, and Fury spent on the biggest hit.
 const BOT_CFG = { waitAggression: 1.4, shieldHoldBias: 0.8, furyHoldRatio: 1.6, synergyWeight: 0.6, chargeLookahead: 2, minPlayValue: 1.5 };
 const BOT = {
-    furyMultNow(g) { return g.fury >= g.furyMax && heroDef(g).furyFx === "attack_x2" ? (g.relics.includes("Triple Daggers") ? 3 : 2) : 1; },
+    furyMultNow(g) { return (g.fury >= g.furyMax || (g.battle && g.battle.freeUnleash > 0)) && heroDef(g).furyFx === "attack_x2" ? (g.relics.includes("Triple Daggers") ? 3 : 2) : 1; },
     nStages(c) { const xm = xmeta(c.name, c.lv); return xm ? 1 : c.stages.length; },
     stageIdx(c) {
         const xm = xmeta(c.name, c.lv);
@@ -26261,7 +26283,7 @@ const BOT = {
             return { kind: "end" };
         const fm = BOT.furyMultNow(g);
         // the hold-the-orb logic only applies to heroes whose unleash doubles attacks
-        const furyFull = g.fury >= g.furyMax && heroDef(g).furyFx === "attack_x2";
+        const furyFull = (g.fury >= g.furyMax || b.freeUnleash > 0) && heroDef(g).furyFx === "attack_x2";
         const incoming = BOT.incoming(b);
         // never play a chord whose own self-damage would kill us (user, Oct 15 2026)
         // (a fully charged shield chord we can raise first counts — the ordering below plays it before the hurt)
