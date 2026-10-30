@@ -18722,6 +18722,8 @@ function direWolfPack(b) {
     if (atk.length)
         reroll(w, atk);
 }
+// Growing Mass grows on turn 2 and every 4th turn after (6, 10, ...)
+function gmGrowsOnTurn(t) { return t === 2 || (t > 2 && (t - 2) % 4 === 0); }
 function rollIntent(en, b) {
     const e = ENEMIES[en.name];
     if (!e) {
@@ -18731,6 +18733,11 @@ function rollIntent(en, b) {
     if (en.special === "troll_king" && !en.flags.tkRage && b && b.turn >= 2) {
         // his turn-3 action is the rage buff — telegraph it on the turn-2 roll (user, Oct 20 2026: keep turn 3)
         en.intent = { kind: "charge", label: "💪 buffing…" };
+        return;
+    }
+    if (en.special === "growing_mass" && b && b.enemies && gmGrowsOnTurn(b.turn + 1)) {
+        // telegraph the growth one turn ahead (user, Oct 30 2026): next turn it does nothing but grow
+        en.intent = { kind: "charge", grow: true, label: "\u{1F331} about to grow\u2026" };
         return;
     }
     if (en.special === "dwarf_boulders" && !en.lastMoveKey && !holdsFirstTurn(en, b)) {
@@ -19170,7 +19177,7 @@ function intentLabel(b, en) {
     };
     if (en.special === "growing_mass" && en.flags && en.flags.slamNext) {
         const base = gmSlamDmg(en);
-        return (en.intent.label || "⚠ growing…") + " ⚔" + eff(base);
+        return (en.intent.label || "\u{1F4A2} slamming\u2026") + " ⚔" + eff(base);
     }
     if (en.special === "blimp" && en.flags && en.flags.boom && en.flags.boomDmg != null)
         return (en.intent.label || "💥 bursting") + " ⚔" + eff(en.flags.boomDmg);
@@ -19229,6 +19236,8 @@ function intentTipLines(b, en) {
             n = Math.max(0, Math.round(n * (1 - red / 100)));
         return n;
     };
+    if (en.special === "growing_mass" && en.intent && en.intent.grow)
+        lines.push("\u{1F331} Next turn it grows instead of attacking: +10 max health (and heals 10). The turn after, it slams you for 40% of its missing health.");
     if (en.special === "growing_mass" && en.flags && en.flags.slamNext)
         lines.push("Slam: attacks for 40% of its missing health (⚔" + eff(gmSlamDmg(en)) + ").");
     if (en.special === "blimp" && en.flags && en.flags.boom && en.flags.boomDmg != null)
@@ -22803,13 +22812,13 @@ function enemyPhase(b, g) {
                 rollIntent(en, b);
                 continue;
             }
-            if (b.turn === 2 || (b.turn > 2 && (b.turn - 2) % 4 === 0)) {
+            if (gmGrowsOnTurn(b.turn)) {
                 en.maxHp += 10;
                 en.hp += 10;
                 en.flags.slamNext = true;
                 en.flags.grows = (en.flags.grows || 0) + 1; // display: the sprite scales up 15% per growth
                 en.animEv = { seq: ((en.animEv && en.animEv.seq) || 0) + 1, k: "grow" }; // its Growth Light animation
-                en.intent = { kind: "charge", label: "⚠ growing…" };
+                en.intent = { kind: "charge", label: "\u{1F4A2} slamming\u2026" };
                 log(b, en.name + " grows larger!");
                 continue;
             }
@@ -25046,7 +25055,9 @@ function FoeSpriteViewBase(en, b) {
                                     return React.createElement("div", { className: "et-esprite et-vineslot" });
                                 if (ENEMY_ANIM[en.name]) {
                                     const A0 = ENEMY_ANIM[en.name];
-                                    const idle = A0.a.charge && (en.charging || (en.intent && en.intent.kind === "charge")) ? "charge" : "idle";
+                                    // Growing Mass: its charging loop belongs to the turn it is about to grow
+                                    const winding = en.special === "growing_mass" ? !!(en.intent && en.intent.grow) : (en.charging || (en.intent && en.intent.kind === "charge"));
+                                    const idle = A0.a.charge && winding ? "charge" : "idle";
                                     return React.createElement(EnemyAnim, { name: en.name, atk: en.animAtk || 0, hit: en.animHit || 0, cls: kindCls, fitH: en.id != null, still: !!en.still, idle, ev: en.animEv });
                                 }
                                 if (ENEMY_ART[en.name])
