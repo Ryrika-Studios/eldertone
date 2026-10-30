@@ -19602,6 +19602,29 @@ function arrangeBattlefield(b) {
     for (const e of b.enemies)
         (isSummonerUnit(b, e) ? back : front).push(e);
     b.enemies = front.concat(back);
+    // the Vineman's drawn arms hold fixed places around him: A-hand arm, C-hand arm, Vineman, B-hand arm
+    const vm = b.enemies.find((e) => e.name === "Vineman" && !e.dead);
+    if (vm) {
+        const rk = (e) => e === vm ? 2 : (e.summonerId === vm.id && e.armSlot) ? VINE_RANK[e.armSlot] : -1;
+        b.enemies = b.enemies.map((e, i) => [e, i]).sort((x, y) => (rk(x[0]) - rk(y[0])) || (x[1] - y[1])).map((x) => x[0]);
+    }
+}
+// VINEMAN SLOTS (Oct 30 2026, user): he always stands in slot C; his 1st / 2nd / 3rd grown arm is drawn with art
+// layer C / B / A, whose hands sit left of him / right of him / far left, so they take slots B / D / A. Each arm's
+// intent, rune and health bar stand under its hand (VINE_HAND = hand x from his body centre, in body heights).
+const VINE_GROW_ORDER = ["C", "B", "A"];
+const VINE_SLOT = { A: "A", C: "B", B: "D" };
+const VINE_RANK = { A: 0, C: 1, B: 3 };
+const VINE_HAND = { A: -1.2, C: -0.8, B: 0.67 };
+function vineGroup(b) { // the living Vineman, when the field is only him and his drawn arms
+    const al = alive(b), vm = al.find((e) => e.name === "Vineman");
+    return vm && al.every((e) => e === vm || (e.armSlot && e.summonerId === vm.id)) ? vm : null;
+}
+function foeLetter(b, en, ei) {
+    const vm = vineGroup(b);
+    if (vm && (en === vm || (en.armSlot && en.summonerId === vm.id)))
+        return en === vm ? "C" : VINE_SLOT[en.armSlot];
+    return SLOT_LETTERS[ei];
 }
 // combat FX event (display-only): kind = key into FX_ART, tgt = enemy id or "hero".
 // The battle screen's FxHost overlays render these; sims never read them.
@@ -23035,7 +23058,7 @@ function enemyPhase(b, g) {
                     if (en.name === "Vineman" && p[1] === "Vine Arm") {
                         // each Vine Arm is one of the three arms drawn on the Vineman's own body (A, B, C)
                         const used = b.enemies.filter((x) => !x.dead && x.summonerId === en.id && x.armSlot).map((x) => x.armSlot);
-                        e2.armSlot = ["A", "B", "C"].find((L) => !used.includes(L)) || null;
+                        e2.armSlot = VINE_GROW_ORDER.find((L) => !used.includes(L)) || null;
                         if (e2.armSlot)
                             vmPush(b, e2, { k: "grow", slot: e2.armSlot }, en);
                     }
@@ -24182,7 +24205,10 @@ html body .et-encfoe .et-esprite.et-eanim{font-size:104px}
 .et-heroanim{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);font-size:140px;line-height:0;pointer-events:none;filter:drop-shadow(0 3px 5px rgba(0,0,0,.35))}
 .et-eanim-box{display:inline-block;position:relative;vertical-align:bottom}
 .et-eanim-sheet{position:absolute;display:block;background-repeat:no-repeat;pointer-events:none}
-.et-vineslot{height:var(--h,98px);width:var(--h,98px)}
+.et-vineslot{height:var(--h,98px);width:52px}
+.et-vinegrp{position:relative;flex:0 0 auto;--u:min(1px, calc(100cqw / var(--fs)));--h:calc(var(--ehn) * var(--u));padding:0 calc(var(--h) * .3) 0 calc(var(--h) * .82)}
+.et-foe.et-vinearm{position:absolute;bottom:0;width:52px;z-index:3}
+.et-vinearm .et-foename{visibility:hidden}
 .et-encfoe .et-esprite{font-size:56px}
 .et-encprev{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin:6px auto 16px;max-width:880px}
 .et-encfoe{background:#241b11;border:1px solid #6a5638;border-radius:10px;padding:12px 14px;width:200px;text-align:center}
@@ -30195,7 +30221,7 @@ function EldertoneInner() {
             if (tag !== "BUTTON") {
                 const idx = SLOT_LETTERS.indexOf(ev.key.toUpperCase());
                 if (idx >= 0) {
-                    const en = b.enemies[idx];
+                    const en = b.enemies.find((e2, i2) => !e2.dead && foeLetter(b, e2, i2) === SLOT_LETTERS[idx]);
                     if (en && !en.dead)
                         mut((g2) => { logDecision(g2, "target", { enemy: en.name, via: "key" }); g2.battle.target = en.id; logAfter(g2); });
                 }
@@ -30822,8 +30848,8 @@ function EldertoneInner() {
                 React.createElement("div", { className: "et-hill", style: { left: "55%", width: "48%", top: "15%" } }),
                 React.createElement("div", { className: "et-scene-inner" },
                     React.createElement(HeroFigure, { g: g, b: b }),
-                    React.createElement("div", { className: "et-foes", style: { "--fs": (b.__fsMax = Math.max(b.__fsMax || 0, b.enemies.filter((e) => !e.dead || (CHIMERA_PART[e.name] && b.enemies.some((x) => !x.dead && CHIMERA_PART[x.name]))).reduce((t, e) => { const z = foeSize(e); return t + Math.max(FOE_MIN_W, z.h ? z.h * z.a : FOE_MIN_W) + FOE_GAP; }, 0) || 1)) } }, b.enemies.map((en, ei) => {
-                        const L = SLOT_LETTERS[ei];
+                    React.createElement("div", { className: "et-foes", style: { "--fs": (b.__fsMax = Math.max(b.__fsMax || 0, b.enemies.filter((e) => !e.dead || (CHIMERA_PART[e.name] && b.enemies.some((x) => !x.dead && CHIMERA_PART[x.name]))).reduce((t, e) => { const vmF = vineGroup(b); if (vmF && e !== vmF && e.armSlot && e.summonerId === vmF.id) return t; const z = foeSize(e); return t + Math.max(FOE_MIN_W, z.h ? z.h * z.a : FOE_MIN_W) + FOE_GAP + (e === vmF ? z.h * 1.12 : 0); }, 0) || 1)) } }, (() => { const vmG = vineGroup(b); const renderFoe = (en, ei, armMode) => {
+                        const L = foeLetter(b, en, ei);
                         if (en.dead && CHIMERA_PART[en.name] && b.enemies.some((x) => !x.dead && CHIMERA_PART[x.name])) {
                             const fzd = foeSize(en);
                             return React.createElement("div", { key: en.id, className: "et-foe sized chim gone", style: { "--ehn": fzd.h, "--ea": fzd.a } },
@@ -30838,7 +30864,9 @@ function EldertoneInner() {
                             return en.puff ? (React.createElement("div", { key: en.id, className: "et-foe et-dead" },
                                 React.createElement("div", { className: "et-smoke" }, [0, 1, 2, 3, 4, 5].map((i) => React.createElement("span", { key: i, className: "et-pf et-pf" + i }))))) : null;
                         const fz = foeSize(en);
-                        return (React.createElement("div", { key: en.id, className: "et-foe" + (fz.h ? " sized" : "") + (CHIMERA_PART[en.name] ? " chim" : "") + (tgt && tgt.id === en.id ? " tgt" : "") + tutGlow(g, "foe"), style: fz.h ? { "--ehn": fz.h, "--ea": fz.a } : undefined, onClick: () => mut((g) => { logDecision(g, "target", { enemy: en.name, via: "click" }); g.battle.target = en.id; logAfter(g); }) },
+                        const vineWrap = (el) => (!armMode && vmG && en === vmG) ? React.createElement("div", { key: "vg" + en.id, className: "et-vinegrp", style: { "--ehn": fz.h } }, el,
+                            alive(b).filter((a) => a.armSlot && a.summonerId === en.id).map((a) => renderFoe(a, b.enemies.indexOf(a), true))) : el;
+                        const el = (React.createElement("div", { key: en.id, className: "et-foe" + (armMode ? " et-vinearm" : fz.h ? " sized" : "") + (CHIMERA_PART[en.name] ? " chim" : "") + (tgt && tgt.id === en.id ? " tgt" : "") + tutGlow(g, "foe"), style: armMode ? { left: "calc(var(--h) * " + (1.32 + VINE_HAND[en.armSlot]).toFixed(2) + " - 26px)" } : fz.h ? { "--ehn": fz.h, "--ea": fz.a } : undefined, onClick: () => mut((g) => { logDecision(g, "target", { enemy: en.name, via: "click" }); g.battle.target = en.id; logAfter(g); }) },
                             React.createElement(FxHost, { b, tgt: en.id }),
                             React.createElement("div", { className: "et-intent-top" }, en.intent ? React.createElement("span", { className: "pill" },
                                 iconizeLabel(intentLabel(b, en)),
@@ -30881,7 +30909,8 @@ function EldertoneInner() {
                                     " ",
                                     en.shield),
                                 React.createElement(Badges, { st: en.st }))));
-                    }))),
+                        return vineWrap(el);
+                    }; return b.enemies.map((en, ei) => (vmG && en !== vmG && !en.dead && en.armSlot && en.summonerId === vmG.id) ? null : renderFoe(en, ei)); })())),
                 React.createElement("div", { className: "et-endturn" + (b.over ? " off" : "") + tutGlow(g, "end"), title: "Space \u00b7 G\u266f on an instrument", onClick: () => !b.over && mut((g) => { logDecision(g, "end_turn", { via: "click" }); endTurn(g.battle, g); afterActionUI(g); logAfter(g); saveNow(true); }) },
                     React.createElement("span", null, "END TURN (G\u266f)")),
                 React.createElement("div", { className: "et-chords" + (isV3(g) ? " v3slots" : itemMode(g) ? " v2slots" : "") + tutGlow(g, "chords") }, (() => { const renderChord = (c, i) => {
