@@ -3,7 +3,7 @@
 // the next time they are online; if the network is down (or slower than NET_TIMEOUT)
 // the copy cached on the device is served instead. Icons and the Google Fonts are
 // cached on first use.
-const CACHE = "eldertone-v1";
+const CACHE = "eldertone-v2";
 const NET_TIMEOUT = 4000;
 const CORE = ["./", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png",
   "./icon-maskable-512.png", "./apple-touch-icon.png"];
