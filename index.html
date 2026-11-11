@@ -21792,7 +21792,8 @@ function furyBurst(b, g, free) {
     b.furyBurstSeq = (b.furyBurstSeq || 0) + 1;
     if (ffx === "skeleton") {
         log(b, "Your dark aura flares...");
-        b.minions.push({ name: "Skeleton", ops: [["m_attack", SKELETON_ATK, false, 1]], age: 0, procs: 1, rise: true });
+        // fury: true = drawn as a skull on the aura ring (FuryPieces), not as a minion head
+        b.minions.push({ name: "Skeleton", ops: [["m_attack", SKELETON_ATK, false, 1]], age: 0, procs: 1, rise: true, fury: true });
         log(b, "A Skeleton claws up from the earth!");
     }
     else {
@@ -21803,7 +21804,7 @@ function furyBurst(b, g, free) {
             b.hero.flags.unleash_mult = 0;
         }
         for (let si2 = 0; si2 < shards; si2++) {
-            b.minions.push({ name: "Ice Shard", ops: [["gain", ICE_SHARD_STAT, ICE_SHARD_ARMORED]], age: 0, procs: 1, rise: true });
+            b.minions.push({ name: "Ice Shard", ops: [["gain", ICE_SHARD_STAT, ICE_SHARD_ARMORED]], age: 0, procs: 1, rise: true, fury: true });
             b.hero.st[ICE_SHARD_STAT] = (b.hero.st[ICE_SHARD_STAT] || 0) + ICE_SHARD_ARMORED;
         }
         log(b, (shards > 1 ? shards + " Ice Shards form" : "An Ice Shard forms") + " \u2014 +" + ICE_SHARD_ARMORED + " " + ICE_SHARD_STAT_NAME + " each while they stand!");
@@ -24201,6 +24202,17 @@ html body .et-foe.sized .et-esprite.et-egroup{font-size:calc(var(--h) * .6)}
 .et-hero-aura .et-hero-ringimg{position:static;display:block;width:100%;height:100%;max-width:none;max-height:none;animation:heroRingSpin 14s linear infinite}
 .et-hero-aura .et-hero-ringimg.full{animation:heroRingSpin 14s linear infinite,heroRingPulse 1.2s ease-in-out infinite}
 @keyframes heroRingSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.et-furypieces{position:absolute;width:0;height:0}
+.et-furypieces>span,.et-furypieces .fp-arm,.et-furypieces .fp-move,.et-furypieces .fp-counter{position:absolute;left:0;top:0;width:0;height:0}
+.et-furypieces .fp-arm{animation:heroRingSpin 14s linear infinite}
+.et-furypieces .fp-counter{animation:heroRingSpinRev 14s linear infinite}
+.et-furypieces .fp-sprite{position:absolute;background-repeat:no-repeat;animation:fpPop .6s cubic-bezier(.34,1.56,.64,1) both}
+.et-furypieces .fp-frames{display:block;width:100%;height:100%;background-repeat:no-repeat}
+@keyframes heroRingSpinRev{from{transform:rotate(0deg)}to{transform:rotate(-360deg)}}
+@keyframes fpFrames{from{background-position-x:0%}to{background-position-x:100%}}
+@keyframes fpPulse{0%,100%{opacity:.35}50%{opacity:1}}
+@keyframes fpPop{0%{transform:scale(0)}100%{transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){.et-furypieces .fp-arm,.et-furypieces .fp-counter{animation:none}}
 @keyframes heroRingPulse{0%,100%{filter:drop-shadow(0 0 9px #ffd76a) brightness(1.18)}50%{filter:drop-shadow(0 0 4px #ffd76a) brightness(1.05)}}
 .et-minihead{position:absolute;width:34px;height:34px;border-radius:50%;background:#10241c;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 0 8px rgba(94,232,164,.45);z-index:2}
 .et-fury-orb{width:58px;height:58px;border-radius:50%;margin:6px auto 0;display:flex;align-items:center;justify-content:center;font-family:'Cormorant SC',serif;font-weight:700;font-size:16px;color:#f4f0e2;background:radial-gradient(circle at 35% 30%,#4a4a55,#15151d);border:2px solid #34343f;box-shadow:0 2px 5px rgba(0,0,0,.6)}
@@ -24822,6 +24834,42 @@ const HERO_ANIM_BOTTOM = 30; // px: .et-heroanim's bottom offset inside .et-hero
 const FURY_AURA = { rogue: { w: 305, h: 340, cx: 148, cy: 148, r: 111 }, necromancer: { w: 340, h: 340, cx: 170, cy: 170, r: 126 }, iceknight: { w: 322, h: 340, cx: 164, cy: 160, r: 137 } };
 const FURY_AURA_R = 0.785;
 const HERO_DRAW_H_ANIM = 140; // px: the animated hero's idle pose height (.et-heroanim font-size)
+// FURY PIECES (Nov 11 2026, user: "add this system to the html" = the Unity fury pieces). Each living fury minion (the
+// Necromancer's burst Skeleton, the Ice Knight's Ice Shard — m.fury) shows as one skull / shard on the hero's aura ring,
+// max 8 (piece 1 at the top, then clockwise), and is no longer drawn as a minion head. The pieces orbit with the ring
+// (same 14 s spin) but stay upright, play their own pulse frames at 12 fps and fade between 35% and 100% opacity,
+// staggered. Art = the art team's Drive layers NECRO_AURA_SKULL1-8 / ICEKNIGHT_AURA_ice1-8 (trailer_build/unity/
+// build_fury_pieces_web.py: one sheet row per piece, one column per frame). cell / pts / r are in Drive source px: cell =
+// the square frame cell, pts = each piece's centre from the ring centre (y down), r = the ring band radius they sit on,
+// which the game maps onto its own ring band (FURY_AURA_R x the 140px pose).
+const FURY_PIECES = {"necromancer":{"src":"sprites/fury-skulls.webp?v=1","cols":10,"rows":8,"cell":293,"r":683,"pts":[[0,-679],[484,-484],[680,-7],[490,480],[0,685],[-484,484],[-682,0],[-486,-480]]},"iceknight":{"src":"sprites/fury-shards.webp?v=1","cols":12,"rows":8,"cell":567,"r":888,"pts":[[28,-887],[577,-565],[879,-57],[675,626],[18,889],[-660,659],[-893,-33],[-624,-635]]}};
+// one piece; its spin phase comes from the page clock at mount, so a piece that appears later still lines up with the others
+function FuryPiece({ P, i, k }) {
+    const [delay] = useState(() => -((performance.now() / 1000) % 14));
+    const [x, y] = P.pts[i];
+    const ang = Math.atan2(x, -y) * 180 / Math.PI, rad = Math.hypot(x, y) * k, size = P.cell * k;
+    const spin = { animationDelay: delay.toFixed(3) + "s" };
+    return React.createElement("span", { style: { transform: "rotate(" + ang.toFixed(2) + "deg)" } },
+        React.createElement("span", { className: "fp-arm", style: spin },
+            React.createElement("span", { className: "fp-move", style: { transform: "translateY(" + (-rad).toFixed(1) + "px)" } },
+                React.createElement("span", { className: "fp-counter", style: spin },
+                    React.createElement("span", { style: { position: "absolute", transform: "rotate(" + (-ang).toFixed(2) + "deg)" } },
+                        React.createElement("span", { className: "fp-sprite", style: { width: size.toFixed(1) + "px", height: size.toFixed(1) + "px", left: (-size / 2).toFixed(1) + "px", top: (-size / 2).toFixed(1) + "px" } },
+                            React.createElement("span", { className: "fp-frames", style: {
+                                backgroundImage: "url(" + P.src + ")", backgroundSize: (P.cols * 100) + "% " + (P.rows * 100) + "%",
+                                backgroundPositionY: (i / (P.rows - 1) * 100).toFixed(3) + "%",
+                                animation: "fpFrames " + (P.cols / 12).toFixed(3) + "s steps(" + P.cols + ", jump-none) infinite, fpPulse 2.4s ease-in-out " + (-0.3 * i).toFixed(1) + "s infinite" } })))))));
+}
+// all of a hero's pieces, centred on the ring centre (cx, cy px inside the aura box); bandR = the ring band radius in px
+function FuryPieces({ hid, count, cx, cy, bandR }) {
+    const P = FURY_PIECES[hid];
+    if (!P || count <= 0)
+        return null;
+    const k = bandR / P.r;
+    const n = Math.min(count, P.pts.length);
+    return React.createElement("span", { className: "et-furypieces", style: { left: cx.toFixed(1) + "px", top: cy.toFixed(1) + "px" } },
+        Array.from({ length: n }, (_, i) => React.createElement(FuryPiece, { key: i, P, i, k })));
+}
 // ask an animated enemy for a one-shot animation (display only; skipped when its sheet has no such animation)
 function enemyAnimEv(en, k) {
     const A = ENEMY_ANIM[en.name];
@@ -25496,7 +25544,11 @@ function HeroFigure({ g, b }) {
     // group same-name minions into one head with a count (e.g. 5 gnomes -> one head x5)
     const byName = {};
     const groups = [];
+    // fury minions (burst Skeletons / Ice Shards) ride the aura ring as FuryPieces instead of taking a head
+    const furyMins = b.minions.filter((m) => m.fury);
     for (const m of b.minions) {
+        if (m.fury)
+            continue;
         if (byName[m.name]) {
             byName[m.name].count += 1;
             byName[m.name].rise = byName[m.name].rise || !!m.rise;
@@ -25524,7 +25576,20 @@ function HeroFigure({ g, b }) {
         (() => {
             const vp = volleyPreviewDmg(b, g);
             const es = charStatusEntries(b.hero.shield, b.hero.st, { shurikenDmg: vp.dmg, shurikenBase: vp.base });
-            return es.length ? (React.createElement("div", { className: "et-chartip" }, es.map(([t, d, v], k2) => React.createElement("div", { key: k2 },
+            // the fury minions have no head (and so no head tooltip): list them here, one line per kind
+            const fl = [];
+            for (const m of furyMins) {
+                const row = fl.find((r) => r.name === m.name);
+                if (row)
+                    row.n += 1;
+                else
+                    fl.push({ name: m.name, n: 1, m });
+            }
+            return (es.length || fl.length) ? (React.createElement("div", { className: "et-chartip" }, fl.map((r) => React.createElement("div", { key: "fm" + r.name },
+                React.createElement("b", null, r.name + (r.n > 1 ? " ×" + r.n : "")),
+                " — ",
+                minionTipLines(r.m, g, b).join(" "),
+                " (on your aura ring)")), es.map(([t, d, v], k2) => React.createElement("div", { key: k2 },
                 React.createElement("b", null, t),
                 " \u2014 ",
                 d,
@@ -25546,7 +25611,8 @@ function HeroFigure({ g, b }) {
                         // body centre = HERO_ANIM_BOTTOM + half the pose above the wrap's bottom; ring band radius FURY_AURA_R x the pose
                         const A = FURY_AURA[hid], sc = (FURY_AURA_R * HERO_DRAW_H_ANIM) / A.r;
                         return React.createElement("span", { className: "et-hero-aura", style: { width: Math.round(A.w * sc) + "px", height: Math.round(A.h * sc) + "px", left: "calc(50% - " + Math.round(A.cx * sc) + "px)", bottom: Math.round(HERO_ANIM_BOTTOM + HERO_DRAW_H_ANIM / 2 - (A.h - A.cy) * sc) + "px" } },
-                            React.createElement("img", { className: "et-hero-ringimg" + (full ? " full" : ""), src: HERO_ART[hid].ring, alt: "", style: { opacity: 0.1 + 0.9 * frac, transformOrigin: (A.cx / A.w * 100).toFixed(1) + "% " + (A.cy / A.h * 100).toFixed(1) + "%" } }));
+                            React.createElement("img", { className: "et-hero-ringimg" + (full ? " full" : ""), src: HERO_ART[hid].ring, alt: "", style: { opacity: 0.1 + 0.9 * frac, transformOrigin: (A.cx / A.w * 100).toFixed(1) + "% " + (A.cy / A.h * 100).toFixed(1) + "%" } }),
+                            React.createElement(FuryPieces, { hid, count: furyMins.length, cx: A.cx * sc, cy: A.cy * sc, bandR: FURY_AURA_R * HERO_DRAW_H_ANIM }));
                     })() : React.createElement("img", { className: "et-hero-img et-hero-ringimg" + (full ? " full" : ""), src: HERO_ART[hid].ring, alt: "", style: { opacity: 0.1 + 0.9 * frac } }),
                     isV3(g) && React.createElement(FirewallRing, HERO_ANIM[hid] ? { n: b.hero.st.burn || 0, w: FW_RING_HERO_W, feetBottom: HERO_ANIM_BOTTOM } : { n: b.hero.st.burn || 0, w: FW_RING_HERO_W, feetTop: HERO_FEET[hid] * 200 })) : React.createElement("svg", { width: "68", height: "108", viewBox: "0 0 60 100" },
                     React.createElement("ellipse", { cx: "30", cy: "97", rx: "18", ry: "3", fill: "rgba(0,0,0,.35)" }),
