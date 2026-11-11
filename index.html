@@ -24836,13 +24836,15 @@ const FURY_AURA_R = 0.785;
 const HERO_DRAW_H_ANIM = 140; // px: the animated hero's idle pose height (.et-heroanim font-size)
 // FURY PIECES (Nov 11 2026, user: "add this system to the html" = the Unity fury pieces). Each living fury minion (the
 // Necromancer's burst Skeleton, the Ice Knight's Ice Shard — m.fury) shows as one skull / shard on the hero's aura ring,
-// max 8 (piece 1 at the top, then clockwise), and is no longer drawn as a minion head. The pieces orbit with the ring
+// max 16 (user, same day): 1-8 at the art team's spots (1 at the top, then clockwise), then 9-16 in the gaps between them
+// (9 between 1 and 2 ... 16 between 8 and 1), so the first 8 never move; a gap piece borrows the art of the piece before it
+// (art = sheet row) and a gap ice shard turns half a step (rot, deg clockwise) to follow the ring. No minion head. The pieces orbit with the ring
 // (same 14 s spin) but stay upright, play their own pulse frames at 12 fps and fade between 35% and 100% opacity,
 // staggered. Art = the art team's Drive layers NECRO_AURA_SKULL1-8 / ICEKNIGHT_AURA_ice1-8 (trailer_build/unity/
 // build_fury_pieces_web.py: one sheet row per piece, one column per frame). cell / pts / r are in Drive source px: cell =
-// the square frame cell, pts = each piece's centre from the ring centre (y down), r = the ring band radius they sit on,
+// the square frame cell, pts = each slot's centre from the ring centre (y down), r = the ring band radius they sit on,
 // which the game maps onto its own ring band (FURY_AURA_R x the 140px pose).
-const FURY_PIECES = {"necromancer":{"src":"sprites/fury-skulls.webp?v=1","cols":10,"rows":8,"cell":293,"r":683,"pts":[[0,-679],[484,-484],[680,-7],[490,480],[0,685],[-484,484],[-682,0],[-486,-480]]},"iceknight":{"src":"sprites/fury-shards.webp?v=1","cols":12,"rows":8,"cell":567,"r":888,"pts":[[28,-887],[577,-565],[879,-57],[675,626],[18,889],[-660,659],[-893,-33],[-624,-635]]}};
+const FURY_PIECES = {"necromancer":{"src":"sprites/fury-skulls.webp?v=1","cols":10,"rows":8,"cell":293,"r":683,"pts":[[0,-679],[484,-484],[680,-7],[490,480],[0,685],[-484,484],[-682,0],[-486,-480],[261,-630],[629,-264],[633,255],[266,632],[-262,633],[-632,262],[-632,-259],[-263,-628]],"art":[0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7],"rot":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},"iceknight":{"src":"sprites/fury-shards.webp?v=1","cols":12,"rows":8,"cell":567,"r":888,"pts":[[28,-887],[577,-565],[879,-57],[675,626],[18,889],[-660,659],[-893,-33],[-624,-635],[341,-776],[771,-344],[849,302],[370,826],[-340,845],[-850,334],[-816,-360],[-324,-828]],"art":[0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7],"rot":[0,0,0,0,0,0,0,0,21.9,20.3,23.3,23.0,23.1,23.5,21.7,23.2]}};
 // one piece; its spin phase comes from the page clock at mount, so a piece that appears later still lines up with the others
 function FuryPiece({ P, i, k }) {
     const [delay] = useState(() => -((performance.now() / 1000) % 14));
@@ -24853,11 +24855,11 @@ function FuryPiece({ P, i, k }) {
         React.createElement("span", { className: "fp-arm", style: spin },
             React.createElement("span", { className: "fp-move", style: { transform: "translateY(" + (-rad).toFixed(1) + "px)" } },
                 React.createElement("span", { className: "fp-counter", style: spin },
-                    React.createElement("span", { style: { position: "absolute", transform: "rotate(" + (-ang).toFixed(2) + "deg)" } },
+                    React.createElement("span", { style: { position: "absolute", transform: "rotate(" + (P.rot[i] - ang).toFixed(2) + "deg)" } },
                         React.createElement("span", { className: "fp-sprite", style: { width: size.toFixed(1) + "px", height: size.toFixed(1) + "px", left: (-size / 2).toFixed(1) + "px", top: (-size / 2).toFixed(1) + "px" } },
                             React.createElement("span", { className: "fp-frames", style: {
                                 backgroundImage: "url(" + P.src + ")", backgroundSize: (P.cols * 100) + "% " + (P.rows * 100) + "%",
-                                backgroundPositionY: (i / (P.rows - 1) * 100).toFixed(3) + "%",
+                                backgroundPositionY: (P.art[i] / (P.rows - 1) * 100).toFixed(3) + "%",
                                 animation: "fpFrames " + (P.cols / 12).toFixed(3) + "s steps(" + P.cols + ", jump-none) infinite, fpPulse 2.4s ease-in-out " + (-0.3 * i).toFixed(1) + "s infinite" } })))))));
 }
 // all of a hero's pieces, centred on the ring centre (cx, cy px inside the aura box); bandR = the ring band radius in px
