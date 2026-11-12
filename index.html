@@ -21037,6 +21037,7 @@ function runOps(b, g, ops, ctx) {
                     existing.plays = (existing.plays || 1) + 1;
                     const base0 = existing.baseOps || existing.ops;
                     existing.ops = scaleMinionOps(base0, existing.plays, typeof ctx.replayScale === "number" ? ctx.replayScale : existing.scaleCap);
+                    minionPulse(existing);
                     // while-it-stands grants grow too: hand the hero one more base helping
                     base0.forEach((mo) => { if (mo[0] === "m_grant" || mo[0] === "gain") grantMinionStat(b, g, existing, mo); });
                     ctx.chordSummonBumped = true;
@@ -21046,7 +21047,7 @@ function runOps(b, g, ops, ctx) {
                     const base = clone(op[1]);
                     const capS = typeof ctx.replayScale === "number" ? ctx.replayScale : 0;
                     const m = { name: srcName, ops: scaleMinionOps(base, mult0, capS), baseOps: base, plays: mult0, scaleCap: capS,
-                        age: 0, procs: 1, chargeRatio: ctx.chargeRatio || 1 };
+                        age: 0, procs: 1, chargeRatio: ctx.chargeRatio || 1, actSeq: 1 };
                     b.minions.push(m);
                     if (R("Lute"))
                         gainShield(b, g, 2);
@@ -21066,6 +21067,7 @@ function runOps(b, g, ops, ctx) {
             }
             else if (existing && (ctx.replayMin || ctx.replayProc || ctx.replayOps)) {
                 ctx.chordSummonBumped = true;
+                minionPulse(existing);
                 if (ctx.replayProc) {
                     existing.procs = (existing.procs || 1) + 1;
                     log(b, srcName + " will act " + existing.procs + " times per turn.");
@@ -21098,7 +21100,7 @@ function runOps(b, g, ops, ctx) {
                         return mo;
                     });
                 }
-                b.minions.push({ name: srcName, ops: mops, age: 0, procs: 1, chargeRatio: ctx.chargeRatio || 1 });
+                b.minions.push({ name: srcName, ops: mops, age: 0, procs: 1, chargeRatio: ctx.chargeRatio || 1, actSeq: 1 });
                 if (R("Lute"))
                     gainShield(b, g, 2);
                 mops.forEach((mo) => {
@@ -22198,6 +22200,8 @@ function heroTurnStart(b, g) {
             if (!b.minions.includes(m))
                 return; // gone mid-phase (the copy keeps the damage-first order stable)
             m.age += 1;
+            if (minionActsEachTurn(b, m))
+                minionPulse(m); // the wall icon glows as it acts
             const hurtOp = m.ops.find((mo) => mo[0] === "m_dmg_if_hurt");
             const strLink = m.ops.some((mo) => mo[0] === "m_str_link");
             const totemProcs = totemLv(g, "Minion") >= 5 && Math.random() < 0.5 ? 2 : 1;
@@ -24220,6 +24224,23 @@ html body .et-foe.sized .et-esprite.et-egroup{font-size:calc(var(--h) * .6)}
 .et-fury-orb.burst{animation:furyBurst 1s ease-out 1}
 @keyframes furyBurst{0%{box-shadow:0 0 8px 3px rgba(224,92,255,.55);border-color:#e05cff}45%{box-shadow:0 0 30px 14px rgba(224,92,255,.95);border-color:#ff9df2;background:radial-gradient(circle at 35% 30%,#7a3f8f,#241235)}100%{box-shadow:0 2px 5px rgba(0,0,0,.6)}}
 .et-minihead.rise{animation:skelRise 1.6s ease-out 1 backwards}
+.et-minwall{position:absolute;width:0;height:0;pointer-events:none;z-index:3}
+.et-mw-item{position:absolute;width:44px;height:44px;pointer-events:auto;animation:mwIn .45s cubic-bezier(.34,1.56,.64,1) both}
+.et-mw-item.rise{animation:skelRise 1.6s ease-out 1 backwards}
+.et-mw-pulse{position:absolute;inset:0;display:block}
+.et-mw-pulse.on{animation:mwPunch .7s ease-out 1}
+.et-mw-icon,.et-mw-glow{position:absolute;inset:0;width:100%;height:100%;filter:drop-shadow(0 2px 3px rgba(0,0,0,.55))}
+.et-mw-glow{opacity:0}
+.et-mw-pulse.on .et-mw-glow{animation:mwGlow 1s ease-out 1}
+.et-mw-emoji{position:absolute;inset:4px;border-radius:50%;background:#10241c;border:2px solid #5ee8a4;display:flex;align-items:center;justify-content:center;font-size:19px;box-shadow:0 0 8px rgba(94,232,164,.45)}
+.et-mw-pulse.on .et-mw-emoji{animation:mwEmoji 1s ease-out 1}
+.et-mw-item:hover{z-index:6}
+.et-mw-item:hover .et-minitip{display:block}
+.et-hero:has(.et-mw-item:hover) .et-chartip{display:none}
+@keyframes mwIn{0%{transform:scale(0);opacity:0}100%{transform:scale(1);opacity:1}}
+@keyframes mwPunch{0%{transform:scale(1)}25%{transform:scale(1.22)}100%{transform:scale(1)}}
+@keyframes mwGlow{0%{opacity:0}15%{opacity:1}70%{opacity:1}100%{opacity:0}}
+@keyframes mwEmoji{0%,100%{box-shadow:0 0 8px rgba(94,232,164,.45)}20%,65%{box-shadow:0 0 16px 6px rgba(255,248,214,.95);border-color:#fff8d6}}
 @keyframes skelRise{0%,58%{opacity:0;transform:translateY(12px) scale(.6)}80%{opacity:1;transform:translateY(-2px) scale(1.05)}100%{opacity:1;transform:none}}
 .et-fury-label{font-size:10px;letter-spacing:.2em;color:#9d9078;margin-top:2px}
 .et-herohp{position:relative;height:14px;background:#3a2420;border:1px solid #5b3a33;border-radius:7px;overflow:hidden;margin:6px 4px 0}
@@ -24874,6 +24895,45 @@ function FuryPieces({ hid, count, cx, cy, bandR }) {
     return React.createElement("span", { className: "et-furypieces", style: { left: cx.toFixed(1) + "px", top: cy.toFixed(1) + "px" } },
         Array.from({ length: n }, (_, i) => React.createElement(FuryPiece, { key: i, P, i, k })));
 }
+// MINION WALL (Nov 11 2026, user): the Drive MINIONS icons (each with a glow twin). Minions stand in a column in front of the
+// aura on the enemy side; a minion swaps to its glow icon (with a little pop) every time it acts — m.actSeq, bumped by
+// minionPulse in the minion phase, procMinionsOnce and at summon / replay. Minions without an icon keep their emoji badge.
+const MINION_ICON = {
+    Ape: "sprites/minion-ape", Armadillo: "sprites/minion-armadillo", Eagle: "sprites/minion-eagle", "Fairy Friend": "sprites/minion-fairy",
+};
+const MW_ITEM = 44; // px: one wall slot
+const MW_BAND_OUT = 1.0; // the wall's centre line, in band radii from the ring centre: ON the band, so the aura runs behind it
+const MW_LIFT = 0.32; // the wall's middle sits this many band radii above the ring centre, so a full column of 4 clears the fury orb
+function minionPulse(m) {
+    m.actSeq = (m.actSeq || 0) + 1;
+}
+// ops that only sit there while the minion stands (grants, damage reduction, triggers) — such a minion has no turn of its own
+const MINION_PASSIVE_OPS = { gain: 1, m_grant: 1, m_dmgred: 1, m_dmg_if_hurt: 1, m_str_link: 1, m_blockatk: 1, m_debuff_block: 1 };
+function minionActsEachTurn(b, m) {
+    return minionOpsResolved(b, m).some((mo) => !MINION_PASSIVE_OPS[mo[0]]);
+}
+function MinionWall({ g, b, groups, x, y, stroke }) {
+    if (!groups.length)
+        return null;
+    const perCol = 4; // a 5th minion starts a second, staggered row of the wall (brick-style), further out
+    return React.createElement("div", { className: "et-minwall", style: { left: x.toFixed(1) + "px", top: y.toFixed(1) + "px" } },
+        groups.map((gr, i) => {
+            const col = Math.floor(i / perCol), row = i % perCol, inCol = Math.min(perCol, groups.length - col * perCol);
+            // each column is centred on the ring centre; later columns step out by 0.8 slot and sit half a slot lower
+            const pos = { left: (col * MW_ITEM * 0.8 - MW_ITEM / 2).toFixed(1) + "px", top: ((row - (inCol - 1) / 2 + (col % 2) * 0.5) * (MW_ITEM + 2) - MW_ITEM / 2).toFixed(1) + "px" };
+            const icon = MINION_ICON[gr.name];
+            const seq = gr.seq;
+            return React.createElement("div", { key: gr.name, className: "et-mw-item" + (icon ? " art" : "") + (gr.rise ? " rise" : ""), style: pos },
+                React.createElement("span", { key: "p" + seq, className: "et-mw-pulse" + (seq ? " on" : "") },
+                    icon ? [React.createElement("img", { key: "i", className: "et-mw-icon", src: icon + ".webp?v=1", alt: gr.name }),
+                        React.createElement("img", { key: "g", className: "et-mw-glow", src: icon + "-glow.webp?v=1", alt: "" })]
+                        : React.createElement("span", { className: "et-mw-emoji", style: { borderColor: stroke } }, MINION_EMOJI[gr.name] || "\u{1F43E}")),
+                gr.count > 1 && React.createElement("span", { className: "et-minicount" }, "×" + gr.count),
+                React.createElement("div", { className: "et-minitip" },
+                    React.createElement("div", null, React.createElement("b", null, gr.name + (gr.count > 1 ? " ×" + gr.count : ""))),
+                    minionTipLines(gr.m, g, b).map((t, k2) => React.createElement("div", { key: k2 }, t))));
+        }));
+}
 // ask an animated enemy for a one-shot animation (display only; skipped when its sheet has no such animation)
 function enemyAnimEv(en, k) {
     const A = ENEMY_ANIM[en.name];
@@ -25272,6 +25332,8 @@ function procMinionsOnceInner(b, g) {
     for (const m of minionActOrder(b)) {
         if (!b.minions.includes(m))
             continue; // gone mid-phase
+        if (minionActsEachTurn(b, m))
+            minionPulse(m);
         const strLink = m.ops.some((mo) => mo[0] === "m_str_link");
         for (const mo of minionOpsResolved(b, m)) {
             if (b.over)
@@ -25558,13 +25620,15 @@ function HeroFigure({ g, b }) {
         if (byName[m.name]) {
             byName[m.name].count += 1;
             byName[m.name].rise = byName[m.name].rise || !!m.rise;
+            byName[m.name].seq += m.actSeq || 0;
         }
         else {
-            byName[m.name] = { name: m.name, count: 1, m, rise: !!m.rise };
+            byName[m.name] = { name: m.name, count: 1, m, rise: !!m.rise, seq: m.actSeq || 0 };
             groups.push(byName[m.name]);
         }
     }
     const heads = groups.slice(0, 4);
+    const wallMode = !!(HERO_ART[hid] && HERO_ANIM[hid] && FURY_AURA[hid]); // the minion wall replaces the ring heads
     const extra = groups.length - heads.length;
     const pos = (deg) => {
         const a = (deg * Math.PI) / 180, R = 88, C = 102;
@@ -25618,7 +25682,9 @@ function HeroFigure({ g, b }) {
                         const A = FURY_AURA[hid], sc = (FURY_AURA_R * HERO_DRAW_H_ANIM) / A.r;
                         return React.createElement("span", { className: "et-hero-aura", style: { width: Math.round(A.w * sc) + "px", height: Math.round(A.h * sc) + "px", left: "calc(50% - " + Math.round(A.cx * sc) + "px)", bottom: Math.round(HERO_ANIM_BOTTOM + HERO_DRAW_H_ANIM / 2 - (A.h - A.cy) * sc) + "px" } },
                             React.createElement("img", { className: "et-hero-ringimg" + (full ? " full" : ""), src: HERO_ART[hid].ring, alt: "", style: { opacity: 0.1 + 0.9 * frac, transformOrigin: (A.cx / A.w * 100).toFixed(1) + "% " + (A.cy / A.h * 100).toFixed(1) + "%" } }),
-                            React.createElement(FuryPieces, { hid, count: furyMins.length, cx: A.cx * sc, cy: A.cy * sc, bandR: FURY_AURA_R * HERO_DRAW_H_ANIM }));
+                            React.createElement(FuryPieces, { hid, count: furyMins.length, cx: A.cx * sc, cy: A.cy * sc, bandR: FURY_AURA_R * HERO_DRAW_H_ANIM }),
+                            // the minion wall stands just outside the band on the enemy side, centred on the ring
+                            React.createElement(MinionWall, { g, b, groups, stroke, x: A.cx * sc + FURY_AURA_R * HERO_DRAW_H_ANIM * MW_BAND_OUT, y: A.cy * sc - FURY_AURA_R * HERO_DRAW_H_ANIM * MW_LIFT }));
                     })() : React.createElement("img", { className: "et-hero-img et-hero-ringimg" + (full ? " full" : ""), src: HERO_ART[hid].ring, alt: "", style: { opacity: 0.1 + 0.9 * frac } }),
                     isV3(g) && React.createElement(FirewallRing, HERO_ANIM[hid] ? { n: b.hero.st.burn || 0, w: FW_RING_HERO_W, feetBottom: HERO_ANIM_BOTTOM } : { n: b.hero.st.burn || 0, w: FW_RING_HERO_W, feetTop: HERO_FEET[hid] * 200 })) : React.createElement("svg", { width: "68", height: "108", viewBox: "0 0 60 100" },
                     React.createElement("ellipse", { cx: "30", cy: "97", rx: "18", ry: "3", fill: "rgba(0,0,0,.35)" }),
@@ -25654,13 +25720,13 @@ function HeroFigure({ g, b }) {
                     React.createElement("circle", { cx: "32.6", cy: "20.8", r: "1", fill: "#2a2118" }),
                     React.createElement("path", { d: "M27.5 25 Q30.5 26.6 33.5 24.6", stroke: "#8a5a3a", strokeWidth: "1.1", fill: "none", strokeLinecap: "round" })),
                 b.heroStunned ? React.createElement("span", { style: { position: "absolute", top: 10, fontSize: 22 } }, "\u{1F4AB}") : null),
-            heads.map((m, i) => (React.createElement("div", { key: i + (m.rise ? "r" + m.count : ""), className: "et-minihead" + (m.rise ? " rise" : ""), style: { ...pos(MINI_POS[i]), border: `2px solid ${stroke}`, opacity: Math.max(0.6, op) } },
+            !wallMode && heads.map((m, i) => (React.createElement("div", { key: i + (m.rise ? "r" + m.count : ""), className: "et-minihead" + (m.rise ? " rise" : ""), style: { ...pos(MINI_POS[i]), border: `2px solid ${stroke}`, opacity: Math.max(0.6, op) } },
                 MINION_EMOJI[m.name] || "\u{1F43E}",
                 m.count > 1 && React.createElement("span", { className: "et-minicount" }, "\u00d7" + m.count),
                 React.createElement("div", { className: "et-minitip" },
                     React.createElement("div", null, React.createElement("b", null, m.name + (m.count > 1 ? " \u00d7" + m.count : ""))),
                     minionTipLines(m.m, g, b).map((t, k2) => React.createElement("div", { key: k2 }, t)))))),
-            extra > 0 && (React.createElement("div", { className: "et-minihead", style: { ...pos(90), border: `2px solid ${stroke}`, opacity: Math.max(0.6, op), fontSize: 13 } },
+            !wallMode && extra > 0 && (React.createElement("div", { className: "et-minihead", style: { ...pos(90), border: `2px solid ${stroke}`, opacity: Math.max(0.6, op), fontSize: 13 } },
                 "+",
                 extra,
                 React.createElement("div", { className: "et-minitip" }, groups.slice(4).map((m, k2) => React.createElement("div", { key: k2 },
