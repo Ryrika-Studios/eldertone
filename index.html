@@ -24234,6 +24234,9 @@ html body .et-foe.sized .et-esprite.et-egroup{font-size:calc(var(--h) * .6)}
 .et-mw-pulse.on .et-mw-glow{animation:mwGlow 1s ease-out 1}
 .et-mw-emoji{position:absolute;inset:4px;border-radius:50%;background:#10241c;border:2px solid #5ee8a4;display:flex;align-items:center;justify-content:center;font-size:19px;box-shadow:0 0 8px rgba(94,232,164,.45)}
 .et-mw-pulse.on .et-mw-emoji{animation:mwEmoji 1s ease-out 1}
+.et-mw-item.ring{width:34px;height:34px;left:-17px;top:-17px}
+.et-mw-item.ring .et-mw-emoji{inset:2px;font-size:15px}
+.et-mw-item.ring .et-minicount{right:-9px;bottom:-6px;font-size:9.5px}
 .et-mw-item:hover{z-index:6}
 .et-mw-item:hover .et-minitip{display:block}
 .et-hero:has(.et-mw-item:hover) .et-chartip{display:none}
@@ -24891,7 +24894,7 @@ function FuryPieces({ hid, count, cx, cy, bandR }) {
     if (!P || count <= 0)
         return null;
     const k = bandR / P.r;
-    const n = Math.min(count, P.pts.length);
+    const n = Math.min(count, FURY_PIECE_MAX); // slots 1-8 only (Nov 11 2026, user): slots 9-16 now hold the minions
     return React.createElement("span", { className: "et-furypieces", style: { left: cx.toFixed(1) + "px", top: cy.toFixed(1) + "px" } },
         Array.from({ length: n }, (_, i) => React.createElement(FuryPiece, { key: i, P, i, k })));
 }
@@ -24903,6 +24906,59 @@ const MINION_ICON = {
 };
 const MW_ITEM = 44; // px: one wall slot
 const MW_BAND_OUT = 1.0; // the wall's centre line, in band radii from the ring centre: ON the band, so the aura runs behind it
+// MINIONS ON THE AURA (Nov 11 2026, user: "try adding the minions to the fury aura; first 8 slots for skulls/ice, the next 8 for
+// minions; 8 skulls/ice visible at most"). MINION_ON_RING false = the column wall above.
+const MINION_ON_RING = true;
+const FURY_PIECE_MAX = 8;
+const FURY_BADGE = { Skeleton: "sprites/badge-skeleton.webp?v=1", "Ice Shard": "sprites/badge-iceshard.webp?v=1" };
+const MINION_FLIP = { Eagle: true }; // icons drawn facing left: mirrored so they face the enemies (user)
+// the 16 ring slots, px from the ring centre (y down): the art team's spots for the Necromancer / Ice Knight (FURY_PIECES),
+// else 8 evenly spaced spots from the top, clockwise, and their 8 gaps
+function furySlotPts(hid, bandR) {
+    const P = FURY_PIECES[hid];
+    if (P)
+        return P.pts.map(([x, y]) => [x * bandR / P.r, y * bandR / P.r]);
+    const out = [];
+    for (let i = 0; i < 16; i++) {
+        const a = (-90 + 45 * (i % 8) + (i >= 8 ? 22.5 : 0)) * Math.PI / 180;
+        out.push([bandR * Math.cos(a), bandR * Math.sin(a)]);
+    }
+    return out;
+}
+// one upright thing riding the spinning ring at (x, y) — the same nesting as FuryPiece, phase from the page clock
+function RingRider({ x, y, children }) {
+    const [delay] = useState(() => -((performance.now() / 1000) % 14));
+    const ang = Math.atan2(x, -y) * 180 / Math.PI, rad = Math.hypot(x, y);
+    const spin = { animationDelay: delay.toFixed(3) + "s" };
+    return React.createElement("span", { style: { transform: "rotate(" + ang.toFixed(2) + "deg)" } },
+        React.createElement("span", { className: "fp-arm", style: spin },
+            React.createElement("span", { className: "fp-move", style: { transform: "translateY(" + (-rad).toFixed(1) + "px)" } },
+                React.createElement("span", { className: "fp-counter", style: spin },
+                    React.createElement("span", { style: { position: "absolute", transform: "rotate(" + (-ang).toFixed(2) + "deg)" } }, children)))));
+}
+function minionIconEl(gr, stroke) {
+    const icon = MINION_ICON[gr.name];
+    const flip = MINION_FLIP[gr.name] ? { transform: "scaleX(-1)" } : undefined;
+    return icon ? [React.createElement("img", { key: "i", className: "et-mw-icon", src: icon + ".webp?v=1", alt: gr.name, style: flip }),
+        React.createElement("img", { key: "g", className: "et-mw-glow", src: icon + "-glow.webp?v=1", alt: "", style: flip })]
+        : React.createElement("span", { className: "et-mw-emoji", style: { borderColor: stroke } }, MINION_EMOJI[gr.name] || "\u{1F43E}");
+}
+function minionItemBody(g, b, gr, stroke) {
+    return [React.createElement("span", { key: "p" + gr.seq, className: "et-mw-pulse" + (gr.seq ? " on" : "") }, minionIconEl(gr, stroke)),
+        gr.count > 1 && React.createElement("span", { key: "c", className: "et-minicount" }, "\u00d7" + gr.count),
+        React.createElement("div", { key: "t", className: "et-minitip" },
+            React.createElement("div", null, React.createElement("b", null, gr.name + (gr.count > 1 ? " \u00d7" + gr.count : ""))),
+            minionTipLines(gr.m, g, b).map((t2, k2) => React.createElement("div", { key: k2 }, t2)))];
+}
+// minions in ring slots 9-16 (the gaps between the fury slots), riding the aura's spin; 8 kinds at most
+function MinionRing({ g, b, groups, hid, cx, cy, bandR, stroke }) {
+    if (!groups.length)
+        return null;
+    const pts = furySlotPts(hid, bandR);
+    return React.createElement("span", { className: "et-furypieces et-minring", style: { left: cx.toFixed(1) + "px", top: cy.toFixed(1) + "px" } },
+        groups.slice(0, 8).map((gr, i) => React.createElement(RingRider, { key: gr.name, x: pts[8 + i][0], y: pts[8 + i][1] },
+            React.createElement("div", { className: "et-mw-item ring" + (MINION_ICON[gr.name] ? " art" : "") }, minionItemBody(g, b, gr, stroke)))));
+}
 const MW_LIFT = 0.32; // the wall's middle sits this many band radii above the ring centre, so a full column of 4 clears the fury orb
 function minionPulse(m) {
     m.actSeq = (m.actSeq || 0) + 1;
@@ -24921,17 +24977,8 @@ function MinionWall({ g, b, groups, x, y, stroke }) {
             const col = Math.floor(i / perCol), row = i % perCol, inCol = Math.min(perCol, groups.length - col * perCol);
             // each column is centred on the ring centre; later columns step out by 0.8 slot and sit half a slot lower
             const pos = { left: (col * MW_ITEM * 0.8 - MW_ITEM / 2).toFixed(1) + "px", top: ((row - (inCol - 1) / 2 + (col % 2) * 0.5) * (MW_ITEM + 2) - MW_ITEM / 2).toFixed(1) + "px" };
-            const icon = MINION_ICON[gr.name];
-            const seq = gr.seq;
-            return React.createElement("div", { key: gr.name, className: "et-mw-item" + (icon ? " art" : "") + (gr.rise ? " rise" : ""), style: pos },
-                React.createElement("span", { key: "p" + seq, className: "et-mw-pulse" + (seq ? " on" : "") },
-                    icon ? [React.createElement("img", { key: "i", className: "et-mw-icon", src: icon + ".webp?v=1", alt: gr.name }),
-                        React.createElement("img", { key: "g", className: "et-mw-glow", src: icon + "-glow.webp?v=1", alt: "" })]
-                        : React.createElement("span", { className: "et-mw-emoji", style: { borderColor: stroke } }, MINION_EMOJI[gr.name] || "\u{1F43E}")),
-                gr.count > 1 && React.createElement("span", { className: "et-minicount" }, "×" + gr.count),
-                React.createElement("div", { className: "et-minitip" },
-                    React.createElement("div", null, React.createElement("b", null, gr.name + (gr.count > 1 ? " ×" + gr.count : ""))),
-                    minionTipLines(gr.m, g, b).map((t, k2) => React.createElement("div", { key: k2 }, t))));
+            return React.createElement("div", { key: gr.name, className: "et-mw-item" + (MINION_ICON[gr.name] ? " art" : "") + (gr.rise ? " rise" : ""), style: pos },
+                minionItemBody(g, b, gr, stroke));
         }));
 }
 // ask an animated enemy for a one-shot animation (display only; skipped when its sheet has no such animation)
@@ -25659,7 +25706,7 @@ function HeroFigure({ g, b }) {
                 React.createElement("b", null, r.name + (r.n > 1 ? " ×" + r.n : "")),
                 " — ",
                 minionTipLines(r.m, g, b).join(" "),
-                " (on your aura ring)")), es.map(([t, d, v], k2) => React.createElement("div", { key: k2 },
+                " (on your aura ring and in your buffs)")), es.map(([t, d, v], k2) => React.createElement("div", { key: k2 },
                 React.createElement("b", null, t),
                 " \u2014 ",
                 d,
@@ -25684,7 +25731,8 @@ function HeroFigure({ g, b }) {
                             React.createElement("img", { className: "et-hero-ringimg" + (full ? " full" : ""), src: HERO_ART[hid].ring, alt: "", style: { opacity: 0.1 + 0.9 * frac, transformOrigin: (A.cx / A.w * 100).toFixed(1) + "% " + (A.cy / A.h * 100).toFixed(1) + "%" } }),
                             React.createElement(FuryPieces, { hid, count: furyMins.length, cx: A.cx * sc, cy: A.cy * sc, bandR: FURY_AURA_R * HERO_DRAW_H_ANIM }),
                             // the minion wall stands just outside the band on the enemy side, centred on the ring
-                            React.createElement(MinionWall, { g, b, groups, stroke, x: A.cx * sc + FURY_AURA_R * HERO_DRAW_H_ANIM * MW_BAND_OUT, y: A.cy * sc - FURY_AURA_R * HERO_DRAW_H_ANIM * MW_LIFT }));
+                            MINION_ON_RING ? React.createElement(MinionRing, { g, b, groups, hid, stroke, cx: A.cx * sc, cy: A.cy * sc, bandR: FURY_AURA_R * HERO_DRAW_H_ANIM })
+                                : React.createElement(MinionWall, { g, b, groups, stroke, x: A.cx * sc + FURY_AURA_R * HERO_DRAW_H_ANIM * MW_BAND_OUT, y: A.cy * sc - FURY_AURA_R * HERO_DRAW_H_ANIM * MW_LIFT }));
                     })() : React.createElement("img", { className: "et-hero-img et-hero-ringimg" + (full ? " full" : ""), src: HERO_ART[hid].ring, alt: "", style: { opacity: 0.1 + 0.9 * frac } }),
                     isV3(g) && React.createElement(FirewallRing, HERO_ANIM[hid] ? { n: b.hero.st.burn || 0, w: FW_RING_HERO_W, feetBottom: HERO_ANIM_BOTTOM } : { n: b.hero.st.burn || 0, w: FW_RING_HERO_W, feetTop: HERO_FEET[hid] * 200 })) : React.createElement("svg", { width: "68", height: "108", viewBox: "0 0 60 100" },
                     React.createElement("ellipse", { cx: "30", cy: "97", rx: "18", ry: "3", fill: "rgba(0,0,0,.35)" }),
@@ -25758,6 +25806,12 @@ function HeroFigure({ g, b }) {
                 " ",
                 b.hero.shield),
             React.createElement(Badges, { st: b.hero.st }),
+            // the fury minions also show as buffs with a count (Nov 11 2026, user) — the ring draws 8 at most
+            ["Skeleton", "Ice Shard"].map((nm) => {
+                const n = furyMins.filter((m) => m.name === nm).length;
+                return n > 0 && React.createElement("span", { key: "fb" + nm, className: "et-badge", title: nm + " \u00d7" + n + " \u2014 " + minionTipLines(furyMins.find((m) => m.name === nm), g, b).join(" ") },
+                    React.createElement("img", { className: "st-ico", src: FURY_BADGE[nm], alt: nm }), " ", n);
+            }),
             (() => {
                 const P = g.perm || {};
                 const xs = [];
