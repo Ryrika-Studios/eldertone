@@ -19758,7 +19758,8 @@ function heroTakeDamage(b, g, n, src) {
         runOps(b, g, [["gain", "darkness", h.flags.gfa]], { attackMult: 1 });
     if (n > 0) {
         g.hp -= n;
-        fxPush(b, src === "Poison" ? "slash_poison" : /Firewall$/.test(src || "") ? "slash_fire" : "slash", "hero");
+        if (!b.__noSlash)
+            fxPush(b, src === "Poison" ? "slash_poison" : /Firewall$/.test(src || "") ? "slash_fire" : "slash", "hero");
         b.hero.animHit = (b.hero.animHit || 0) + 1; // display-only: the hero's hurt animation
         b.hero.animHitDelay = b.__hitDelay || 0; // ... held until an attack FX lands
         if (b.recurring && b.recurring.some((r) => r.untilHit)) {
@@ -22621,11 +22622,14 @@ function enemyAttackHero(b, g, en, dmg, lifesteal) {
         b.atkFx = (b.atkFx || []).concat([{ id: b.fxSeq = (b.fxSeq || 0) + 1, en: en.id, name: en.name, k: lifesteal && ATTACK_FX[en.name].bite ? "bite" : "attack", ts: Date.now() }]).slice(-6);
         b.__hitDelay = atkFxHitAt(F);
     }
+    const prevNoSlash = b.__noSlash;
+    b.__noSlash = !!(F && (F.kind === "missile" || F.kind === "marks")); // user (Nov 13): the missile burst / claw marks REPLACE the damage slash
     try {
         return enemyAttackHeroBody(b, g, en, dmg, lifesteal);
     }
     finally {
         b.__hitDelay = prevDelay;
+        b.__noSlash = prevNoSlash;
     }
 }
 function enemyAttackHeroBody(b, g, en, dmg, lifesteal) {
@@ -22714,11 +22718,14 @@ function enemyAttackHeroBody(b, g, en, dmg, lifesteal) {
     const dealt = heroTakeDamage(b, g, n, en.name);
     log(b, en.name + " hits you for " + n + ".");
     if (lifesteal) {
-        fxPush(b, "lifesteal", en.id);
-        if (en.name === "Dire Wolf")
-            b.enemies.forEach((e2) => { if (!e2.dead && e2.name === "Dire Wolf")
-                e2.hp = Math.min(e2.maxHp, e2.hp + dealt); });
-        else if (!en.dead)
+        if (en.name === "Dire Wolf") // the whole pack heals — and glows — together (user, Nov 13)
+            b.enemies.forEach((e2) => { if (!e2.dead && e2.name === "Dire Wolf") {
+                e2.hp = Math.min(e2.maxHp, e2.hp + dealt);
+                fxPush(b, "lifesteal", e2.id);
+            } });
+        else
+            fxPush(b, "lifesteal", en.id);
+        if (en.name !== "Dire Wolf" && !en.dead)
             en.hp = Math.min(en.maxHp, en.hp + dealt); // heals the damage DEALT (shield/Block absorbed part heals nothing)
     }
     if (b.hero.st.spikes > 0 && !en.dead)
@@ -25603,15 +25610,16 @@ function AttackFxItem({ fx }) {
                 return null;
             const fr = foe.getBoundingClientRect(), hr = hero.getBoundingClientRect(), c = fr.width / A.cw;
             return { k: c / z, at: (p) => [(fr.left + p[0] * c - L.left) / z, (fr.top + p[1] * c - L.top) / z],
-                hero: [(hr.left + hr.width * 0.62 - L.left) / z, (hr.top + hr.height * 0.42 - L.top) / z] };
+                hero: [(hr.left + hr.width * 0.62 - L.left) / z, (hr.top + hr.height * 0.42 - L.top) / z],
+                side: [(hr.right - hr.width * 0.04 - L.left) / z, (hr.top + hr.height * 0.42 - L.top) / z] }; // the body edge facing the enemies
         };
         const add = (el) => { layer.appendChild(el); els.push(el); return el; };
         // a frame sheet played once with its anchor on (x, y); xf = extra transform (the stretched drain ribbon)
-        const sheetAt = (S, k, x, y, xf, origin) => {
-            const u = k / (S.res || 1), el = add(document.createElement("div"));
+        const sheetAt = (S, k, x, y, xf, anc) => {
+            const u = k / (S.res || 1), el = add(document.createElement("div")), A0 = anc || S.anchor;
             el.className = "et-atkfx-sheet";
-            Object.assign(el.style, { width: S.cw * u + "px", height: S.ch * u + "px", left: x - S.anchor[0] * u + "px", top: y - S.anchor[1] * u + "px",
-                backgroundImage: "url(" + S.src + ")", backgroundSize: S.cols * 100 + "% " + S.rows * 100 + "%", transformOrigin: origin || (S.anchor[0] * u + "px " + S.anchor[1] * u + "px"), transform: xf || "" });
+            Object.assign(el.style, { width: S.cw * u + "px", height: S.ch * u + "px", left: x - A0[0] * u + "px", top: y - A0[1] * u + "px",
+                backgroundImage: "url(" + S.src + ")", backgroundSize: S.cols * 100 + "% " + S.rows * 100 + "%", transformOrigin: A0[0] * u + "px " + A0[1] * u + "px", transform: xf || "" });
             let f = 0;
             const step = () => {
                 if (f >= S.n) { el.remove(); return; }
@@ -25644,14 +25652,15 @@ function AttackFxItem({ fx }) {
         if (F.kind === "marks")
             later(F.at, () => { const G = geo(); if (G) sheetAt(F.sheet, G.k, G.hero[0], G.hero[1]); });
         if (F.kind === "drain") {
-            later(F.at, () => { const G = geo(); if (G) sheetAt(F.flash, G.k, G.hero[0], G.hero[1]); });
+            // user (Nov 13): the FRONT of the red bite (the art's left edge, cell x 1) sits on the hero's side nearest the wolf
+            later(F.at, () => { const G = geo(); if (G) sheetAt(F.flash, G.k, G.side[0], G.side[1], "", [1, F.flash.anchor[1]]); });
             later(F.drainAt, () => {
                 const G = geo();
                 if (!G) return;
-                const D = F.drain, u = G.k / (D.res || 1), [x0, y0] = G.hero, [x1, y1] = G.at(F.mouth);
-                const len = Math.hypot(D.b[0] - D.a[0], D.b[1] - D.a[1]) * u, dist = Math.hypot(x1 - x0, y1 - y0);
-                const ang = Math.atan2(y1 - y0, x1 - x0) - Math.atan2(D.b[1] - D.a[1], D.b[0] - D.a[0]);
-                sheetAt(D, G.k, x0, y0, "rotate(" + (ang * 180 / Math.PI).toFixed(1) + "deg) scaleX(" + (dist / Math.max(1, len)).toFixed(3) + ")");
+                const D = F.drain, u = G.k / (D.res || 1), [x0, y0] = G.side, [x1, y1] = G.at(F.mouth), O = [1, D.a[1]];
+                const len = Math.hypot(D.b[0] - O[0], D.b[1] - O[1]) * u, dist = Math.hypot(x1 - x0, y1 - y0);
+                const ang = Math.atan2(y1 - y0, x1 - x0) - Math.atan2(D.b[1] - O[1], D.b[0] - O[0]);
+                sheetAt(D, G.k, x0, y0, "rotate(" + (ang * 180 / Math.PI).toFixed(1) + "deg) scaleX(" + (dist / Math.max(1, len)).toFixed(3) + ")", O);
             });
         }
         return () => { timers.forEach(clearTimeout); els.forEach((el) => el.remove()); };
