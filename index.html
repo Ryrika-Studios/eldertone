@@ -19637,7 +19637,7 @@ function foeLetter(b, en, ei) {
 function fxPush(b, kind, tgt) {
     if (!b || !b.fxQueue)
         return;
-    b.fxQueue.push({ id: b.fxSeq++, k: kind, t: tgt });
+    b.fxQueue.push({ id: b.fxSeq++, k: kind, t: tgt, d: b.__hitDelay || 0 }); // d: ms to wait (an attack FX still in flight)
     if (b.fxQueue.length > 30)
         b.fxQueue.splice(0, b.fxQueue.length - 30);
 }
@@ -19760,6 +19760,7 @@ function heroTakeDamage(b, g, n, src) {
         g.hp -= n;
         fxPush(b, src === "Poison" ? "slash_poison" : /Firewall$/.test(src || "") ? "slash_fire" : "slash", "hero");
         b.hero.animHit = (b.hero.animHit || 0) + 1; // display-only: the hero's hurt animation
+        b.hero.animHitDelay = b.__hitDelay || 0; // ... held until an attack FX lands
         if (b.recurring && b.recurring.some((r) => r.untilHit)) {
             b.recurring = b.recurring.filter((r) => !r.untilHit);
             log(b, "The juggling act ends.");
@@ -22613,6 +22614,21 @@ function tierAttack(b, g, en, v, lifesteal, tier) {
     return r;
 }
 function enemyAttackHero(b, g, en, dmg, lifesteal) {
+    // attack FX (display-only): queue the effect and hold the hero's hit FX / flinch until it lands
+    const F = !b.enemyNoAtk && ATTACK_FX[en.name] ? ATTACK_FX[en.name][lifesteal && ATTACK_FX[en.name].bite ? "bite" : "attack"] : null;
+    const prevDelay = b.__hitDelay || 0;
+    if (F) {
+        b.atkFx = (b.atkFx || []).concat([{ id: b.fxSeq = (b.fxSeq || 0) + 1, en: en.id, name: en.name, k: lifesteal && ATTACK_FX[en.name].bite ? "bite" : "attack", ts: Date.now() }]).slice(-6);
+        b.__hitDelay = atkFxHitAt(F);
+    }
+    try {
+        return enemyAttackHeroBody(b, g, en, dmg, lifesteal);
+    }
+    finally {
+        b.__hitDelay = prevDelay;
+    }
+}
+function enemyAttackHeroBody(b, g, en, dmg, lifesteal) {
     if (b.enemyNoAtk) {
         log(b, en.name + " cannot attack (Equalizer).");
         return;
@@ -24411,6 +24427,11 @@ html body .et-encmeet .et-esprite.et-eanim{font-size:140px}
 .cf .cf-tip>div{margin:0 0 6px}.cf .cf-tip>div:last-child{margin-bottom:0}
 .cf .cf-tip .cf-tip-h{font-family:'Cormorant SC',serif;font-size:12px;color:#d8b97a;letter-spacing:.08em;margin-bottom:5px}
 .et-hero,.et-foe{position:relative}
+.et-atkfx{position:absolute;inset:0;pointer-events:none;z-index:9;overflow:visible}
+.et-atkfx-sheet,.et-atkfx-missile,.et-atkfx-burst{position:absolute;pointer-events:none;background-repeat:no-repeat}
+.et-atkfx-missile{filter:drop-shadow(0 0 6px rgba(120,220,255,.8))}
+.et-atkfx-burst{border-radius:50%;background:radial-gradient(circle,rgba(235,252,255,.95) 0,rgba(130,220,255,.75) 35%,rgba(60,170,255,0) 70%);animation:atkBurst .45s ease-out forwards}
+@keyframes atkBurst{0%{transform:scale(.25);opacity:1}100%{transform:scale(1.5);opacity:0}}
 .et-fx{position:absolute;inset:0;pointer-events:none;z-index:8;display:flex;align-items:center;justify-content:center;opacity:0}
 .et-fx .et-fx-svg{display:block;width:72%;height:72%}
 .et-fx .et-fx-svg svg,.et-fx img{width:100%;height:100%;display:block}
@@ -24851,7 +24872,16 @@ const ENEMY_ANIM = {"Skeleton Warrior":{"cw":229,"ch":240,"cols":34,"rows":4,"bo
 // DIRE WOLF + ICY SHELL (Nov 13 2026, Fiverr update delivery "Dire Wolf, Icy Shell.rar"): full frames @50ms, idle 150px.
 // Extra one-shots: the wolf's "bite" (Lifesteal Bite) replaces its claw slash on lifesteal attacks (en.animAtkK), the Icy
 // Shell's "absorb" (Magic Absorb) plays when it drinks your Fury (fury_steal). Built by scratchpad dw/build.py.
-Object.assign(ENEMY_ANIM, {"Dire Wolf":{"src":"sprites/dire-wolf.webp?v=1","cw":248,"ch":176,"cols":64,"rows":3,"body":[73,11,165,150],"a":{"idle":[0,48,50],"attack":[48,32,50],"hurt":[80,22,50],"bite":[102,60,50]}},"Icy Shell":{"src":"sprites/icy-shell.webp?v=1","cw":324,"ch":209,"cols":49,"rows":4,"body":[158,56,152,150],"a":{"idle":[0,48,50],"attack":[48,36,50],"hurt":[84,22,50],"absorb":[106,60,50]}}});
+Object.assign(ENEMY_ANIM, {"Icy Shell":{"src":"sprites/icy-shell.webp?v=2","cw":222,"ch":209,"cols":72,"rows":3,"body":[55,56,152,150],"a":{"idle":[0,48,50],"attack":[48,36,50],"hurt":[84,22,50],"absorb":[106,60,50]}},"Dire Wolf":{"src":"sprites/dire-wolf.webp?v=2","cw":193,"ch":176,"cols":82,"rows":2,"body":[18,11,165,150],"a":{"idle":[0,48,50],"attack":[48,32,50],"hurt":[80,22,50],"bite":[102,60,50]}}});
+// ATTACK FX (Nov 13 2026, user: "make the lifesteal magic show on the hero when it is attacked, and make the projectile travel
+// the whole way and hit the hero"). The two sheets above are the CHARACTER-ONLY attack frames (the Icy Shell keeps its missile
+// until the launch frame); the effect layers of the Fiverr delivery are separate sprites drawn by AttackFxLayer: kind "missile"
+// flies from the staff (from = cell px) to the hero in fly ms and bursts; "marks" plays the claw marks on the hero; "drain"
+// plays the bite's starburst on the hero, then stretches the drain ribbon (a = its far end, b = its mouth end, sheet px) from the
+// hero to the wolf's mouth (cell px). at / drainAt = ms after the attack starts; sprites are stored at res x the enemy sheet.
+// The hero's flinch and hit slash wait for the impact (atkFxHitAt -> b.__hitDelay). Built by scratchpad dw/build2.py.
+const ATTACK_FX = {"Icy Shell":{"attack":{"kind":"missile","at":750,"fly":350,"img":"sprites/fx-icy-missile.webp?v=1","w":202,"h":59,"head":[56.8,29.2],"res":2,"from":[9.2,112.0]}},"Dire Wolf":{"attack":{"kind":"marks","at":650,"sheet":{"src":"sprites/fx-wolf-claw.webp?v=1","cw":129,"ch":179,"cols":14,"rows":1,"n":14,"ms":50,"res":2,"anchor":[64.2,86.6]}},"bite":{"kind":"drain","at":650,"flash":{"src":"sprites/fx-wolf-flash.webp?v=1","cw":101,"ch":123,"cols":9,"rows":1,"n":9,"ms":50,"res":2,"anchor":[57.2,37.8]},"drainAt":1100,"drain":{"src":"sprites/fx-wolf-drain.webp?v=1","cw":175,"ch":158,"cols":28,"rows":1,"n":28,"ms":50,"res":2,"anchor":[31.3,30.4],"a":[31.3,30.4],"b":[170.2,26.4]},"mouth":[67.9,100.0]}}};
+function atkFxHitAt(F) { return F.kind === "missile" ? F.at + F.fly : F.at + 50; }
 // HERO ANIMATIONS (Oct 15 2026, user art from Drive ELDERTONE ASSETS > ANIM > ROGUE/NECROMANCER/_ICEKNIGHT_SPRITES):
 // same entry shape as ENEMY_ANIM, keyed by heroId; drawn by EnemyAnim (fitH) inside HeroFigure, feet on HERO_ANIM_FEET.
 // The Ice Knight has no damage sheet, so he simply has no hurt animation.
@@ -24994,7 +25024,7 @@ function enemyAnimEv(en, k) {
     if (A && A.a[k])
         en.animEv = { seq: ((en.animEv && en.animEv.seq) || 0) + 1, k };
 }
-function EnemyAnim({ name, atk, hit, cls, data, fitH, still, idle, ev, atkK }) {
+function EnemyAnim({ name, atk, hit, cls, data, fitH, still, idle, ev, atkK, hitDelay }) {
     const A = data || ENEMY_ANIM[name];
     const ref = useRef(null);
     // idle: which loop to rest on ("charge" while winding up, if the sheet has one); ev {seq, k}: one-shot
@@ -25027,7 +25057,7 @@ function EnemyAnim({ name, atk, hit, cls, data, fitH, still, idle, ev, atkK }) {
             return () => { gone = true; };
         }
         s.play(s.idle);
-        return () => { gone = true; clearTimeout(timer); };
+        return () => { gone = true; clearTimeout(timer); clearTimeout(s.hitT); };
     }, [name]);
     useEffect(() => {
         const s = st.current, want = (idle && A.a[idle]) ? idle : "idle";
@@ -25060,8 +25090,12 @@ function EnemyAnim({ name, atk, hit, cls, data, fitH, still, idle, ev, atkK }) {
         }
         else if (hit !== s.hit) {
             s.hit = hit;
-            if (s.anim !== "attack" && s.anim !== s.atkAnim && s.play)
-                s.play("hurt");
+            const flinch = () => { if (s.anim !== "attack" && s.anim !== s.atkAnim && s.play) s.play("hurt"); };
+            clearTimeout(s.hitT);
+            if (hitDelay > 0)
+                s.hitT = setTimeout(flinch, hitDelay); // an enemy's missile / bite still on its way
+            else
+                flinch();
         }
     }, [atk, hit]);
     const [bx, by, bw, bh] = A.body;
@@ -25546,6 +25580,84 @@ const FX_ART = {
 FX_ART.slash_fire = { anim: "sheet", src: "sprites/fx-slash-fire.webp?v=1", cols: 9, n: 9, ms: 80 };
 FX_ART.slash_poison = { anim: "sheet", src: "sprites/fx-slash-poison.webp?v=1", cols: 9, n: 9, ms: 80 };
 FX_ART.freeze = { anim: "pop", svg: '<svg viewBox="0 0 100 100"><g fill="#bfeaff" stroke="#6cb8e8" stroke-width="3"><path d="M40 88 26 60 40 34 54 44 Z"/><path d="M56 84 50 56 66 30 78 48 Z"/></g></svg>' };
+// ATTACK FX LAYER (Nov 13 2026): enemy attack effects that travel to / land on the hero (ATTACK_FX). Positions come from the DOM
+// at each step: the attacker's sheet cell (.et-eanim-sheet in [data-eid]) and the hero's body box; z converts screen px to the
+// layer's own px (the scene can be zoomed). Entries older than 3 s are history (a reload) and play nothing.
+function AttackFxLayer({ b }) {
+    return React.createElement("div", { className: "et-atkfx" }, (b.atkFx || []).map((fx) => React.createElement(AttackFxItem, { key: fx.id, fx })));
+}
+function AttackFxItem({ fx }) {
+    const ref = useRef(null);
+    useEffect(() => {
+        const layer = ref.current && ref.current.parentElement, F = ATTACK_FX[fx.name] && ATTACK_FX[fx.name][fx.k], A = ENEMY_ANIM[fx.name];
+        const age = Date.now() - (fx.ts || 0);
+        if (!layer || !F || !A || age > 3000)
+            return;
+        const timers = [], els = [];
+        const later = (ms, fn) => timers.push(setTimeout(fn, Math.max(0, ms - age)));
+        const geo = () => {
+            const scene = layer.parentElement, L = layer.getBoundingClientRect(), z = L.width / (layer.offsetWidth || 1) || 1;
+            const foe = scene.querySelector('[data-eid="' + fx.en + '"] .et-eanim-sheet');
+            const hero = scene.querySelector(".et-hero .et-heroanim .et-eanim-box") || scene.querySelector(".et-hero-imgwrap");
+            if (!foe || !hero)
+                return null;
+            const fr = foe.getBoundingClientRect(), hr = hero.getBoundingClientRect(), c = fr.width / A.cw;
+            return { k: c / z, at: (p) => [(fr.left + p[0] * c - L.left) / z, (fr.top + p[1] * c - L.top) / z],
+                hero: [(hr.left + hr.width * 0.62 - L.left) / z, (hr.top + hr.height * 0.42 - L.top) / z] };
+        };
+        const add = (el) => { layer.appendChild(el); els.push(el); return el; };
+        // a frame sheet played once with its anchor on (x, y); xf = extra transform (the stretched drain ribbon)
+        const sheetAt = (S, k, x, y, xf, origin) => {
+            const u = k / (S.res || 1), el = add(document.createElement("div"));
+            el.className = "et-atkfx-sheet";
+            Object.assign(el.style, { width: S.cw * u + "px", height: S.ch * u + "px", left: x - S.anchor[0] * u + "px", top: y - S.anchor[1] * u + "px",
+                backgroundImage: "url(" + S.src + ")", backgroundSize: S.cols * 100 + "% " + S.rows * 100 + "%", transformOrigin: origin || (S.anchor[0] * u + "px " + S.anchor[1] * u + "px"), transform: xf || "" });
+            let f = 0;
+            const step = () => {
+                if (f >= S.n) { el.remove(); return; }
+                el.style.backgroundPosition = (S.cols > 1 ? (f % S.cols) / (S.cols - 1) * 100 : 0) + "% " + (S.rows > 1 ? Math.floor(f / S.cols) / (S.rows - 1) * 100 : 0) + "%";
+                f += 1;
+                timers.push(setTimeout(step, S.ms));
+            };
+            step();
+        };
+        if (F.kind === "missile")
+            later(F.at, () => {
+                const G = geo();
+                if (!G) return;
+                const u = G.k / (F.res || 1), [x0, y0] = G.at(F.from), [x1, y1] = G.hero;
+                const ang = Math.atan2(y1 - y0, x1 - x0) * 180 / Math.PI + 180; // the art points left
+                const el = add(document.createElement("img"));
+                el.src = F.img; el.className = "et-atkfx-missile";
+                Object.assign(el.style, { width: F.w * u + "px", height: F.h * u + "px", left: x0 - F.head[0] * u + "px", top: y0 - F.head[1] * u + "px", transformOrigin: F.head[0] * u + "px " + F.head[1] * u + "px" });
+                const rot = "rotate(" + ang.toFixed(1) + "deg)";
+                el.animate([{ transform: "translate(0px,0px) " + rot }, { transform: "translate(" + (x1 - x0) + "px," + (y1 - y0) + "px) " + rot }], { duration: F.fly, easing: "linear", fill: "forwards" });
+                timers.push(setTimeout(() => {
+                    el.remove();
+                    const burst = add(document.createElement("div"));
+                    burst.className = "et-atkfx-burst";
+                    const r = 34 * G.k;
+                    Object.assign(burst.style, { width: 2 * r + "px", height: 2 * r + "px", left: x1 - r + "px", top: y1 - r + "px" });
+                    timers.push(setTimeout(() => burst.remove(), 450));
+                }, F.fly));
+            });
+        if (F.kind === "marks")
+            later(F.at, () => { const G = geo(); if (G) sheetAt(F.sheet, G.k, G.hero[0], G.hero[1]); });
+        if (F.kind === "drain") {
+            later(F.at, () => { const G = geo(); if (G) sheetAt(F.flash, G.k, G.hero[0], G.hero[1]); });
+            later(F.drainAt, () => {
+                const G = geo();
+                if (!G) return;
+                const D = F.drain, u = G.k / (D.res || 1), [x0, y0] = G.hero, [x1, y1] = G.at(F.mouth);
+                const len = Math.hypot(D.b[0] - D.a[0], D.b[1] - D.a[1]) * u, dist = Math.hypot(x1 - x0, y1 - y0);
+                const ang = Math.atan2(y1 - y0, x1 - x0) - Math.atan2(D.b[1] - D.a[1], D.b[0] - D.a[0]);
+                sheetAt(D, G.k, x0, y0, "rotate(" + (ang * 180 / Math.PI).toFixed(1) + "deg) scaleX(" + (dist / Math.max(1, len)).toFixed(3) + ")");
+            });
+        }
+        return () => { timers.forEach(clearTimeout); els.forEach((el) => el.remove()); };
+    }, []);
+    return React.createElement("span", { ref, style: { display: "none" } });
+}
 function FxHost({ b, tgt }) {
     if (!b || !b.fxQueue)
         return null;
@@ -25553,14 +25665,14 @@ function FxHost({ b, tgt }) {
     const items = b.fxQueue.filter((f) => f.t === tgt && f.k !== "burn").slice(-4);
     return React.createElement(React.Fragment, null, items.map((f, i) => {
         const art = FX_ART[f.k] || FX_ART.buff;
-        return React.createElement("div", { key: f.id, className: "et-fx " + art.anim, style: { animationDelay: (i * 0.16) + "s" } },
-            art.anim === "sheet" ? React.createElement(FxSheet, { art }) : art.img
+        return React.createElement("div", { key: f.id, className: "et-fx " + art.anim, style: { animationDelay: (i * 0.16 + (f.d || 0) / 1000) + "s" } },
+            art.anim === "sheet" ? React.createElement(FxSheet, { art, delay: f.d || 0 }) : art.img
                 ? React.createElement("img", { src: art.img, alt: "" })
                 : React.createElement("span", { className: "et-fx-svg", dangerouslySetInnerHTML: { __html: art.svg } }));
     }));
 }
 // one-shot frame-sheet FX (Damage Slash): steps the sheet once at art.ms per frame, then the .et-fx.sheet fade hides it
-function FxSheet({ art }) {
+function FxSheet({ art, delay }) {
     const ref = useRef(null);
     useEffect(() => {
         let f = 0, t = null;
@@ -25571,7 +25683,10 @@ function FxSheet({ art }) {
             if (f < art.n)
                 t = setTimeout(step, art.ms);
         };
-        step();
+        if (delay > 0)
+            t = setTimeout(step, delay);
+        else
+            step();
         return () => clearTimeout(t);
     }, []);
     return React.createElement("span", { ref, className: "et-fx-sheet", style: { backgroundImage: "url(" + art.src + ")", backgroundSize: (art.cols * 100) + "% 100%" } });
@@ -25732,7 +25847,7 @@ function HeroFigure({ g, b }) {
                 HERO_ART[hid] ? React.createElement("span", { className: "et-hero-imgwrap" },
                     // with an animation the still body only holds the layout box; the animated hero stands on its feet line
                     React.createElement("img", { className: "et-hero-img", src: HERO_ART[hid].body, alt: "", style: HERO_ANIM[hid] ? { visibility: "hidden" } : undefined }),
-                    HERO_ANIM[hid] && React.createElement(EnemyAnim, { name: hid, data: HERO_ANIM[hid], fitH: true, atk: b.hero.animAtk || 0, hit: b.hero.animHit || 0, cls: "" }),
+                    HERO_ANIM[hid] && React.createElement(EnemyAnim, { name: hid, data: HERO_ANIM[hid], fitH: true, atk: b.hero.animAtk || 0, hit: b.hero.animHit || 0, hitDelay: b.hero.animHitDelay || 0, cls: "" }),
                     (HERO_ANIM[hid] && FURY_AURA[hid]) ? (() => {
                         // body centre = HERO_ANIM_BOTTOM + half the pose above the wrap's bottom; ring band radius FURY_AURA_R x the pose
                         const A = FURY_AURA[hid], sc = (FURY_AURA_R * HERO_DRAW_H_ANIM) / A.r;
@@ -31167,6 +31282,7 @@ function EldertoneInner() {
                 React.createElement("div", { className: "et-hill", style: { left: "55%", width: "48%", top: "15%" } }),
                 React.createElement("div", { className: "et-scene-inner" },
                     React.createElement(HeroFigure, { g: g, b: b }),
+                    React.createElement(AttackFxLayer, { b }),
                     React.createElement("div", { className: "et-foes", style: { "--fs": (b.__fsMax = Math.max(b.__fsMax || 0, b.enemies.filter((e) => !e.dead || (CHIMERA_PART[e.name] && b.enemies.some((x) => !x.dead && CHIMERA_PART[x.name]))).reduce((t, e) => { const vmF = vineGroup(b); if (vmF && e !== vmF && e.armSlot && e.summonerId === vmF.id) return t; const z = foeSize(e); return t + Math.max(FOE_MIN_W, z.h ? z.h * z.a : FOE_MIN_W) + FOE_GAP + (e === vmF ? z.h * 1.12 : 0); }, 0) || 1)) } }, (() => { const vmG = vineGroup(b); const renderFoe = (en, ei, armMode) => {
                         const L = foeLetter(b, en, ei);
                         if (en.dead && CHIMERA_PART[en.name] && b.enemies.some((x) => !x.dead && CHIMERA_PART[x.name])) {
@@ -31185,7 +31301,7 @@ function EldertoneInner() {
                         const fz = foeSize(en);
                         const vineWrap = (el) => (!armMode && vmG && en === vmG) ? React.createElement("div", { key: "vg" + en.id, className: "et-vinegrp", style: { "--ehn": fz.h } }, el,
                             alive(b).filter((a) => a.armSlot && a.summonerId === en.id).map((a) => renderFoe(a, b.enemies.indexOf(a), true))) : el;
-                        const el = (React.createElement("div", { key: en.id, className: "et-foe" + (armMode ? " et-vinearm" : fz.h ? " sized" : "") + (CHIMERA_PART[en.name] ? " chim" : "") + (tgt && tgt.id === en.id ? " tgt" : "") + tutGlow(g, "foe"), style: armMode ? { left: "calc(var(--h) * " + (1.32 + VINE_HAND[en.armSlot]).toFixed(2) + " - 26px)" } : fz.h ? { "--ehn": fz.h, "--ea": fz.a } : undefined, onClick: () => mut((g) => { logDecision(g, "target", { enemy: en.name, via: "click" }); g.battle.target = en.id; logAfter(g); }) },
+                        const el = (React.createElement("div", { key: en.id, "data-eid": en.id, className: "et-foe" + (armMode ? " et-vinearm" : fz.h ? " sized" : "") + (CHIMERA_PART[en.name] ? " chim" : "") + (tgt && tgt.id === en.id ? " tgt" : "") + tutGlow(g, "foe"), style: armMode ? { left: "calc(var(--h) * " + (1.32 + VINE_HAND[en.armSlot]).toFixed(2) + " - 26px)" } : fz.h ? { "--ehn": fz.h, "--ea": fz.a } : undefined, onClick: () => mut((g) => { logDecision(g, "target", { enemy: en.name, via: "click" }); g.battle.target = en.id; logAfter(g); }) },
                             React.createElement(FxHost, { b, tgt: en.id }),
                             React.createElement("div", { className: "et-intent-top" }, en.intent ? React.createElement("span", { className: "pill" },
                                 iconizeLabel(intentLabel(b, en)),
