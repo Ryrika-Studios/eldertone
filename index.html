@@ -22646,7 +22646,7 @@ function enemyAttackHero(b, g, en, dmg, lifesteal) {
     const shot = inAct ? (en.__shot = (en.__shot || 0) + 1) - 1 : 0;
     const s0 = inAct ? (b.__actStart || 0) : prevDelay;
     const vol = F && F.kind === "missile";
-    const hitAt = F ? (vol ? F.at + shot * VOLLEY_GAP + F.fly : atkFxHitAt(F) + shot * MELEE_GAP) : enemyStrikeMs(en) + shot * MELEE_GAP;
+    const hitAt = F ? (vol ? F.at + shot * VOLLEY_GAP + F.fly : atkFxHitAt(F) + shot * MELEE_GAP) : enemyStrikeMs(en) + shot * (BAKED_PROJECTILE.has(en.name) ? VOLLEY_GAP : MELEE_GAP);
     if (F)
         b.atkFx = (b.atkFx || []).concat([{ id: b.fxSeq = (b.fxSeq || 0) + 1, en: en.id, name: en.name, k: lifesteal && ATTACK_FX[en.name].bite ? "bite" : "attack", ts: Date.now(), d: s0, shot }]).slice(-12);
     if (shot === 0) {
@@ -24966,6 +24966,9 @@ ATTACK_FX["Icy Shell"].attack.holdF = 15; // the wand holds its launch pose whil
 const HERO_STRIKE_MS = { rogue: 220, necromancer: 700, iceknight: 630 };
 const ENEMY_STRIKE_MS = {"Skeleton Warrior":429,"Skeleton Archer":627,"Ice Hedgehog":660,"Red Wand Fairy":462,"Blue Wand Fairy":462,"Yellow Wand Fairy":462,"Snake":560,"Troll":490,"Snow Golem":700,"Yeti":1120,"Fireworks Vendor":600,"Assassin":231,"Bruiser":396,"Gnome Village":528,"Gray Gnome":330,"Red Gnome":330,"Yellow Gnome":561,"Lizard Rider":825,"Snail":429,"Troll Hoard":462,"Troll King":396,"Vineman":429,"Golem":900,"Growing Mass":850,"Ice Troll Axeman":800,"Mushroom":1600,"Fire Imp":390,"Ice Troll Chieftain":850,"Ice Wraith":450,"Salamander":700,"Magpie":700,"Icy Shell":800,"Dire Wolf":700,"Phoenix":250,"Dwarf Queen":250};
 const VOLLEY_GAP = 100, VOLLEY_FORM = 100, VOLLEY_DY = [0, -14, 14, -28, 28], ACT_GAP = 150, MELEE_GAP = 200; // user (Nov 13): 0.1 s apart; 1st at 0, 2nd +1 step up, 3rd 1 step down
+// enemies whose projectile is drawn into their own attack sheet (no separate missile art): a multi-hit move still plays ONE
+// throw, its hits land VOLLEY_GAP apart (user, Nov 13: "use that 0.1 for all enemies with projectiles that fire multiple attacks")
+const BAKED_PROJECTILE = new Set(["Assassin", "Ice Troll Axeman", "Fireworks Vendor", "Skeleton Archer"]);
 function enemyStrikeMs(en) {
     const A = ENEMY_ANIM[en.name];
     return ENEMY_STRIKE_MS[en.name] || (A && A.a.attack ? Math.round(A.a.attack[1] * A.a.attack[2] * 0.45) : 250);
