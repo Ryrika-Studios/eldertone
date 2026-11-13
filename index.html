@@ -24286,6 +24286,9 @@ html body .et-foe.sized .et-esprite.et-egroup{font-size:calc(var(--h) * .6)}
 .et-hero-stage{position:relative;width:204px;height:204px;margin:0 auto}
 .et-hero-sprite{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:62px}
 .et-hero-imgwrap{position:relative;display:inline-block}
+/* Nov 13 2026 (user): hero height = HERO_SCALE x the Rogue, x --heroU (the enemy row's crowding shrink, so every enemy keeps its
+   height relative to the hero); scaled about the feet (30px up), so the fury ring, minions and Firewall ring scale with him */
+.et-hero-imgwrap.anim{transform:scale(calc(var(--hs, 1) * var(--heroU, 1)));transform-origin:50% calc(100% - 30px)}
 .et-hero-img{max-height:200px;max-width:200px;filter:drop-shadow(0 3px 5px rgba(0,0,0,.35))}
 .et-hero-ringimg{position:absolute;inset:0;transition:opacity .45s;filter:none}
 .et-hero-ringimg.full{filter:drop-shadow(0 0 9px #ffd76a) brightness(1.18);animation:heroRingPulse 1.2s ease-in-out infinite}
@@ -24997,6 +25000,9 @@ const HERO_ANIM_BOTTOM = 30; // px: .et-heroanim's bottom offset inside .et-hero
 const FURY_AURA = { rogue: { w: 305, h: 340, cx: 148, cy: 148, r: 111 }, necromancer: { w: 340, h: 340, cx: 170, cy: 170, r: 126 }, iceknight: { w: 322, h: 340, cx: 164, cy: 160, r: 137 } };
 const FURY_AURA_R = 0.785;
 const HERO_DRAW_H_ANIM = 140; // px: the animated hero's idle pose height (.et-heroanim font-size)
+// heroes' heights relative to the Rogue (user, Nov 13 2026: "the ice knight 1.1x the rogue; the necromancer the same as the rogue").
+// Every pose box is 140px tall, but the Knight crouches behind his lance, so he read SHORTER than the Rogue.
+const HERO_SCALE = { rogue: 1, necromancer: 1, iceknight: 1.1 };
 // FURY PIECES (Nov 11 2026, user: "add this system to the html" = the Unity fury pieces). Each living fury minion (the
 // Necromancer's burst Skeleton, the Ice Knight's Ice Shard — m.fury) shows as one skull / shard on the hero's aura ring,
 // max 16 (user, same day): 1-8 at the art team's spots (1 at the top, then clockwise), then 9-16 in the gaps between them
@@ -25881,6 +25887,11 @@ function BattleBg({ src, biome }) {
             const hero = sc && (sc.querySelector(".et-hero .et-heroanim .et-eanim-box") || sc.querySelector(".et-hero-imgwrap"));
             if (!sc || !nw || !nh || !hero)
                 return;
+            // the enemy row's crowding shrink (its --u = min(1, width / --fs)) applies to the hero too: heights stay in proportion
+            const foes = sc.querySelector(".et-foes"), fsv = foes ? parseFloat(foes.style.getPropertyValue("--fs")) : 0;
+            const u = fsv > 0 ? Math.min(1, foes.clientWidth / fsv) : 1;
+            if (sc.style.getPropertyValue("--heroU") !== u.toFixed(3))
+                sc.style.setProperty("--heroU", u.toFixed(3));
             const R = sc.getBoundingClientRect(), z = R.width / (sc.offsetWidth || 1) || 1;
             const W = sc.clientWidth, Hs = sc.clientHeight;
             const feet = (hero.getBoundingClientRect().bottom - R.top) / z - sc.clientTop;
@@ -26086,7 +26097,7 @@ function HeroFigure({ g, b }) {
                 React.createElement("circle", { cx: "102", cy: "102", r: "88", fill: "none", stroke: stroke, strokeWidth: "5", strokeDasharray: "4 9", strokeLinecap: "round", style: { opacity: op, transition: "opacity .4s, stroke .4s", filter: full ? "drop-shadow(0 0 7px #ffd76a)" : "none" } }),
                 React.createElement("circle", { cx: "102", cy: "102", r: "78", fill: "none", stroke: stroke, strokeWidth: "2", style: { opacity: op * 0.65, transition: "opacity .4s, stroke .4s" } })),
             React.createElement("div", { className: "et-hero-sprite" },
-                HERO_ART[hid] ? React.createElement("span", { className: "et-hero-imgwrap" },
+                HERO_ART[hid] ? React.createElement("span", { className: "et-hero-imgwrap" + (HERO_ANIM[hid] ? " anim" : ""), style: HERO_ANIM[hid] ? { "--hs": HERO_SCALE[hid] || 1 } : undefined },
                     // with an animation the still body only holds the layout box; the animated hero stands on its feet line
                     React.createElement("img", { className: "et-hero-img", src: HERO_ART[hid].body, alt: "", style: HERO_ANIM[hid] ? { visibility: "hidden" } : undefined }),
                     HERO_ANIM[hid] && React.createElement(EnemyAnim, { name: hid, data: HERO_ANIM[hid], fitH: true, atk: b.hero.animAtk || 0, hit: b.hero.animHit || 0, hitDelay: b.hero.animHitDelay || 0, cls: "" }),
