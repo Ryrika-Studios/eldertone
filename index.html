@@ -19634,10 +19634,14 @@ function foeLetter(b, en, ei) {
 }
 // combat FX event (display-only): kind = key into FX_ART, tgt = enemy id or "hero".
 // The battle screen's FxHost overlays render these; sims never read them.
-function fxPush(b, kind, tgt) {
+// the enemies' turn is still playing out on screen: plays / End Turn wait (b.__busyUntil, set by endTurn)
+function uiBusy(b) { return !!b && (b.__busyUntil || 0) > Date.now(); }
+function fxPush(b, kind, tgt, delay) {
     if (!b || !b.fxQueue)
         return;
-    b.fxQueue.push({ id: b.fxSeq++, k: kind, t: tgt, d: b.__hitDelay || 0 }); // d: ms to wait (an attack FX still in flight)
+    const d = delay != null ? delay : (b.__hitDelay || 0);
+    b.fxQueue.push({ id: b.fxSeq++, k: kind, t: tgt, d }); // d: ms to wait (an attack FX in flight, a swing, the enemy's turn)
+    dispMark(b, d + 400);
     if (b.fxQueue.length > 30)
         b.fxQueue.splice(0, b.fxQueue.length - 30);
 }
@@ -19943,10 +19947,15 @@ function damageEnemy(b, g, en, raw, opts = {}) {
         hpDmg = Math.min(hpDmg, 1);
     en.hp -= hpDmg;
     trollRage(b, en, hpDmg, opts);
-    fxPush(b, "slash", en.id);
+    // display: the hero's own swing — the slash, flinch and death wait for the frame the weapon lands (user, Nov 13)
+    const hd = (b.__hitDelay || 0) + (!opts.minion && !b.__enemyPhase ? (HERO_STRIKE_MS[(g && g.heroId) || "rogue"] || 0) : 0);
+    fxPush(b, "slash", en.id, hd);
     en.animHit = (en.animHit || 0) + 1; // display-only: EnemyAnim plays the hurt frames
+    en.animHitDelay = hd;
+    en.__dieD = hd;
+    en.__dieT = Date.now();
     if (en.armSlot)
-        vmPush(b, en, { k: "hurt" }); // a Vine Arm is drawn on the Vineman's body: he flinches
+        vmPush(b, en, { k: "hurt", at: Date.now() + hd }); // a Vine Arm is drawn on the Vineman's body: he flinches
     if (!opts.minion && !b.__enemyPhase)
         b.hero.animAtk = (b.hero.animAtk || 0) + 1; // the hero's own attack (minion hits and enemy-phase recoil don't swing)
     b.lastDealtDamage = true;
@@ -19961,7 +19970,7 @@ function damageEnemy(b, g, en, raw, opts = {}) {
     }
     if (en.special === "magpie_gold") {
         g.gold += 1; // magpie drops a coin whenever damaged
-        fxPush(b, "coin", en.id);
+        fxPush(b, "coin", en.id, hd);
     }
     if (en.special === "griffin_egg" && !opts.minion) {
         // same rule as the Troll King's rage: MINION pecks at the nest don't
@@ -20057,7 +20066,8 @@ function vmPush(b, arm, ev, parent) {
     if (!vm)
         return;
     vm.vmSeq = (vm.vmSeq || 0) + 1;
-    (vm.vmEv = vm.vmEv || []).push(Object.assign({ seq: vm.vmSeq }, ev));
+    // at: when it shows (display timing — the arm's turn / the hero's swing may come later on screen)
+    (vm.vmEv = vm.vmEv || []).push(Object.assign({ seq: vm.vmSeq, at: Date.now() + ((b && b.__hitDelay) || 0) }, ev));
     if (vm.vmEv.length > 12)
         vm.vmEv.splice(0, vm.vmEv.length - 12);
 }
@@ -20074,12 +20084,16 @@ function killEnemy(b, g, en) {
         for (const k2 in en.st)
             en.st[k2] = 0; // the egg is a separate entity: poison etc. do not carry over
         en.intent = { kind: "charge", label: "Incubating…" };
-        enemyAnimEv(en, "burn"); // display: the Phoenix bursts into flame and leaves the egg (shared sheet)
+        enemyAnimEv(en, "burn", b); // display: the Phoenix bursts into flame and leaves the egg (shared sheet)
         log(b, "The Phoenix collapses into an egg!");
         return;
     }
     en.dead = true;
     en.puff = true; // display: this corpse dissolves into smoke in the battle render
+    // display: it stays standing until the blow that killed it lands on screen (a swing / an enemy's turn)
+    const dieD = (en.__dieD != null && Date.now() - (en.__dieT || 0) < 5) ? en.__dieD : (b.__hitDelay || 0);
+    en.puffAt = dieD > 0 ? Date.now() + dieD : 0;
+    en.__dieD = null;
     if (en.name === "Boulder") { en.puff = false; en.burst = true; } // display: it explodes instead (Deliver set)
     if (CHIMERA_PART[en.name]) en.puff = false; // display: the head hangs stunned on the body (chimeraStrip)
     if (en.armSlot) {
@@ -22584,8 +22598,13 @@ function endTurn(b, g) {
     }
     if (b.over)
         return;
-    // enemies act
+    // enemies act (display: each one in turn — b.__phaseEnd = ms until the last one has played out)
+    b.__phaseEnd = 0;
+    b.__hitDelay = 0;
     enemyPhase(b, g);
+    const shown = (b.__phaseEnd || 0) > 0 ? b.__phaseEnd + 300 : 0;
+    b.__hitDelay = shown; // the hero's turn start (minions, ticks) shows after the enemies' turn
+    b.__busyUntil = Date.now() + shown; // the UI ignores plays / End Turn until then
     // consume minion-phase modifiers for next turn
     h.flags.minions_mult = 0;
     if (h.flags.minions_double_next) {
@@ -22599,6 +22618,7 @@ function endTurn(b, g) {
     }
     if (!b.over)
         heroTurnStart(b, g);
+    b.__hitDelay = 0;
 }
 // Enemy attack that came from a damage TIER (D1-D5): records hits, the rolled number, damage dealt (Shield + HP)
 // and HP lost per biome+tier on b.__tierDmg (flushed into run/sim stats -> "ENEMY ATTACKS BY TIER" report).
@@ -22621,18 +22641,33 @@ function enemyAttackHero(b, g, en, dmg, lifesteal) {
     // attack FX (display-only): queue the effect and hold the hero's hit FX / flinch until it lands
     const F = !b.enemyNoAtk && ATTACK_FX[en.name] ? ATTACK_FX[en.name][lifesteal && ATTACK_FX[en.name].bite ? "bite" : "attack"] : null;
     const prevDelay = b.__hitDelay || 0;
-    if (F) {
-        b.atkFx = (b.atkFx || []).concat([{ id: b.fxSeq = (b.fxSeq || 0) + 1, en: en.id, name: en.name, k: lifesteal && ATTACK_FX[en.name].bite ? "bite" : "attack", ts: Date.now() }]).slice(-6);
-        b.__hitDelay = atkFxHitAt(F);
+    // which shot of this enemy's turn (volleys) and when its turn started on screen (enemies act one at a time)
+    const inAct = !!(b.__enemyPhase && b.__actor === en);
+    const shot = inAct ? (en.__shot = (en.__shot || 0) + 1) - 1 : 0;
+    const s0 = inAct ? (b.__actStart || 0) : prevDelay;
+    const vol = F && F.kind === "missile";
+    const hitAt = F ? (vol ? F.at + shot * VOLLEY_GAP + F.fly : atkFxHitAt(F) + shot * MELEE_GAP) : enemyStrikeMs(en) + shot * MELEE_GAP;
+    if (F)
+        b.atkFx = (b.atkFx || []).concat([{ id: b.fxSeq = (b.fxSeq || 0) + 1, en: en.id, name: en.name, k: lifesteal && ATTACK_FX[en.name].bite ? "bite" : "attack", ts: Date.now(), d: s0, shot }]).slice(-12);
+    if (shot === 0) {
+        en.animAtkDelay = s0;
+        en.animAtkHold = null;
     }
-    const prevNoSlash = b.__noSlash;
-    b.__noSlash = !!(F && (F.kind === "missile" || F.kind === "marks")); // user (Nov 13): the missile burst / claw marks REPLACE the damage slash
+    else if (vol && F.holdF != null)
+        en.animAtkHold = { f: F.holdF, ms: shot * VOLLEY_GAP }; // one wand animation: it holds the launch pose for the volley
+    b.__hitDelay = s0 + hitAt;
+    dispMark(b, s0 + hitAt + 400);
+    const prevNoSlash = b.__noSlash, prevShot = b.__shotK;
+    // user (Nov 13): the missile burst / claw marks / lifesteal magic REPLACE the damage slash (the hero only flinches)
+    b.__noSlash = !!(F && (F.kind === "missile" || F.kind === "marks" || F.kind === "drain"));
+    b.__shotK = shot;
     try {
         return enemyAttackHeroBody(b, g, en, dmg, lifesteal);
     }
     finally {
         b.__hitDelay = prevDelay;
         b.__noSlash = prevNoSlash;
+        b.__shotK = prevShot;
     }
 }
 function enemyAttackHeroBody(b, g, en, dmg, lifesteal) {
@@ -22640,10 +22675,11 @@ function enemyAttackHeroBody(b, g, en, dmg, lifesteal) {
         log(b, en.name + " cannot attack (Equalizer).");
         return;
     }
-    en.animAtk = (en.animAtk || 0) + 1; // display-only: EnemyAnim plays the attack frames
+    if (!(b.__shotK > 0))
+        en.animAtk = (en.animAtk || 0) + 1; // display-only: EnemyAnim plays the attack frames (once per turn: a volley's later shots ride the same swing)
     en.animAtkK = lifesteal ? "bite" : null; // Dire Wolf: a lifesteal attack is its Lifesteal Bite (sheets without it swipe as usual)
     if (en.armSlot)
-        vmPush(b, en, { k: "atk", slot: en.armSlot }); // that arm swings on the Vineman's body
+        vmPush(b, en, { k: "atk", slot: en.armSlot, at: Date.now() + (en.animAtkDelay || 0) }); // that arm swings on the Vineman's body
     // Ice Knight: Icy Shell charges per enemy attack, whether or not it deals damage (Oct 9 2026)
     if (g && !b.over && heroDef(g).furyCharge === "attacked") {
         g.fury = Math.min(g.furyMax, g.fury + 1);
@@ -22794,6 +22830,11 @@ function enemyPhase(b, g) {
             en._justSpawned = false;
             continue;
         }
+        // display: this enemy's turn starts once the previous one's impact has settled (user: one at a time)
+        b.__actStart = (b.__phaseEnd || 0) > 0 ? b.__phaseEnd + ACT_GAP : 0;
+        b.__hitDelay = b.__actStart;
+        b.__actor = en;
+        en.__shot = 0;
         if (en.name === "Butterfly" && ((b.playsThisTurn || 0) >= 4 || (en.intent && en.intent.kind === "flee"))) {
             en.dead = true;
             en.puff = true;
@@ -22851,7 +22892,7 @@ function enemyPhase(b, g) {
             en.flags.furyCounter = (en.flags.furyCounter || 0) + g.fury;
             if (g.fury > 0) {
                 log(b, en.name + " drinks your Fury (" + en.flags.furyCounter + "/10 hoarded)!");
-                enemyAnimEv(en, "absorb"); // Icy Shell: Magic Absorb pulls the fury into its staff
+                enemyAnimEv(en, "absorb", b); // Icy Shell: Magic Absorb pulls the fury into its staff
             }
             g.fury = 0;
             while (en.flags.furyCounter >= 10) {
@@ -22864,7 +22905,7 @@ function enemyPhase(b, g) {
             yetiSwapChord(b, g, en);
         if (en.special === "fire_spikes" && (b.turn - 1) % 3 === 0) {
             en.st.burn = (en.st.burn || 0) + 2;
-            enemyAnimEv(en, "flames"); // Salamander bursts into flames as its wall grows
+            enemyAnimEv(en, "flames", b); // Salamander bursts into flames as its wall grows
             log(b, en.name + " kindles its Firewall (" + en.st.burn + ").");
         }
         if (en.special === "growing_mass") {
@@ -22882,7 +22923,7 @@ function enemyPhase(b, g) {
                 en.hp += 10;
                 en.flags.slamNext = true;
                 en.flags.grows = (en.flags.grows || 0) + 1; // display: the sprite scales up 15% per growth
-                en.animEv = { seq: ((en.animEv && en.animEv.seq) || 0) + 1, k: "grow" }; // its Growth Light animation
+                en.animEv = { seq: ((en.animEv && en.animEv.seq) || 0) + 1, k: "grow", d: b.__hitDelay || 0 }; // its Growth Light animation
                 en.intent = { kind: "charge", label: "\u{1F4A2} slamming\u2026" };
                 log(b, en.name + " grows larger!");
                 continue;
@@ -22893,7 +22934,7 @@ function enemyPhase(b, g) {
             if (en.flags.eggTimer <= 0) {
                 en.name = "Phoenix";
                 en.hp = Math.floor(en.maxHp / 2);
-                enemyAnimEv(en, "hatch"); // display: the egg burns away and the Phoenix rises from the flames
+                enemyAnimEv(en, "hatch", b); // display: the egg burns away and the Phoenix rises from the flames
                 log(b, "The Phoenix is reborn!");
                 rollIntent(en, b);
             }
@@ -22919,7 +22960,7 @@ function enemyPhase(b, g) {
                 e2.summonerId = en.id;
                 e2.emerge = b.turn; // display: the boulder's explosion plays over it (the enemy phase and the next hero turn start run
                 // in one action, so it is cleared one hero turn LATER: heroTurnStart below)
-                enemyAnimEv(en, "bigattack"); // display: her big pickaxe swing
+                enemyAnimEv(en, "bigattack", b); // display: her big pickaxe swing
                 rollIntent(e2, b);
                 b.enemies.splice(b.enemies.indexOf(bo), 0, e2);
                 log(b, en.name + " swings her pickaxe — the boulder cracks open and " + e2.name + " emerges!");
@@ -23025,21 +23066,21 @@ function enemyPhase(b, g) {
                 const a = alive(b).filter((e) => e !== en);
                 const t = a.length ? pick(a) : en;
                 t.st[p[1]] = (t.st[p[1]] || 0) + p[2];
-                enemyAnimEv(en, "horn"); // Ice Troll Chieftain blows his horn to rally an ally
+                enemyAnimEv(en, "horn", b); // Ice Troll Chieftain blows his horn to rally an ally
             }
             else if (k === "buff_all") {
                 alive(b).forEach((e) => (e.st[p[1]] = (e.st[p[1]] || 0) + p[2]));
-                enemyAnimEv(en, "horn");
+                enemyAnimEv(en, "horn", b);
             }
             else if (k === "heal_ally") {
                 const a = alive(b);
                 const t = pick(a);
                 t.hp = Math.min(t.maxHp, t.hp + p[1]);
-                enemyAnimEv(en, "horn"); // Ice Troll Chieftain's horn also rallies on heals
+                enemyAnimEv(en, "horn", b); // Ice Troll Chieftain's horn also rallies on heals
             }
             else if (k === "heal_all") {
                 alive(b).forEach((e) => (e.hp = Math.min(e.maxHp, e.hp + p[1])));
-                enemyAnimEv(en, "horn");
+                enemyAnimEv(en, "horn", b);
             }
             else if (k === "hero_stat") {
                 const before = b.hero.st[p[1]] || 0;
@@ -23093,7 +23134,7 @@ function enemyPhase(b, g) {
                     rollIntent(e2, b);
                     e2._justSpawned = true;
                     b.enemies.push(e2);
-                    en.animEv = { seq: ((en.animEv && en.animEv.seq) || 0) + 1, k: "open" }; // the village door swings open
+                    en.animEv = { seq: ((en.animEv && en.animEv.seq) || 0) + 1, k: "open", d: b.__hitDelay || 0 }; // the village door swings open
                     log(b, en.name + " summons " + gn + "!");
                 }
             }
@@ -23144,6 +23185,8 @@ function enemyPhase(b, g) {
         rollIntent(en, b);
     }
     b.__enemyPhase = false;
+    b.__actor = null;
+    b.__hitDelay = b.__phaseEnd || 0; // the end-of-phase poison ticks show after the last enemy has acted
     for (const en of b.enemies)
         en._allyShield = 0;
     b.enemies.forEach((e) => { if (e.flags.mageStr) {
@@ -24907,6 +24950,27 @@ Object.assign(ENEMY_ANIM, {"Phoenix":{"src":"sprites/phoenix.webp?v=1","cw":221,
 // The hero's flinch and hit slash wait for the impact (atkFxHitAt -> b.__hitDelay). Built by scratchpad dw/build2.py.
 const ATTACK_FX = {"Icy Shell":{"attack":{"kind":"missile","at":750,"fly":350,"img":"sprites/fx-icy-missile.webp?v=1","w":202,"h":59,"head":[56.8,29.2],"res":2,"from":[9.2,112.0]}},"Dire Wolf":{"attack":{"kind":"marks","at":650,"sheet":{"src":"sprites/fx-wolf-claw.webp?v=1","cw":129,"ch":179,"cols":14,"rows":1,"n":14,"ms":50,"res":2,"anchor":[64.2,86.6]}},"bite":{"kind":"drain","at":650,"flash":{"src":"sprites/fx-wolf-flash.webp?v=1","cw":101,"ch":123,"cols":9,"rows":1,"n":9,"ms":50,"res":2,"anchor":[57.2,37.8]},"drainAt":1100,"drain":{"src":"sprites/fx-wolf-drain.webp?v=1","cw":175,"ch":158,"cols":28,"rows":1,"n":28,"ms":50,"res":2,"anchor":[31.3,30.4],"a":[31.3,30.4],"b":[170.2,26.4]},"mouth":[67.9,100.0]}}};
 function atkFxHitAt(F) { return F.kind === "missile" ? F.at + F.fly : F.at + 50; }
+ATTACK_FX["Icy Shell"].attack.holdF = 15; // the wand holds its launch pose while a volley's later missiles form
+// ── DISPLAY TIMING (Nov 13 2026, user: "the hero needs to start the attack animation before the hit animations show";
+// "enemies should attack one at a time, not all at once"; "when the icy shell attacks 3x, fire 3 missiles in quick
+// succession from one wand animation — the 2nd slightly higher, starting just after the 1st is fully formed, the 3rd
+// slightly lower than the 1st as soon as the 2nd is formed; same for any enemy firing several projectiles in a turn").
+// Display only: the engine still resolves instantly; FX, flinches, deaths and enemy animations get start delays (ms).
+//   hero swing  -> the struck enemy's slash / flinch / death wait HERO_STRIKE_MS (the frame the weapon lands, measured
+//                  from each hero's attack sheet);
+//   enemy phase -> each enemy starts when the previous one's impact has settled (b.__actStart / b.__phaseEnd); its hit on
+//                  the hero lands at its own strike frame (ENEMY_STRIKE_MS, measured: leftmost reach of the attack sheet,
+//                  else 45% of it) or its kit FX's impact; input waits until the phase has played out (b.__busyUntil);
+//   volleys     -> the k-th projectile of one enemy's turn launches VOLLEY_GAP ms after the previous one, VOLLEY_DY sheet px
+//                  higher/lower, while the attack animation holds its launch frame; melee multi-hits land 200 ms apart.
+const HERO_STRIKE_MS = { rogue: 220, necromancer: 700, iceknight: 630 };
+const ENEMY_STRIKE_MS = {"Skeleton Warrior":429,"Skeleton Archer":627,"Ice Hedgehog":660,"Red Wand Fairy":462,"Blue Wand Fairy":462,"Yellow Wand Fairy":462,"Snake":560,"Troll":490,"Snow Golem":700,"Yeti":1120,"Fireworks Vendor":600,"Assassin":231,"Bruiser":396,"Gnome Village":528,"Gray Gnome":330,"Red Gnome":330,"Yellow Gnome":561,"Lizard Rider":825,"Snail":429,"Troll Hoard":462,"Troll King":396,"Vineman":429,"Golem":900,"Growing Mass":850,"Ice Troll Axeman":800,"Mushroom":1600,"Fire Imp":390,"Ice Troll Chieftain":850,"Ice Wraith":450,"Salamander":700,"Magpie":700,"Icy Shell":800,"Dire Wolf":700,"Phoenix":250,"Dwarf Queen":250};
+const VOLLEY_GAP = 200, VOLLEY_FORM = 150, VOLLEY_DY = [0, -14, 8, -24, 16], ACT_GAP = 150, MELEE_GAP = 200;
+function enemyStrikeMs(en) {
+    const A = ENEMY_ANIM[en.name];
+    return ENEMY_STRIKE_MS[en.name] || (A && A.a.attack ? Math.round(A.a.attack[1] * A.a.attack[2] * 0.45) : 250);
+}
+function dispMark(b, t) { if (b && b.__enemyPhase) b.__phaseEnd = Math.max(b.__phaseEnd || 0, t); }
 // HERO ANIMATIONS (Oct 15 2026, user art from Drive ELDERTONE ASSETS > ANIM > ROGUE/NECROMANCER/_ICEKNIGHT_SPRITES):
 // same entry shape as ENEMY_ANIM, keyed by heroId; drawn by EnemyAnim (fitH) inside HeroFigure, feet on HERO_ANIM_FEET.
 // The Ice Knight has no damage sheet, so he simply has no hurt animation.
@@ -25044,12 +25108,15 @@ function MinionWall({ g, b, groups, x, y, stroke }) {
         }));
 }
 // ask an animated enemy for a one-shot animation (display only; skipped when its sheet has no such animation)
-function enemyAnimEv(en, k) {
+function enemyAnimEv(en, k, b) {
     const A = ENEMY_ANIM[en.name];
-    if (A && A.a[k])
-        en.animEv = { seq: ((en.animEv && en.animEv.seq) || 0) + 1, k };
+    if (A && A.a[k]) {
+        const d = b ? (b.__hitDelay || 0) : 0;
+        en.animEv = { seq: ((en.animEv && en.animEv.seq) || 0) + 1, k, d };
+        dispMark(b, d + A.a[k][1] * A.a[k][2] * 0.8);
+    }
 }
-function EnemyAnim({ name, atk, hit, cls, data, fitH, still, idle, ev, atkK, hitDelay }) {
+function EnemyAnim({ name, atk, hit, cls, data, fitH, still, idle, ev, atkK, hitDelay, atkDelay, hold }) {
     const A = data || ENEMY_ANIM[name];
     const ref = useRef(null);
     // idle: which loop to rest on ("charge" while winding up, if the sheet has one); ev {seq, k}: one-shot
@@ -25073,7 +25140,12 @@ function EnemyAnim({ name, atk, hit, cls, data, fitH, still, idle, ev, atkK, hit
                 s.after = null;
             }
             draw();
-            timer = setTimeout(tick, A.a[s.anim][2]);
+            let dt = A.a[s.anim][2];
+            if (s.hold && s.anim === s.atkAnim && s.f === s.hold.f) { // a volley: the launch pose holds while the next missiles form
+                dt += s.hold.ms;
+                s.hold = null;
+            }
+            timer = setTimeout(tick, dt);
         };
         s.play = (k) => { if (!A.a[k]) return; s.anim = k; s.f = 0; draw(); clearTimeout(timer); timer = setTimeout(tick, A.a[k][2]); };
         if (still) { // pre-battle screens: a static picture (first idle frame), no animation loop
@@ -25082,7 +25154,7 @@ function EnemyAnim({ name, atk, hit, cls, data, fitH, still, idle, ev, atkK, hit
             return () => { gone = true; };
         }
         s.play(s.idle);
-        return () => { gone = true; clearTimeout(timer); clearTimeout(s.hitT); };
+        return () => { gone = true; clearTimeout(timer); clearTimeout(s.hitT); clearTimeout(s.atkT); clearTimeout(s.evT); };
     }, [name]);
     useEffect(() => {
         const s = st.current, want = (idle && A.a[idle]) ? idle : "idle";
@@ -25099,7 +25171,11 @@ function EnemyAnim({ name, atk, hit, cls, data, fitH, still, idle, ev, atkK, hit
             return;
         s.ev = ev.seq;
         s.evAnim = ev.k; // a morph / special one-shot (Phoenix burn, egg hatch) is not cut short by the same hit's flinch
-        s.play && s.play(ev.k);
+        clearTimeout(s.evT);
+        if (ev.d > 0) // its enemy's turn has not come up yet on screen
+            s.evT = setTimeout(() => { s.play && s.play(ev.k); }, ev.d);
+        else
+            s.play && s.play(ev.k);
     }, [ev && ev.seq]);
     // a new attack or hit since the last render plays its animation once, then back to idle
     useEffect(() => {
@@ -25107,12 +25183,20 @@ function EnemyAnim({ name, atk, hit, cls, data, fitH, still, idle, ev, atkK, hit
         if (atk !== s.atk) {
             s.atk = atk, s.hit = hit;
             const ak = (atkK && A.a[atkK]) ? atkK : "attack"; // e.g. the Dire Wolf's lifesteal bite
-            s.atkAnim = ak;
-            // an attack in the same turn as a one-shot (Salamander kindles, then swipes) waits for it to finish
-            if (s.anim !== s.idle && s.anim !== "attack" && s.anim !== ak && s.anim !== "hurt" && s.anim !== "idle")
-                s.after = ak;
+            const go = () => {
+                s.atkAnim = ak;
+                s.hold = hold || null;
+                // an attack in the same turn as a one-shot (Salamander kindles, then swipes) waits for it to finish
+                if (s.anim !== s.idle && s.anim !== "attack" && s.anim !== ak && s.anim !== "hurt" && s.anim !== "idle")
+                    s.after = ak;
+                else
+                    s.play && s.play(ak);
+            };
+            clearTimeout(s.atkT);
+            if (atkDelay > 0) // enemies act one at a time: this one's turn comes up later on screen
+                s.atkT = setTimeout(go, atkDelay);
             else
-                s.play && s.play(ak);
+                go();
         }
         else if (hit !== s.hit) {
             s.hit = hit;
@@ -25147,8 +25231,8 @@ function VineAnim({ en, b, cls }) {
     s.b = b;
     // new engine events since the last render (older ones were already history when this mounted)
     (en.vmEv || []).forEach((e) => { if (e.seq > s.seen) { s.q.push(e); s.seen = e.seq; } });
-    if ((en.animAtk || 0) !== s.atk) { s.atk = en.animAtk || 0; s.q.push({ k: "hook" }); }
-    if ((en.animHit || 0) !== s.hit) { s.hit = en.animHit || 0; s.q.push({ k: "hurt" }); }
+    if ((en.animAtk || 0) !== s.atk) { s.atk = en.animAtk || 0; s.q.push({ k: "hook", at: Date.now() + (en.animAtkDelay || 0) }); }
+    if ((en.animHit || 0) !== s.hit) { s.hit = en.animHit || 0; s.q.push({ k: "hurt", at: Date.now() + (en.animHitDelay || 0) }); }
     if (s.q.length > 8)
         s.q.splice(0, s.q.length - 8);
     const [bx, by, bw, bh] = V.body;
@@ -25249,8 +25333,11 @@ function VineAnim({ en, b, cls }) {
         const pump = () => {
             if (s.busy)
                 return;
-            if (s.q.length)
+            if (s.q.length) {
+                if (s.q[0].at > Date.now())
+                    return; // its turn / the blow has not come up on screen yet
                 return run(s.q.shift());
+            }
             // nothing queued: make sure the drawn arms match the living ones (old saves, missed events)
             const live = liveSlots(s.b);
             if (["A", "B", "C"].some((L) => live.has(L) !== s.S.has(L)))
@@ -25428,7 +25515,7 @@ function FoeSpriteViewBase(en, b) {
                                     // Growing Mass: its charging loop belongs to the turn it is about to grow
                                     const winding = en.special === "growing_mass" ? !!(en.intent && en.intent.grow) : (en.charging || (en.intent && en.intent.kind === "charge"));
                                     const idle = A0.a.charge && winding ? "charge" : "idle";
-                                    return React.createElement(EnemyAnim, { name: en.name, atk: en.animAtk || 0, hit: en.animHit || 0, cls: kindCls, fitH: en.id != null, still: !!en.still, idle, ev: en.animEv, atkK: en.animAtkK });
+                                    return React.createElement(EnemyAnim, { name: en.name, atk: en.animAtk || 0, hit: en.animHit || 0, cls: kindCls, fitH: en.id != null, still: !!en.still, idle, ev: en.animEv, atkK: en.animAtkK, atkDelay: en.animAtkDelay || 0, hold: en.animAtkHold, hitDelay: en.animHitDelay || 0 });
                                 }
                                 if (ENEMY_ART[en.name])
                                     return React.createElement("div", { className: "et-esprite et-eimg" + kindCls },
@@ -25690,7 +25777,8 @@ function AttackFxItem({ fx }) {
     const ref = useRef(null);
     useEffect(() => {
         const layer = ref.current && ref.current.parentElement, F = ATTACK_FX[fx.name] && ATTACK_FX[fx.name][fx.k], A = ENEMY_ANIM[fx.name];
-        const age = Date.now() - (fx.ts || 0);
+        const age = Date.now() - (fx.ts || 0) - (fx.d || 0); // fx.d: this enemy's turn starts later on screen
+        const shot = fx.shot || 0;
         if (!layer || !F || !A || age > 3000)
             return;
         const timers = [], els = [];
@@ -25722,17 +25810,22 @@ function AttackFxItem({ fx }) {
             };
             step();
         };
-        if (F.kind === "missile")
-            later(F.at, () => {
+        if (F.kind === "missile") {
+            // volley (user, Nov 13): shot k forms at the staff VOLLEY_DY[k] sheet px higher/lower, then launches VOLLEY_GAP after the last
+            const launch = F.at + shot * VOLLEY_GAP, form = shot > 0 ? VOLLEY_FORM : 0;
+            later(launch - form, () => {
                 const G = geo();
                 if (!G) return;
-                const u = G.k / (F.res || 1), [x0, y0] = G.at(F.from), [x1, y1] = G.hero;
+                const u = G.k / (F.res || 1), dy = VOLLEY_DY[shot % VOLLEY_DY.length] * G.k, [x0, y0a] = G.at(F.from), [x1, y1a] = G.hero;
+                const y0 = y0a + dy, y1 = y1a + dy * 0.6;
                 const ang = Math.atan2(y1 - y0, x1 - x0) * 180 / Math.PI + 180; // the art points left
                 const el = add(document.createElement("img"));
                 el.src = F.img; el.className = "et-atkfx-missile";
                 Object.assign(el.style, { width: F.w * u + "px", height: F.h * u + "px", left: x0 - F.head[0] * u + "px", top: y0 - F.head[1] * u + "px", transformOrigin: F.head[0] * u + "px " + F.head[1] * u + "px" });
                 const rot = "rotate(" + ang.toFixed(1) + "deg)";
-                el.animate([{ transform: "translate(0px,0px) " + rot }, { transform: "translate(" + (x1 - x0) + "px," + (y1 - y0) + "px) " + rot }], { duration: F.fly, easing: "linear", fill: "forwards" });
+                if (form > 0) // it forms on the staff (grows in) before it flies
+                    el.animate([{ transform: "translate(0px,0px) " + rot + " scale(.15)", opacity: .4 }, { transform: "translate(0px,0px) " + rot + " scale(1)", opacity: 1 }], { duration: form, easing: "ease-out", fill: "forwards" });
+                timers.push(setTimeout(() => el.animate([{ transform: "translate(0px,0px) " + rot }, { transform: "translate(" + (x1 - x0) + "px," + (y1 - y0) + "px) " + rot }], { duration: F.fly, easing: "linear", fill: "forwards" }), form));
                 timers.push(setTimeout(() => {
                     el.remove();
                     const burst = add(document.createElement("div"));
@@ -25740,14 +25833,15 @@ function AttackFxItem({ fx }) {
                     const r = 34 * G.k;
                     Object.assign(burst.style, { width: 2 * r + "px", height: 2 * r + "px", left: x1 - r + "px", top: y1 - r + "px" });
                     timers.push(setTimeout(() => burst.remove(), 450));
-                }, F.fly));
+                }, form + F.fly));
             });
+        }
         if (F.kind === "marks")
-            later(F.at, () => { const G = geo(); if (G) sheetAt(F.sheet, G.k, G.hero[0], G.hero[1]); });
+            later(F.at + shot * MELEE_GAP, () => { const G = geo(); if (G) sheetAt(F.sheet, G.k, G.hero[0], G.hero[1]); });
         if (F.kind === "drain") {
             // user (Nov 13): the FRONT of the red bite (the art's left edge, cell x 1) sits on the hero's side nearest the wolf
-            later(F.at, () => { const G = geo(); if (G) sheetAt(F.flash, G.k, G.side[0], G.side[1], "", [1, F.flash.anchor[1]]); });
-            later(F.drainAt, () => {
+            later(F.at + shot * MELEE_GAP, () => { const G = geo(); if (G) sheetAt(F.flash, G.k, G.side[0], G.side[1], "", [1, F.flash.anchor[1]]); });
+            later(F.drainAt + shot * MELEE_GAP, () => {
                 const G = geo();
                 if (!G) return;
                 const D = F.drain, u = G.k / (D.res || 1), [x0, y0] = G.side, [x1, y1] = G.at(F.mouth), O = [1, D.a[1]];
@@ -29847,10 +29941,20 @@ function EldertoneInner() {
     // the reward screen; losses and bot/sim paths stay immediate
     const afterActionUI = (g) => {
         const b2 = g.battle;
+        // the last blows may still be on their way on screen (a swing, the enemies' turn): let them land first
+        const now = Date.now();
+        const wait = b2 ? Math.max(0, (b2.__busyUntil || 0) - now, ...b2.enemies.map((e) => (e.dead && e.puffAt ? e.puffAt - now : 0))) : 0;
         if (b2 && b2.over === "win" && g.screen === "battle") {
             if (!b2.__endScheduled) {
                 b2.__endScheduled = true;
-                setTimeout(() => mut((g2) => afterAction(g2)), 1050);
+                setTimeout(() => mut((g2) => afterAction(g2)), 1050 + wait);
+            }
+            return;
+        }
+        if (b2 && b2.over === "loss" && g.screen === "battle" && wait > 0) {
+            if (!b2.__endScheduled) {
+                b2.__endScheduled = true;
+                setTimeout(() => mut((g2) => afterAction(g2)), wait + 600);
             }
             return;
         }
@@ -29859,6 +29963,23 @@ function EldertoneInner() {
     // test hook: page-JS access to the LIVE game (read/mutate, then interact to re-render)
     if (typeof window !== "undefined")
         window.__eldertoneLive = gref;
+    // display timing (Nov 13 2026): redraw when a dying enemy's killing blow lands on screen / the enemies' turn ends
+    useEffect(() => {
+        const g = gref.current, b = g && g.battle;
+        if (!b || g.screen !== "battle")
+            return;
+        const now = Date.now();
+        let next = Infinity;
+        for (const e of b.enemies)
+            if (e.dead && e.puffAt > now)
+                next = Math.min(next, e.puffAt);
+        if ((b.__busyUntil || 0) > now)
+            next = Math.min(next, b.__busyUntil);
+        if (next === Infinity)
+            return;
+        const t = setTimeout(() => tickSet((x) => x + 1), next - now + 20);
+        return () => clearTimeout(t);
+    });
     // tutorial: auto-advance steps whose in-battle requirement has been met
     useEffect(() => {
         const g = gref.current;
@@ -30772,13 +30893,13 @@ function EldertoneInner() {
                     const single = xm ? true : c.stages.length === 1;
                     const stageIdx = (xm || single) ? (c.charge >= c.max ? 0 : -1) : Math.min(c.charge, c.stages.length) - 1;
                     const playable = !b.over && !b.heroStunned && !b.choice && !c.locked && c.charge >= 1 && stageIdx >= 0;
-                    if (playable)
+                    if (playable && !uiBusy(b))
                         mut((g2) => { logDecision(g2, "play", { chord: c.name, slot: c.slot, stage: stageIdx, via: "key" }); playChord(g2.battle, g2, i); afterActionUI(g2); logAfter(g2); });
                 }
             }
             if (ev.code === "Space") {
                 ev.preventDefault();
-                if (!b.choice)
+                if (!b.choice && !uiBusy(b))
                     mut((g2) => { logDecision(g2, "end_turn", { via: "key" }); endTurn(g2.battle, g2); afterActionUI(g2); logAfter(g2); saveNow(true); });
             }
         };
@@ -31417,7 +31538,8 @@ function EldertoneInner() {
                                 React.createElement("div", { className: "et-eslot", style: { visibility: "hidden" } }, "\u2022"),
                                 React.createElement(EnemyAnim, { name: "Boulder", atk: 0, hit: 0, cls: "", fitH: true, idle: "explode" }));
                         }
-                        if (en.dead)
+                        const dying = en.dead && en.puff && en.puffAt > Date.now(); // its killing blow has not landed on screen yet
+                        if (en.dead && !dying)
                             return en.puff ? (React.createElement("div", { key: en.id, className: "et-foe et-dead" },
                                 React.createElement("div", { className: "et-smoke" }, [0, 1, 2, 3, 4, 5].map((i) => React.createElement("span", { key: i, className: "et-pf et-pf" + i }))))) : null;
                         const fz = foeSize(en);
@@ -31425,7 +31547,7 @@ function EldertoneInner() {
                             alive(b).filter((a) => a.armSlot && a.summonerId === en.id).map((a) => renderFoe(a, b.enemies.indexOf(a), true))) : el;
                         const el = (React.createElement("div", { key: en.id, "data-eid": en.id, className: "et-foe" + (armMode ? " et-vinearm" : fz.h ? " sized" : "") + (CHIMERA_PART[en.name] ? " chim" : "") + (tgt && tgt.id === en.id ? " tgt" : "") + tutGlow(g, "foe"), style: armMode ? { left: "calc(var(--h) * " + (1.32 + VINE_HAND[en.armSlot]).toFixed(2) + " - 26px)" } : fz.h ? { "--ehn": fz.h, "--ea": fz.a } : undefined, onClick: () => mut((g) => { logDecision(g, "target", { enemy: en.name, via: "click" }); g.battle.target = en.id; logAfter(g); }) },
                             React.createElement(FxHost, { b, tgt: en.id }),
-                            React.createElement("div", { className: "et-intent-top" }, en.intent ? React.createElement("span", { className: "pill" },
+                            React.createElement("div", { className: "et-intent-top" }, en.intent && !en.dead ? React.createElement("span", { className: "pill" },
                                 iconizeLabel(intentLabel(b, en)),
                                 (() => { const ls = intentTipLines(b, en); return ls.length ? React.createElement("div", { className: "et-inttip" }, ls.map((t, k2) => React.createElement("div", { key: k2 }, t))) : null; })()) : null),
                             React.createElement("div", { className: "et-eslot", title: "press " + (L || "?") + " to target" }, L || "\u2022"),
@@ -31468,7 +31590,7 @@ function EldertoneInner() {
                                 React.createElement(Badges, { st: en.st }))));
                         return vineWrap(el);
                     }; return b.enemies.map((en, ei) => (vmG && en !== vmG && !en.dead && en.armSlot && en.summonerId === vmG.id) ? null : renderFoe(en, ei)); })())),
-                React.createElement("div", { className: "et-endturn" + (b.over ? " off" : "") + tutGlow(g, "end"), title: "Space \u00b7 G\u266f on an instrument", onClick: () => !b.over && mut((g) => { logDecision(g, "end_turn", { via: "click" }); endTurn(g.battle, g); afterActionUI(g); logAfter(g); saveNow(true); }) },
+                React.createElement("div", { className: "et-endturn" + (b.over || uiBusy(b) ? " off" : "") + tutGlow(g, "end"), title: "Space \u00b7 G\u266f on an instrument", onClick: () => !b.over && !uiBusy(b) && mut((g) => { logDecision(g, "end_turn", { via: "click" }); endTurn(g.battle, g); afterActionUI(g); logAfter(g); saveNow(true); }) },
                     React.createElement("span", null, "END TURN (G\u266f)")),
                 React.createElement("div", { className: "et-chords" + (isV3(g) ? " v3slots" : itemMode(g) ? " v2slots" : "") + tutGlow(g, "chords") }, (() => { const renderChord = (c, i) => {
                     const xm = xmeta(c.name, c.lv);
@@ -31496,7 +31618,7 @@ function EldertoneInner() {
                     if (c.locked)
                         footer = "spent this battle";
                     return (React.createElement(CardFace, { key: i, orb: itemMode(g), v3: isV3(g) ? { txt: v3LiveTxt(b, g, c), charge: c.charge, max: c.max } : undefined, tipKeys: statusesInText(c.txt), tipFlip: "EFG".includes(c.slot), tipExtra: /discipline|shuriken|stealth/i.test((c.txt || []).join(" ")) ? (() => { const vp = volleyPreviewDmg(b, g); return [["Shuriken volley", "currently " + (vp.hi > vp.dmg ? vp.dmg + "\u2013" + vp.hi : vp.dmg) + " AOE damage" + (vp.single ? " (vs this enemy)." : vp.hi > vp.dmg ? " (higher end vs Exposed enemies)." : " (per enemy).")]]; })() : undefined, style: { gridColumn: Math.max(1, "ABCDEFG".indexOf(c.slot) + 1) }, name: dispName(c.name, c.slot) + (c.note ? " ✦" : "") + (b.sirenMark === i ? " 🎵" : "") +
-                            ((() => { const t = targetEnemy(b); return t && t.st.burn > 0 && JSON.stringify(c.stages).includes('"damage"'); })() ? " 🔥" : ""), slot: c.slot, lv: c.lv, rows: rows, activeIdx: stageIdx >= 0 ? Math.min(stageIdx, rows.length - 1) : null, ready: ready, locked: !playable, fx: c.cardFx, bagSlots: bagSlotIcons(g.slots[c.slot]), onClick: () => playable && mut((g) => { logDecision(g, "play", { chord: c.name, slot: c.slot, stage: stageIdx, via: "click" }); playChord(g.battle, g, i); afterActionUI(g); logAfter(g); }), ring: { charge: c.charge, max: c.max }, footer: footer }));
+                            ((() => { const t = targetEnemy(b); return t && t.st.burn > 0 && JSON.stringify(c.stages).includes('"damage"'); })() ? " 🔥" : ""), slot: c.slot, lv: c.lv, rows: rows, activeIdx: stageIdx >= 0 ? Math.min(stageIdx, rows.length - 1) : null, ready: ready, locked: !playable, fx: c.cardFx, bagSlots: bagSlotIcons(g.slots[c.slot]), onClick: () => playable && !uiBusy(b) && mut((g) => { logDecision(g, "play", { chord: c.name, slot: c.slot, stage: stageIdx, via: "click" }); playChord(g.battle, g, i); afterActionUI(g); logAfter(g); }), ring: { charge: c.charge, max: c.max }, footer: footer }));
                 };
                 if (!itemMode(g)) return b.chords.map(renderChord);
                 // V2: seven fixed slot frames A-G, each tinted its letter colour with the letter orb over it
