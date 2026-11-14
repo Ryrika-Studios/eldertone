@@ -24334,6 +24334,7 @@ html body .et-foe.sized .et-esprite.et-egroup{font-size:calc(var(--h) * .6)}
 .et-mw-emoji{position:absolute;inset:4px;border-radius:50%;background:#10241c;border:2px solid #5ee8a4;display:flex;align-items:center;justify-content:center;font-size:19px;box-shadow:0 0 8px rgba(94,232,164,.45)}
 .et-mw-pulse.on .et-mw-emoji{animation:mwEmoji 1s ease-out 1}
 .et-mw-item.ring{width:34px;height:34px;left:-17px;top:-17px}
+.et-mw-flash{position:absolute;inset:0;display:block;animation:fpPulse 2.4s ease-in-out infinite}
 .et-mw-item.ring .et-mw-emoji{inset:2px;font-size:15px}
 .et-mw-item.ring .et-minicount{right:-9px;bottom:-6px;font-size:9.5px}
 .et-mw-item:hover{z-index:6}
@@ -24525,6 +24526,11 @@ html body .et-encmeet .et-esprite.et-eanim{font-size:140px}
 @keyframes fxCoin{0%{opacity:0;transform:translate(0,10%) scale(.5) rotateY(0deg)}15%{opacity:1;transform:translate(6%,-14%) scale(1) rotateY(180deg)}55%{opacity:1;transform:translate(14%,-38%) scale(1) rotateY(540deg)}100%{opacity:0;transform:translate(18%,-52%) scale(.85) rotateY(720deg)}}
 @keyframes fxPop{0%{opacity:0;transform:scale(.4)}25%{opacity:1;transform:scale(1.06)}70%{opacity:.95;transform:scale(1)}100%{opacity:0;transform:scale(1.1) translateY(-9%)}}
 .et-fx.shieldclose{animation:fxShieldFade 1s ease-out forwards}
+/* Unity's Shield Up flipbook (sprites/fx-shield-up.webp, 10 frames 116x180) */
+.et-fx.shieldup{animation:fxShieldUp 1.85s linear both}
+.et-fx-shieldup{display:block;height:var(--shu-h,52%);aspect-ratio:116/180;background:url(sprites/fx-shield-up.webp?v=1) 0 0/1000% 100% no-repeat;animation:fxShieldUpFrames 1.6667s steps(10,jump-end) infinite both;filter:drop-shadow(0 0 4px rgba(127,246,255,.45))}
+@keyframes fxShieldUp{0%{opacity:0}1%{opacity:1}46%{opacity:1}100%{opacity:0}}
+@keyframes fxShieldUpFrames{from{background-position-x:0%}to{background-position-x:111.111%}}
 /* Unity-style shield on the health bar + the gain pop (Nov 13 2026) */
 .et-herohp.shielded>i,.et-ehp.shielded>i{background:linear-gradient(#7ff6ff,#13c3d6)}
 .et-herohp.shielded>span,.et-ehp.shielded>span{color:#fff;text-shadow:0 0 2px #000,0 0 2px #000}
@@ -25062,12 +25068,15 @@ function FuryPiece({ P, i, k }) {
                                 animation: "fpFrames " + (P.cols / 12).toFixed(3) + "s steps(" + P.cols + ", jump-none) infinite, fpPulse 2.4s ease-in-out " + (-0.3 * i).toFixed(1) + "s infinite" } })))))));
 }
 // all of a hero's pieces, centred on the ring centre (cx, cy px inside the aura box); bandR = the ring band radius in px
-function FuryPieces({ hid, count, cx, cy, bandR }) {
+function FuryPieces({ hid, count, cx, cy, bandR, taken }) {
     const P = FURY_PIECES[hid];
     if (!P || count <= 0)
         return null;
     const k = bandR / P.r;
-    const n = Math.min(count, FURY_PIECE_MAX); // slots 1-8 only (Nov 11 2026, user): slots 9-16 now hold the minions
+    // slots 1-8 only (Nov 11 2026, user): slots 9-16 hold the minions. Past 8 minion kinds the extra minions take fury slots
+    // from slot 8 backwards (Nov 14 2026, user) — empty ones first, then the newest pieces stop being drawn (still counted
+    // in the buff row's badge)
+    const n = Math.min(count, FURY_PIECE_MAX - (taken || 0));
     return React.createElement("span", { className: "et-furypieces", style: { left: cx.toFixed(1) + "px", top: cy.toFixed(1) + "px" } },
         Array.from({ length: n }, (_, i) => React.createElement(FuryPiece, { key: i, P, i, k })));
 }
@@ -25116,21 +25125,30 @@ function minionIconEl(gr, stroke) {
         React.createElement("img", { key: "g", className: "et-mw-glow", src: icon + "-glow.webp?v=1", alt: "", style: flip })]
         : React.createElement("span", { className: "et-mw-emoji", style: { borderColor: stroke } }, MINION_EMOJI[gr.name] || "\u{1F43E}");
 }
-function minionItemBody(g, b, gr, stroke) {
-    return [React.createElement("span", { key: "p" + gr.seq, className: "et-mw-pulse" + (gr.seq ? " on" : "") }, minionIconEl(gr, stroke)),
+function minionItemBody(g, b, gr, stroke, flash) {
+    const pulse = React.createElement("span", { key: "p" + gr.seq, className: "et-mw-pulse" + (gr.seq ? " on" : "") }, minionIconEl(gr, stroke));
+    return [flash != null ? React.createElement("span", { key: "f", className: "et-mw-flash", style: { animationDelay: flash.toFixed(1) + "s" } }, pulse) : pulse,
         gr.count > 1 && React.createElement("span", { key: "c", className: "et-minicount" }, "\u00d7" + gr.count),
         React.createElement("div", { key: "t", className: "et-minitip" },
             React.createElement("div", null, React.createElement("b", null, gr.name + (gr.count > 1 ? " \u00d7" + gr.count : ""))),
             minionTipLines(gr.m, g, b).map((t2, k2) => React.createElement("div", { key: k2 }, t2)))];
 }
-// minions in ring slots 9-16 (the gaps between the fury slots), riding the aura's spin; 8 kinds at most
+// minions in ring slots 9-16 (the gaps between the fury slots), riding the aura's spin. Nov 14 2026 (user): the first minion
+// starts at the BOTTOM of the ring, opposite the first skull / shard (slot 1 = the top): gaps 13-16 (bottom-left, going
+// clockwise), then 9-12; a 9th+ kind takes a fury slot, 8 down to 1 (FuryPieces leaves those out). 16 kinds at most.
+const MINION_RING_SLOTS = [12, 13, 14, 15, 8, 9, 10, 11, 7, 6, 5, 4, 3, 2, 1, 0];
+function minionRingTaken(groups) {
+    return Math.max(0, Math.min(groups.length, MINION_RING_SLOTS.length) - 8);
+}
 function MinionRing({ g, b, groups, hid, cx, cy, bandR, stroke }) {
     if (!groups.length)
         return null;
     const pts = furySlotPts(hid, bandR);
     return React.createElement("span", { className: "et-furypieces et-minring", style: { left: cx.toFixed(1) + "px", top: cy.toFixed(1) + "px" } },
-        groups.slice(0, 8).map((gr, i) => React.createElement(RingRider, { key: gr.name, x: pts[8 + i][0], y: pts[8 + i][1] },
-            React.createElement("div", { className: "et-mw-item ring" + (MINION_ICON[gr.name] ? " art" : "") }, minionItemBody(g, b, gr, stroke)))));
+        groups.slice(0, MINION_RING_SLOTS.length).map((gr, i) => { const p = pts[MINION_RING_SLOTS[i]];
+            return React.createElement(RingRider, { key: gr.name, x: p[0], y: p[1] },
+                // they flash in and out like the skulls / shards (fpPulse), staggered
+                React.createElement("div", { className: "et-mw-item ring" + (MINION_ICON[gr.name] ? " art" : "") }, minionItemBody(g, b, gr, stroke, -(1.2 + 0.3 * i)))); }));
 }
 const MW_LIFT = 0.32; // the wall's middle sits this many band radii above the ring centre, so a full column of 4 clears the fury orb
 function minionPulse(m) {
@@ -25433,6 +25451,10 @@ const HERO_DRAW_H = 140;
 const ENEMY_SIZE = {"Magpie": 0.45, "Bruiser": 1.05, "Assassin": 1.0, "Snail": 0.4, "Lizard Rider": 1.1, "Troll": 1.15, "Troll Hoard": 1.15, "Red Gnome": 0.6, "Yellow Gnome": 0.6, "Gray Gnome": 0.6, "Gnome Village": 0.85, "Snake": 0.5, "Troll King": 1.3, "Vineman": 1.25, "Vine Arm": 0.7, "Mushroom": 0.55, "Grub": 0.4, "Grub Group": 0.55, "Skeleton Warrior": 1.0, "Skeleton Archer": 1.0, "Golem": 1.2, "Zombie": 1.0, "Growing Mass": 0.85, "Lich King": 1.15, "Dwarf Queen": 0.85, "Boulder": 0.6, "Fire Imp": 0.6, "Fireworks Vendor": 1.0, "Glow Worm": 0.45, "Red Wand Fairy": 0.55, "Blue Wand Fairy": 0.55, "Yellow Wand Fairy": 0.55, "Phoenix": 1.1, "Phoenix Egg": 0.45, "Salamander": 0.65, "Dragon": 1.4, "Chimera Lion": 1.5, "Chimera Goat": 1.5, "Chimera Snake": 1.5, "Zombie Arm": 0.35, "Zombie Leg": 0.55, "Zombie Head": 0.42, "Snow Golem": 1.2, "Ice Hedgehog": 0.5, "Ice Troll Chieftain": 1.25, "Ice Troll Axeman": 1.15, "Sled Catapult": 0.9, "Sled Goblin": 0.7, "Ice Wraith": 1.05, "Yeti": 1.3, "Icy Shell": 1.0, "Dire Wolf": 0.85, "Blimp": 0.85, "Elf": 0.9, "Butterfly": 0.45, "Gryphon": 1.15, "Griffin Egg": 0.35, "Baby Gryphon": 0.55, "Centaur": 1.2, "Siren": 1.0, "Sunguard Knight": 1.05, "Sunguard Mage": 1.0};
 const ENEMY_ASPECT = {"Dire Wolf": 1.1, "Icy Shell": 1.01, "Magpie": 1.23, "Bruiser": 0.71, "Assassin": 0.47, "Snail": 1.87, "Troll": 1.06, "Troll Hoard": 0.73, "Red Gnome": 1.15, "Yellow Gnome": 1.12, "Gray Gnome": 1.3, "Snake": 1.25, "Troll King": 1.29, "Vineman": 1.0, "Mushroom": 0.76, "Grub": 1.46, "Grub Group": 1.04, "Skeleton Warrior": 0.81, "Skeleton Archer": 0.97, "Golem": 1.37, "Zombie": 0.93, "Growing Mass": 1.39, "Lich King": 0.98, "Dwarf Queen": 1.75, "Fire Imp": 0.74, "Fireworks Vendor": 1.11, "Glow Worm": 1.88, "Red Wand Fairy": 1.28, "Blue Wand Fairy": 1.33, "Yellow Wand Fairy": 1.35, "Phoenix": 1.68, "Salamander": 1.39, "Dragon": 1.62, "Snow Golem": 1.83, "Ice Hedgehog": 1.13, "Ice Troll Chieftain": 1.22, "Ice Troll Axeman": 1.21, "Sled Catapult": 1.59, "Ice Wraith": 1.01, "Yeti": 0.86, "Butterfly": 0.66, "Centaur": 1.1, "Siren": 0.48, "Gnome Village": 2.11, "Sled Goblin": 0.99, "Lizard Rider": 1.12, "Blimp": 2.11, "Zombie Arm": 3.24, "Zombie Leg": 1.05, "Zombie Head": 0.95};
 Object.assign(ENEMY_ASPECT, {"Phoenix": 1.16, "Phoenix Egg": 1.16, "Boulder": 1.47, "Dwarf Queen": 1.15});
+// SIZES = UNITY (Nov 14 2026, user: "the enemies do not seem the right size in relation to the hero"): every enemy that has a
+// Unity kit takes the size the user approved there (unity_battle_mode/enemy_kits kits/*/<Key>.enemykit.json sizeRel = body
+// height x the Rogue's). Both measure the idle frame-0 body, so the numbers carry over 1:1. Enemies without a kit keep the above.
+Object.assign(ENEMY_SIZE, {"Assassin": 1.0, "Blue Wand Fairy": 0.79, "Red Wand Fairy": 0.79, "Yellow Wand Fairy": 0.79, "Bruiser": 1.05, "Dire Wolf": 0.85, "Fire Imp": 0.87, "Fireworks Vendor": 0.9, "Gnome Village": 0.85, "Golem": 1.2, "Gray Gnome": 0.6, "Red Gnome": 0.6, "Yellow Gnome": 0.6, "Growing Mass": 0.85, "Grub": 0.4, "Ice Hedgehog": 0.8, "Ice Troll Axeman": 1.05, "Ice Troll Chieftain": 1.05, "Ice Wraith": 1.05, "Icy Shell": 1.0, "Lizard Rider": 1.25, "Magpie": 0.45, "Mushroom": 0.7, "Salamander": 0.78, "Skeleton Archer": 1.0, "Skeleton Warrior": 1.0, "Snail": 0.4, "Snake": 0.92, "Snow Golem": 0.85, "Troll Hoard": 1.25, "Troll King": 1.45, "Troll": 0.8, "Vineman": 1.25, "Yeti": 1.11});
 ENEMY_SIZE["Phoenix Egg"] = ENEMY_SIZE["Phoenix"]; // shares the Phoenix sheet + body box: the egg sits small inside it
 function foeSize(en) {
     const nm = en.name;
@@ -25965,12 +25987,16 @@ function FxHost({ b, tgt }) {
     const items = b.fxQueue.filter((f) => f.t === tgt && f.k !== "burn").slice(-4);
     return React.createElement(React.Fragment, null, items.map((f, i) => {
         const art = FX_ART[f.k] || FX_ART.buff;
-        if (f.k === "shield" && f.n > 0)
+        // gaining Shield = Unity's "Shield Up" flipbook (Hit FX Library shieldUpEffect: the shield with an up arrow rising
+        // from a line, 10 frames at 6 fps, looping, full for 0.85 s then a 1 s fade) + the +N badge (Nov 14 2026, user)
+        if (f.k === "shield") {
+            const dl = { animationDelay: (i * 0.16 + (f.d || 0) / 1000) + "s" };
             return React.createElement(React.Fragment, { key: f.id },
-                React.createElement("div", { className: "et-fx " + art.anim, style: { animationDelay: (i * 0.16 + (f.d || 0) / 1000) + "s" } }, React.createElement("span", { className: "et-fx-svg", dangerouslySetInnerHTML: { __html: art.svg } })),
-                React.createElement("div", { className: "et-shieldpop", style: { animationDelay: (i * 0.16 + (f.d || 0) / 1000) + "s" } },
+                React.createElement("div", { className: "et-fx shieldup", style: dl }, React.createElement("span", { className: "et-fx-shieldup", style: dl })),
+                f.n > 0 && React.createElement("div", { className: "et-shieldpop", style: dl },
                     React.createElement("img", { src: SHIELD_BADGE, alt: "" }),
                     React.createElement("span", null, "+" + f.n)));
+        }
         return React.createElement("div", { key: f.id, className: "et-fx " + art.anim, style: { animationDelay: (i * 0.16 + (f.d || 0) / 1000) + "s" } },
             art.anim === "sheet" ? React.createElement(FxSheet, { art, delay: f.d || 0 }) : art.img
                 ? React.createElement("img", { src: art.img, alt: "" })
@@ -26159,7 +26185,7 @@ function HeroFigure({ g, b }) {
                         const A = FURY_AURA[hid], sc = (FURY_AURA_R * HERO_DRAW_H_ANIM) / A.r;
                         return React.createElement("span", { className: "et-hero-aura", style: { width: Math.round(A.w * sc) + "px", height: Math.round(A.h * sc) + "px", left: "calc(50% - " + Math.round(A.cx * sc) + "px)", bottom: Math.round(HERO_ANIM_BOTTOM + HERO_DRAW_H_ANIM / 2 - (A.h - A.cy) * sc) + "px" } },
                             React.createElement("img", { className: "et-hero-ringimg" + (full ? " full" : ""), src: HERO_ART[hid].ring, alt: "", style: { opacity: 0.1 + 0.9 * frac, transformOrigin: (A.cx / A.w * 100).toFixed(1) + "% " + (A.cy / A.h * 100).toFixed(1) + "%" } }),
-                            React.createElement(FuryPieces, { hid, count: furyMins.length, cx: A.cx * sc, cy: A.cy * sc, bandR: FURY_AURA_R * HERO_DRAW_H_ANIM }),
+                            React.createElement(FuryPieces, { hid, count: furyMins.length, cx: A.cx * sc, cy: A.cy * sc, bandR: FURY_AURA_R * HERO_DRAW_H_ANIM, taken: MINION_ON_RING ? minionRingTaken(groups) : 0 }),
                             // the minion wall stands just outside the band on the enemy side, centred on the ring
                             MINION_ON_RING ? React.createElement(MinionRing, { g, b, groups, hid, stroke, cx: A.cx * sc, cy: A.cy * sc, bandR: FURY_AURA_R * HERO_DRAW_H_ANIM })
                                 : React.createElement(MinionWall, { g, b, groups, stroke, x: A.cx * sc + FURY_AURA_R * HERO_DRAW_H_ANIM * MW_BAND_OUT, y: A.cy * sc - FURY_AURA_R * HERO_DRAW_H_ANIM * MW_LIFT }));
@@ -30864,6 +30890,10 @@ function EldertoneInner() {
                 if (!r || !r.value)
                     return;
                 const sv = migrateSaveNames(JSON.parse(r.value));
+                if (runLost(sv)) {
+                    window.storage.delete(SAVE_KEY);
+                    return;
+                }
                 if (sv.runId && (!sv.decisionLog || !sv.decisionLog.length)) {
                     try {
                         const ar = await window.storage.get(ARCHIVE_KEY);
@@ -30937,9 +30967,16 @@ function EldertoneInner() {
                 throw new Error("no storage");
             if (!g.runId)
                 g.runId = "run_" + Date.now().toString(36) + Math.floor(Math.random() * 1e4);
-            // the decision log is persisted separately in the archive — keep the save small
-            const lean = Object.assign({}, g, { decisionLog: [] });
-            await window.storage.set(SAVE_KEY, JSON.stringify(lean));
+            if (runLost(g)) {
+                // lost: nothing to continue — drop the save so the title screen offers no Continue
+                await window.storage.delete(SAVE_KEY);
+                setSaved(null);
+            }
+            else {
+                // the decision log is persisted separately in the archive — keep the save small
+                const lean = Object.assign({}, g, { decisionLog: [] });
+                await window.storage.set(SAVE_KEY, JSON.stringify(lean));
+            }
             if (!silent) {
                 setSaveMsg(window.storage.__ephemeral ? "saved \u2713 (this session only \u2014 use a save code to keep it)" : "saved \u2713");
                 setTimeout(() => setSaveMsg(""), window.storage.__ephemeral ? 4000 : 1600);
@@ -31218,6 +31255,8 @@ function EldertoneInner() {
                                 React.createElement("button", { className: "et-btn", onClick: async () => {
                                         try {
                                             const sv = decodeSaveCode(importText);
+                                            if (runLost(sv))
+                                                throw new Error("that run was lost — it can't be continued");
                                             setSaved(sv);
                                             setImportText("");
                                             setImportMsg("save imported ✓ — press Continue above");
@@ -31312,7 +31351,7 @@ function EldertoneInner() {
                     await saveNow(true, true);
                     const gg = gref.current;
                     if (gg)
-                        setSaved(JSON.parse(JSON.stringify(Object.assign({}, gg, { decisionLog: [] }))));
+                        setSaved(runLost(gg) ? null : JSON.parse(JSON.stringify(Object.assign({}, gg, { decisionLog: [] }))));
                     setGame(null);
                 } }, "Menu"),
             saveMsg ? " " + saveMsg : ""),
@@ -32289,6 +32328,10 @@ function EldertoneInner() {
     return null;
 }
 // ---------- flow helpers (mutate game) ----------
+// a run the player has LOST can't be continued (Nov 14 2026, user): on the game-over screen, or in a battle already lost
+function runLost(g) {
+    return !!g && (g.screen === "gameover" || !!(g.battle && g.battle.over === "loss"));
+}
 const HEALTH_CENTRE_PCT = 0.20; // share of max health the node-5 Health Centre restores (15% -> 20%, Oct 5 2026)
 function enterNode(g, laneIdx) {
     // dragon egg incubation: 1 tick per interaction
