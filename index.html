@@ -24179,6 +24179,10 @@ html body .et-storesec{flex:0 0 auto}
 html body .et-storesec:not(:first-child) .et-grid{flex-direction:column}
 }
 .et-flying{position:relative;display:inline-block}
+.et-hover{position:relative;display:inline-block;vertical-align:bottom}
+.et-hover>.et-hover-body{display:block}
+.et-hover-body{transform:translateY(calc(var(--h, 100px) * var(--lift) * -1));animation:hoverBob 2.2s ease-in-out infinite}
+@keyframes hoverBob{0%,100%{translate:0 0}50%{translate:0 -5px}}
 .et-fly-body{animation:flyTakeoff .7s ease-out both, flyHover 1.8s ease-in-out .7s infinite}
 .et-fly-shadow{position:absolute;left:50%;bottom:-4px;width:70%;height:10px;margin-left:-35%;border-radius:50%;background:radial-gradient(ellipse at center,rgba(0,0,0,.45),rgba(0,0,0,0) 70%);animation:flyShadow 1.8s ease-in-out .7s infinite;pointer-events:none}
 @keyframes flyTakeoff{from{transform:translateY(0) rotate(0)}to{transform:translateY(-38px) rotate(-6deg)}}
@@ -25455,7 +25459,10 @@ Object.assign(ENEMY_ASPECT, {"Phoenix": 1.16, "Phoenix Egg": 1.16, "Boulder": 1.
 // Unity kit takes the size the user approved there (unity_battle_mode/enemy_kits kits/*/<Key>.enemykit.json sizeRel = body
 // height x the Rogue's). Both measure the idle frame-0 body, so the numbers carry over 1:1. Enemies without a kit keep the above.
 Object.assign(ENEMY_SIZE, {"Assassin": 1.0, "Blue Wand Fairy": 0.79, "Red Wand Fairy": 0.79, "Yellow Wand Fairy": 0.79, "Bruiser": 1.05, "Dire Wolf": 0.85, "Fire Imp": 0.87, "Fireworks Vendor": 0.9, "Gnome Village": 0.85, "Golem": 1.2, "Gray Gnome": 0.6, "Red Gnome": 0.6, "Yellow Gnome": 0.6, "Growing Mass": 0.85, "Grub": 0.4, "Ice Hedgehog": 0.8, "Ice Troll Axeman": 1.05, "Ice Troll Chieftain": 1.05, "Ice Wraith": 1.05, "Icy Shell": 1.0, "Lizard Rider": 1.25, "Magpie": 0.45, "Mushroom": 0.7, "Salamander": 0.78, "Skeleton Archer": 1.0, "Skeleton Warrior": 1.0, "Snail": 0.4, "Snake": 0.92, "Snow Golem": 0.85, "Troll Hoard": 1.25, "Troll King": 1.45, "Troll": 0.8, "Vineman": 1.25, "Yeti": 1.11});
-ENEMY_SIZE["Phoenix Egg"] = ENEMY_SIZE["Phoenix"]; // shares the Phoenix sheet + body box: the egg sits small inside it
+ENEMY_SIZE["Phoenix Egg"] = ENEMY_SIZE["Phoenix"];
+// Unity kit liftRel: how far above the floor a flyer's body hovers, in hero body heights (Wand Fairies at the Rogue's chest-ish,
+// Magpie at his chest, Fire Imp at his knees)
+const ENEMY_LIFT = { "Red Wand Fairy": 0.39, "Blue Wand Fairy": 0.39, "Yellow Wand Fairy": 0.39, Magpie: 0.47, "Fire Imp": 0.23 }; // shares the Phoenix sheet + body box: the egg sits small inside it
 function foeSize(en) {
     const nm = en.name;
     const rel = ENEMY_SIZE[nm] || (nm.indexOf("Hydra ") === 0 ? 1.2 : nm.indexOf("Zombie ") === 0 ? 0 : 0.8);
@@ -25564,6 +25571,13 @@ function FoeSpriteView(en, b) {
     const gr = en && en.special === "growing_mass" && en.flags && en.flags.grows;
     if (gr)
         v = React.createElement("div", { className: "et-gmgrow", style: { transform: "scale(" + Math.min(1.6, 1 + 0.15 * gr) + ")" } }, v);
+    // HOVERING (Nov 14 2026, user: "make the web game enemies hover" = Unity's kit liftRel): the body floats ENEMY_LIFT hero
+    // body heights above its feet line over a soft ground shadow; name, bars and Firewall ring stay on the ground
+    const lift = en && en.id != null && ENEMY_LIFT[en.name];
+    if (lift && !(en.flags && en.flags.untargetable))
+        v = React.createElement("div", { className: "et-hover", style: { "--lift": (lift / (ENEMY_SIZE[en.name] || 1)).toFixed(3) } },
+            React.createElement("span", { className: "et-fly-shadow" }),
+            React.createElement("div", { className: "et-hover-body" }, v));
     // Dragon Flight (and anything else untargetable): lift off and hover above a ground shadow
     if (en && en.flags && en.flags.untargetable)
         v = React.createElement("div", { className: "et-flying" },
