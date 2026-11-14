@@ -19642,11 +19642,11 @@ function foeLetter(b, en, ei) {
 // The battle screen's FxHost overlays render these; sims never read them.
 // the enemies' turn is still playing out on screen: plays / End Turn wait (b.__busyUntil, set by endTurn)
 function uiBusy(b) { return !!b && (b.__busyUntil || 0) > Date.now(); }
-function fxPush(b, kind, tgt, delay) {
+function fxPush(b, kind, tgt, delay, n) {
     if (!b || !b.fxQueue)
         return;
     const d = delay != null ? delay : (b.__hitDelay || 0);
-    b.fxQueue.push({ id: b.fxSeq++, k: kind, t: tgt, d }); // d: ms to wait (an attack FX in flight, a swing, the enemy's turn)
+    b.fxQueue.push({ id: b.fxSeq++, k: kind, t: tgt, d, n }); // d: ms to wait (an attack FX in flight, a swing, the enemy's turn)
     dispMark(b, d + 400);
     if (b.fxQueue.length > 30)
         b.fxQueue.splice(0, b.fxQueue.length - 30);
@@ -19671,7 +19671,7 @@ function gainShield(b, g, n) {
     h.shield = Math.max(0, h.shield + n);
     if (n > 0) {
         b.curPlayShield = true;
-        fxPush(b, "shield", "hero");
+        fxPush(b, "shield", "hero", undefined, n);
         if (h.flags && h.flags.on_shield_strength_turn)
             h.st._tempStr = (h.st._tempStr || 0) + h.flags.on_shield_strength_turn;
         // V2 Firewall totem: every Shield gain also feeds the wall
@@ -22789,8 +22789,10 @@ function enemyGainShield(b, g, en, n) {
         en._shieldedThisTurn = true;
     const total = n + (en.st.armored || 0);
     en.shield += total;
-    if (total > 0)
+    if (total > 0) {
         log(b, en.name + " shields itself (+" + total + ", " + en.shield + " total).");
+        fxPush(b, "shield", en.id, undefined, total); // the shield symbol pops over it, as in Unity (Nov 13 2026)
+    }
     return total;
 }
 // Shield an enemy hands an ALLY during the enemy phase: if that ally has not
@@ -24231,6 +24233,9 @@ html body .et-foe.sized .et-esprite.et-egroup{font-size:calc(var(--h) * .6)}
 .et-enemy h4{margin:0 0 4px;font-family:'Cormorant SC',serif;font-size:16px;color:#e8c98a;font-weight:600;line-height:1.15}
 .et-intent{font-size:14px;color:#efd9b0;background:rgba(0,0,0,.3);border-radius:6px;padding:2px 6px;display:inline-block;margin-top:5px}
 .et-badges{display:flex;flex-wrap:wrap;gap:3px;margin-top:6px}
+/* Nov 13 2026 (user: "the screen resizes a lot"): a character's buff/debuff row is always ONE badge tall, so gaining a status
+   never lifts the character (columns stand on their bottom edge); a second row hangs below instead */
+.et-badgerow{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;align-content:flex-start;height:31px;position:relative;z-index:3}
 .et-badge{font-size:10.5px;padding:1px 5px;border-radius:4px;background:#243024;color:#b9d6a8;border:1px solid #3f5a3c}
 .st-ico{width:32px;height:32px;vertical-align:-9px;margin:0 1px}
 .et-badge .st-ico{width:28px;height:28px;vertical-align:-8px;margin:0}
@@ -24389,6 +24394,8 @@ html body .et-encmeet .et-esprite.et-eanim{font-size:140px}
 .et-ehp>i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(#8f5a4a,#7a3f31)}
 .et-ehp>span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#f3e2c8;font-weight:700}
 .et-intent-top{display:block;text-align:center;margin:0 0 2px;min-height:22px;font-size:14px;color:#efd9b0}
+/* Nov 13 2026: always 22px tall, a two-line intent grows UPWARD, so a long intent never lifts the whole battle row */
+.et-intent-top{display:flex;align-items:flex-end;justify-content:center;height:22px;min-height:0}
 .et-intent-top .pill{background:rgba(0,0,0,.35);border-radius:6px;padding:1px 7px;display:inline-block;position:relative;cursor:help}
 .et-inttip{display:none;position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);width:230px;background:rgba(30,22,13,.97);color:#e8dfc8;border:1px solid #8a744c;border-radius:8px;padding:7px 9px;font-size:11px;line-height:1.45;z-index:46;pointer-events:none;text-align:left;font-weight:400;box-shadow:0 6px 16px rgba(0,0,0,.45)}
 .et-intent-top .pill:hover .et-inttip{display:block}
@@ -24514,6 +24521,23 @@ html body .et-encmeet .et-esprite.et-eanim{font-size:140px}
 @keyframes fxCoin{0%{opacity:0;transform:translate(0,10%) scale(.5) rotateY(0deg)}15%{opacity:1;transform:translate(6%,-14%) scale(1) rotateY(180deg)}55%{opacity:1;transform:translate(14%,-38%) scale(1) rotateY(540deg)}100%{opacity:0;transform:translate(18%,-52%) scale(.85) rotateY(720deg)}}
 @keyframes fxPop{0%{opacity:0;transform:scale(.4)}25%{opacity:1;transform:scale(1.06)}70%{opacity:.95;transform:scale(1)}100%{opacity:0;transform:scale(1.1) translateY(-9%)}}
 .et-fx.shieldclose{animation:fxShieldFade 1s ease-out forwards}
+/* Unity-style shield on the health bar + the gain pop (Nov 13 2026) */
+.et-herohp.shielded>i,.et-ehp.shielded>i{background:linear-gradient(#7ff6ff,#13c3d6)}
+.et-herohp.shielded>span,.et-ehp.shielded>span{color:#fff;text-shadow:0 0 2px #000,0 0 2px #000}
+.et-ehprow{display:flex;align-items:center;gap:2px;margin-top:4px}
+.et-ehprow .et-ehp{flex:1;margin-top:0}
+.et-hpicon{flex:0 0 auto;position:relative;display:flex;align-items:center;justify-content:center;margin:-5px 0;z-index:1}
+.et-hpicon.hp{font-size:12px;width:16px;line-height:1}
+.et-hpicon.sh{width:19px;height:23px}
+.et-hpicon.sh img{position:absolute;inset:0;width:100%;height:100%}
+.et-hpicon.sh b{position:relative;font-size:10px;color:#fff;font-weight:800;text-shadow:0 0 2px #000,0 0 2px #000,0 0 1px #000;margin-top:-1px}
+.et-hprow .et-hpicon.hp{font-size:14px;width:18px}
+.et-hprow .et-hpicon.sh{width:22px;height:27px;margin:-7px 0}
+.et-hprow .et-hpicon.sh b{font-size:11.5px}
+.et-shieldpop{position:absolute;left:50%;top:14%;z-index:9;pointer-events:none;display:flex;align-items:center;gap:3px;opacity:0;transform:translate(-50%,0) scale(.4);animation:shieldPop 1.5s ease-out forwards}
+.et-shieldpop img{width:30px;height:37px;filter:drop-shadow(0 0 6px rgba(127,246,255,.9))}
+.et-shieldpop span{font:800 20px 'Alegreya Sans',sans-serif;color:#7ff6ff;text-shadow:0 0 3px #000,0 0 3px #000,0 2px 2px #000}
+@keyframes shieldPop{0%{opacity:0;transform:translate(-50%,10px) scale(.4)}15%{opacity:1;transform:translate(-50%,0) scale(1.18)}28%{transform:translate(-50%,-4px) scale(1)}75%{opacity:1;transform:translate(-50%,-16px) scale(1)}100%{opacity:0;transform:translate(-50%,-26px) scale(1)}}
 @keyframes fxShieldFade{0%{opacity:0}18%{opacity:1}75%{opacity:1}100%{opacity:0}}
 .et-fx.shieldclose .fx-half-l{animation:fxHalfL 1s ease-out forwards}
 .et-fx.shieldclose .fx-half-r{animation:fxHalfR 1s ease-out forwards}
@@ -25895,6 +25919,16 @@ function BattleBg({ src, biome }) {
             const R = sc.getBoundingClientRect(), z = R.width / (sc.offsetWidth || 1) || 1;
             const W = sc.clientWidth, Hs = sc.clientHeight;
             const feet = (hero.getBoundingClientRect().bottom - R.top) / z - sc.clientTop;
+            // hold still through small layout wobbles during play (a log line, a card's text, an attack frame): only a new
+            // scene width, a real move of the feet line or a gap in the cover re-fits the picture (Nov 13 2026, user:
+            // "the screen resizes a lot" — the picture zoomed in and out on every card play)
+            const L = img.__fit;
+            if (L && L.src === src && Math.abs(L.W - W) < 2 && Math.abs(L.feet - feet) < 12) {
+                const t = parseFloat(img.style.top) || 0, h = parseFloat(img.style.height) || 0;
+                if (t <= 0.5 && t + h >= Hs - 0.5)
+                    return;
+            }
+            img.__fit = { src, W, feet };
             const [lo, hi] = BG_FLOOR[biome] || [0.5, 0.8];
             const coverH = Math.max(W * nh / nw, Hs);
             const f = Math.min(hi, Math.max(lo, feet / coverH));
@@ -25911,6 +25945,15 @@ function BattleBg({ src, biome }) {
     });
     return React.createElement("img", { ref, className: "et-scenebg-img", src, alt: "" });
 }
+// SHIELD (Nov 13 2026, user: "make it the same as the unity"): Unity's own shield badge (Shield Intent.png). While a character
+// holds Shield its health bar turns cyan with this badge + the amount at its left end (a heart otherwise), and every Shield
+// gain pops the badge with "+N" over the character (Unity's "Shield + N").
+const SHIELD_BADGE = "data:image/webp;base64,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";
+function HpIcon({ shield }) {
+    return shield > 0
+        ? React.createElement("span", { className: "et-hpicon sh", title: "Shield " + shield }, React.createElement("img", { src: SHIELD_BADGE, alt: "" }), React.createElement("b", null, shield))
+        : React.createElement("span", { className: "et-hpicon hp" }, "\u2764\uFE0F");
+}
 function FxHost({ b, tgt }) {
     if (!b || !b.fxQueue)
         return null;
@@ -25918,6 +25961,12 @@ function FxHost({ b, tgt }) {
     const items = b.fxQueue.filter((f) => f.t === tgt && f.k !== "burn").slice(-4);
     return React.createElement(React.Fragment, null, items.map((f, i) => {
         const art = FX_ART[f.k] || FX_ART.buff;
+        if (f.k === "shield" && f.n > 0)
+            return React.createElement(React.Fragment, { key: f.id },
+                React.createElement("div", { className: "et-fx " + art.anim, style: { animationDelay: (i * 0.16 + (f.d || 0) / 1000) + "s" } }, React.createElement("span", { className: "et-fx-svg", dangerouslySetInnerHTML: { __html: art.svg } })),
+                React.createElement("div", { className: "et-shieldpop", style: { animationDelay: (i * 0.16 + (f.d || 0) / 1000) + "s" } },
+                    React.createElement("img", { src: SHIELD_BADGE, alt: "" }),
+                    React.createElement("span", null, "+" + f.n)));
         return React.createElement("div", { key: f.id, className: "et-fx " + art.anim, style: { animationDelay: (i * 0.16 + (f.d || 0) / 1000) + "s" } },
             art.anim === "sheet" ? React.createElement(FxSheet, { art, delay: f.d || 0 }) : art.img
                 ? React.createElement("img", { src: art.img, alt: "" })
@@ -26159,11 +26208,10 @@ function HeroFigure({ g, b }) {
                     " \u2014 ",
                     minionTipLines(m.m, g, b).join(" "))))))),
         React.createElement("div", { className: "et-hprow" },
-            React.createElement("div", { className: "et-herohp" },
+            React.createElement(HpIcon, { shield: b.hero.shield }),
+            React.createElement("div", { className: "et-herohp" + (b.hero.shield > 0 ? " shielded" : "") },
                 React.createElement("i", { style: { width: `${Math.max(0, (g.hp / g.maxHp) * 100)}%` } }),
                 React.createElement("span", null,
-                    "\u2764\uFE0F",
-                    " ",
                     g.hp,
                     "/",
                     g.maxHp)),
@@ -26177,11 +26225,7 @@ function HeroFigure({ g, b }) {
                     " FURY ",
                     "\u2694"),
                 null)),
-        React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 3, justifyContent: "center", marginTop: 5, minHeight: 20 } },
-            b.hero.shield > 0 && React.createElement("span", { className: "et-badge" },
-                STATUS_ICONS.shield ? React.createElement("img", { className: "st-ico", src: STATUS_ICONS.shield, alt: "" }) : "\u{1F6E1}",
-                " ",
-                b.hero.shield),
+        React.createElement("div", { className: "et-badgerow", style: { marginTop: 5 } },
             React.createElement(Badges, { st: b.hero.st }),
             // the fury minions also show as buffs with a count (Nov 11 2026, user) — the ring draws 8 at most
             ["Skeleton", "Ice Shard"].map((nm) => {
@@ -31618,12 +31662,14 @@ function EldertoneInner() {
                             React.createElement("div", { className: "et-foename" },
                                 CHIMERA_PART[en.name] ? CHIMERA_PART[en.name][0] : en.name,
                                 en.kind !== "normal" ? " \u2605" : ""),
-                            React.createElement("div", { className: "et-ehp" },
-                                React.createElement("i", { style: { width: `${Math.max(0, (en.hp / en.maxHp) * 100)}%` } }),
-                                React.createElement("span", null,
-                                    en.hp,
-                                    "/",
-                                    en.maxHp)),
+                            React.createElement("div", { className: "et-ehprow" },
+                                React.createElement(HpIcon, { shield: en.shield }),
+                                React.createElement("div", { className: "et-ehp" + (en.shield > 0 ? " shielded" : "") },
+                                    React.createElement("i", { style: { width: `${Math.max(0, (en.hp / en.maxHp) * 100)}%` } }),
+                                    React.createElement("span", null,
+                                        en.hp,
+                                        "/",
+                                        en.maxHp))),
                             (() => {
                                 const es = charStatusEntries(en.shield, en.st);
                                 if (en.flags && en.flags.tkRage)
@@ -31639,11 +31685,7 @@ function EldertoneInner() {
                                     " \u2014 ",
                                     d)))) : null;
                             })(),
-                            React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 3, justifyContent: "center", marginTop: 4, minHeight: 18 } },
-                                en.shield > 0 && React.createElement("span", { className: "et-badge", style: { background: "#1f2733", color: "#9fb6cf", borderColor: "#3c4c66" } },
-                                    STATUS_ICONS.shield ? React.createElement("img", { className: "st-ico", src: STATUS_ICONS.shield, alt: "" }) : "\u{1F6E1}",
-                                    " ",
-                                    en.shield),
+                            React.createElement("div", { className: "et-badgerow", style: { marginTop: 4 } },
                                 React.createElement(Badges, { st: en.st }))));
                         return vineWrap(el);
                     }; return b.enemies.map((en, ei) => (vmG && en !== vmG && !en.dead && en.armSlot && en.summonerId === vmG.id) ? null : renderFoe(en, ei)); })())),
