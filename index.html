@@ -19625,6 +19625,24 @@ function arrangeBattlefield(b) {
         const rk = (e) => e === vm ? 2 : (e.summonerId === vm.id && e.armSlot) ? VINE_RANK[e.armSlot] : -1;
         b.enemies = b.enemies.map((e, i) => [e, i]).sort((x, y) => (rk(x[0]) - rk(y[0])) || (x[1] - y[1])).map((x) => x[0]);
     }
+    // the Zombie's broken-off parts stand in front of him in their fixed slots: Head A, Leg B, Arm C, Zombie D
+    const zb = b.enemies.find((e) => e.special === "zombie_parts");
+    if (zb) {
+        const rk = (e) => e === zb ? 3 : e.zOf === zb.id && e.zSlot ? ZOMBIE_RANK[e.zSlot] : -1;
+        b.enemies = b.enemies.map((e, i) => [e, i]).sort((x, y) => (rk(x[0]) - rk(y[0])) || (x[1] - y[1])).map((x) => x[0]);
+    }
+}
+// ZOMBIE SLOTS (Nov 15 2026, user: "have the zombie always be in slot D and his body parts summon in front of him"): he stands in
+// slot D from the start; his Arm / Leg / Head break off into C / B / A, right in front of him, and empty places are held for the
+// parts still on him (and for a fallen part or Zombie) so nobody shifts. Parts carry zOf (his id), not summonerId, so the bot does
+// not count their attacks as his.
+const ZOMBIE_SLOT = ["C", "B", "A"];
+const ZOMBIE_RANK = { A: 0, B: 1, C: 2 };
+function zombieGroup(b) { // the Zombie (alive or fallen) when the field is only him and his slotted parts
+    const zb = b.enemies.find((e) => e.special === "zombie_parts");
+    if (!zb) return null;
+    const al = alive(b);
+    return al.length && al.every((e) => e === zb || (e.zSlot && e.zOf === zb.id)) ? zb : null;
 }
 // VINEMAN SLOTS (Oct 30 2026, user): he always stands in slot C; his 1st / 2nd / 3rd grown arm is drawn with art
 // layer C / B / A, whose hands sit left of him / right of him / far left, so they take slots B / D / A. Each arm's
@@ -19638,6 +19656,9 @@ function vineGroup(b) { // the living Vineman, when the field is only him and hi
     return vm && al.every((e) => e === vm || (e.armSlot && e.summonerId === vm.id)) ? vm : null;
 }
 function foeLetter(b, en, ei) {
+    const zb = zombieGroup(b);
+    if (zb && (en === zb || (en.zSlot && en.zOf === zb.id)))
+        return en === zb ? "D" : en.zSlot;
     const vm = vineGroup(b);
     if (vm && (en === vm || (en.armSlot && en.summonerId === vm.id)))
         return en === vm ? "C" : VINE_SLOT[en.armSlot];
@@ -20064,8 +20085,10 @@ function zombieBreakOff(b, en) {
             en.flags["p" + i] = true;
             const e2 = makeEnemy(pn);
             e2._justSpawned = !!b.__enemyPhase;
+            e2.zOf = en.id; e2.zSlot = ZOMBIE_SLOT[i]; // fixed slot in front of him (C, B, A)
             rollIntent(e2, b);
             b.enemies.push(e2);
+            arrangeBattlefield(b);
             log(b, "A " + pn + " breaks off!");
         }
     });
@@ -24610,6 +24633,7 @@ html body .et-encmeet .et-esprite.et-eanim{font-size:140px}
 .et-foe .et-esprite{font-size:50px;line-height:1.1;filter:drop-shadow(0 6px 6px rgba(0,0,0,.35));transition:filter .15s}
 .et-foe.tgt .et-esprite{filter:drop-shadow(0 0 10px #ffd76a)}
 .et-foe.et-dead{pointer-events:none;overflow:hidden;max-width:112px;animation:foeGone .45s ease .85s forwards}
+.et-foe.et-zhold{pointer-events:none;cursor:default;align-self:flex-end}
 @keyframes foeGone{to{max-width:0;opacity:0}}
 .et-smoke{position:relative;height:80px;margin-top:46px}
 .cf-bagslot{width:16px;height:16px;flex-shrink:0;border:1px dashed rgba(240,225,190,.35);border-radius:4px;display:inline-flex;align-items:center;justify-content:center;background:rgba(0,0,0,.25)}
@@ -31665,7 +31689,7 @@ function EldertoneInner() {
                 React.createElement("div", { className: "et-scene-inner" },
                     React.createElement(HeroFigure, { g: g, b: b }),
                     React.createElement(AttackFxLayer, { b }),
-                    React.createElement("div", { className: "et-foes", style: { "--fs": (b.__fsMax = Math.max(b.__fsMax || 0, b.enemies.filter((e) => !e.dead || (CHIMERA_PART[e.name] && b.enemies.some((x) => !x.dead && CHIMERA_PART[x.name]))).reduce((t, e) => { const vmF = vineGroup(b); if (vmF && e !== vmF && e.armSlot && e.summonerId === vmF.id) return t; const z = foeSize(e); return t + Math.max(FOE_MIN_W, z.h ? z.h * z.a : FOE_MIN_W) + FOE_GAP + (e === vmF ? z.h * 1.12 : 0); }, 0) || 1)) } }, (() => { const vmG = vineGroup(b); const renderFoe = (en, ei, armMode) => {
+                    React.createElement("div", { className: "et-foes", style: { "--fs": (b.__fsMax = Math.max(b.__fsMax || 0, b.enemies.filter((e) => !e.dead || (CHIMERA_PART[e.name] && b.enemies.some((x) => !x.dead && CHIMERA_PART[x.name]))).reduce((t, e) => { const vmF = vineGroup(b); if (vmF && e !== vmF && e.armSlot && e.summonerId === vmF.id) return t; const z = foeSize(e); return t + Math.max(FOE_MIN_W, z.h ? z.h * z.a : FOE_MIN_W) + FOE_GAP + (e === vmF ? z.h * 1.12 : 0); }, 0) + ((() => { const zF = zombieGroup(b); return zF ? (3 - b.enemies.filter((x) => !x.dead && x.zSlot && x.zOf === zF.id).length) * (FOE_MIN_W + FOE_GAP) : 0; })()) || 1)) } }, (() => { const vmG = vineGroup(b); const zG = zombieGroup(b); const renderFoe = (en, ei, armMode) => {
                         const L = foeLetter(b, en, ei);
                         if (en.dead && CHIMERA_PART[en.name] && b.enemies.some((x) => !x.dead && CHIMERA_PART[x.name])) {
                             const fzd = foeSize(en);
@@ -31746,7 +31770,14 @@ function EldertoneInner() {
                             React.createElement("div", { className: "et-badgerow", style: { marginTop: 4 } },
                                 React.createElement(Badges, { st: en.st }))));
                         return vineWrap(el);
-                    }; return b.enemies.map((en, ei) => (vmG && en !== vmG && !en.dead && en.armSlot && en.summonerId === vmG.id) ? null : renderFoe(en, ei)); })())),
+                    }; if (zG) { // A, B, C (parts or held places), then the Zombie in D
+                        const smoke = (e) => e && e.puff ? React.createElement("div", { className: "et-smoke" }, [0, 1, 2, 3, 4, 5].map((i) => React.createElement("span", { key: i, className: "et-pf et-pf" + i }))) : null;
+                        const hold = (e, key) => { const fz = e && foeSize(e); return React.createElement("div", { key, className: "et-foe et-zhold" + (fz && fz.h ? " sized" : ""), style: fz && fz.h ? { "--ehn": fz.h, "--ea": fz.a } : undefined }, smoke(e)); };
+                        const showable = (e) => e && (!e.dead || (e.puff && e.puffAt > Date.now()));
+                        const out = ["A", "B", "C"].map((L) => { const p = b.enemies.filter((e) => e.zSlot === L && e.zOf === zG.id).pop(); return showable(p) ? renderFoe(p, b.enemies.indexOf(p)) : hold(p, "zh" + L); });
+                        out.push(showable(zG) ? renderFoe(zG, b.enemies.indexOf(zG)) : hold(zG, "zhD"));
+                        return out.concat(b.enemies.filter((e) => e !== zG && !(e.zSlot && e.zOf === zG.id)).map((en) => renderFoe(en, b.enemies.indexOf(en))));
+                    } return b.enemies.map((en, ei) => (vmG && en !== vmG && !en.dead && en.armSlot && en.summonerId === vmG.id) ? null : renderFoe(en, ei)); })())),
                 React.createElement("div", { className: "et-endturn" + (b.over || uiBusy(b) ? " off" : "") + tutGlow(g, "end"), title: "Space \u00b7 G\u266f on an instrument", onClick: () => !b.over && !uiBusy(b) && mut((g) => { logDecision(g, "end_turn", { via: "click" }); endTurn(g.battle, g); afterActionUI(g); logAfter(g); saveNow(true); }) },
                     React.createElement("span", null, "END TURN (G\u266f)")),
                 React.createElement("div", { className: "et-chords" + (isV3(g) ? " v3slots" : itemMode(g) ? " v2slots" : "") + tutGlow(g, "chords") }, (() => { const renderChord = (c, i) => {
