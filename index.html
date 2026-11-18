@@ -22520,7 +22520,14 @@ function heroTurnStart(b, g) {
     b.playsThisTurn = 0;
     if (alive(b).some((e) => e.special === "siren_curse") && b.chords.length) {
         b.sirenMark = Math.floor(Math.random() * b.chords.length);
-        alive(b).filter((e) => e.special === "siren_curse").forEach((e) => enemyAnimEv(e, "breath", b)); // display: she breathes in the song
+        alive(b).filter((e) => e.special === "siren_curse").forEach((e) => {
+            enemyAnimEv(e, "breath", b); // display: she breathes in the song ...
+            // ... and it flies at the hero: notes + breath gust (AttackFxItem kind "song"); the hero flinches as it lands
+            const d0 = b.__hitDelay || 0, F = ATTACK_FX.Siren.song;
+            b.atkFx = (b.atkFx || []).concat([{ id: b.fxSeq = (b.fxSeq || 0) + 1, en: e.id, name: e.name, k: "song", ts: Date.now(), d: d0, shot: 0 }]).slice(-12);
+            b.hero.animHit = (b.hero.animHit || 0) + 1;
+            b.hero.animHitDelay = d0 + F.notes[0] + F.fly;
+        });
         log(b, "The Siren's melody settles on " + b.chords[b.sirenMark].name + ".");
     }
     else
@@ -24594,6 +24601,8 @@ html body .et-encmeet .et-esprite.et-eanim{font-size:140px}
 .cf .cf-tip .cf-tip-h{font-family:'Cormorant SC',serif;font-size:12px;color:#d8b97a;letter-spacing:.08em;margin-bottom:5px}
 .et-hero,.et-foe{position:relative}
 .et-atkfx{position:absolute;inset:0;pointer-events:none;z-index:9;overflow:visible}
+.et-stunbirds{position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;z-index:6;background:url(sprites/fx-stun-birds.webp?v=1) 0 0/1700% 100% no-repeat;animation:stunBirds 2.38s steps(17,jump-none) infinite}
+@keyframes stunBirds{from{background-position:0% 0}to{background-position:100% 0}}
 .et-atkfx-sheet,.et-atkfx-missile,.et-atkfx-burst{position:absolute;pointer-events:none;background-repeat:no-repeat}
 .et-atkfx-missile{filter:drop-shadow(0 0 6px rgba(120,220,255,.8))}
 .et-atkfx-burst{border-radius:50%;background:radial-gradient(circle,rgba(235,252,255,.95) 0,rgba(130,220,255,.75) 35%,rgba(60,170,255,0) 70%);animation:atkBurst .45s ease-out forwards}
@@ -25096,6 +25105,8 @@ ATTACK_FX["Icy Shell"].attack.holdF = 15;
 ATTACK_FX.Dragon = { bite: { kind: "bite", at: 380, flash: ATTACK_FX["Dire Wolf"].bite.flash } };
 // Gryphon (user, Nov 18 2026): its attacks leave the Dire Wolf's claw marks on the hero instead of the damage slash; "at" = its
 // strike (396 ms) - 50; a double hit lands two sets MELEE_GAP apart
+ATTACK_FX.Siren = { song: { kind: "song", mouth: [90, 41], notes: [140, 300, 460], fly: 560, noteH: 34, // her melody (heroTurnStart)
+    sheet: { src: "sprites/fx-siren-song.webp?v=1", cw: 166, ch: 166, cols: 8, note0: 5, gustFrom: [133, 24], gustAxis: 130, gustLen: 112 } } };
 ATTACK_FX.Gryphon = { attack: { kind: "marks", at: 346, sheet: ATTACK_FX["Dire Wolf"].attack.sheet } }; // the wand holds its launch pose while a volley's later missiles form
 // ── DISPLAY TIMING (Nov 13 2026, user: "the hero needs to start the attack animation before the hit animations show";
 // "enemies should attack one at a time, not all at once"; "when the icy shell attacks 3x, fire 3 missiles in quick
@@ -25966,6 +25977,38 @@ FX_ART.freeze = { anim: "pop", svg: '<svg viewBox="0 0 100 100"><g fill="#bfeaff
 // ATTACK FX LAYER (Nov 13 2026): enemy attack effects that travel to / land on the hero (ATTACK_FX). Positions come from the DOM
 // at each step: the attacker's sheet cell (.et-eanim-sheet in [data-eid]) and the hero's body box; z converts screen px to the
 // layer's own px (the scene can be zoomed). Entries older than 3 s are history (a reload) and play nothing.
+// STUN BIRDS (Nov 18 2026, user: "add the birds flying stunned animation to stunned characters"): the Unity build's STUN_FX
+// (FX ANIM/_FX ANIM PNGS/FXANIM_STUN.PNG, 17 frames of 2000 px, 140 ms each) cut to sprites/fx-stun-birds.webp (union crop, 200x88
+// cells). Drawn over the head of any stunned character: an enemy with Stun, a defeated (stunned) Chimera head, the stunned hero.
+// It finds the character's body box inside its own container and circles just above its top edge.
+const STUN_BIRDS = { src: "sprites/fx-stun-birds.webp?v=1", n: 17, ms: 140, aspect: 200 / 88 };
+function StunBirds({ sel }) {
+    const ref = useRef(null);
+    React.useLayoutEffect(() => {
+        const el = ref.current;
+        if (!el)
+            return;
+        const place = () => {
+            const host = el.offsetParent, own = el.parentElement;
+            // first selector in the list that matches (querySelector with a list would take the first in document order)
+            const t = own && (sel || ".et-eanim-box, .et-eimg, .et-chim, .et-esprite, .et-hero-img").split(",").map((q) => own.querySelector(q.trim())).find((x) => x && x.getBoundingClientRect().height);
+            if (!host || !t)
+                return;
+            const H = host.getBoundingClientRect(), z = H.width / (host.offsetWidth || 1) || 1, R = t.getBoundingClientRect();
+            if (!R.height)
+                return;
+            const w = Math.max(64, Math.min(160, (Math.min(R.width, R.height) / z) * 1.05)), h = w / STUN_BIRDS.aspect;
+            el.style.width = w + "px";
+            el.style.height = h + "px";
+            el.style.left = ((R.left + R.width / 2 - H.left) / z - w / 2) + "px";
+            el.style.top = ((R.top - H.top) / z - h * 0.55) + "px";
+        };
+        place();
+        const iv = setInterval(place, 400);
+        return () => clearInterval(iv);
+    });
+    return React.createElement("span", { ref, className: "et-stunbirds", "aria-hidden": "true" });
+}
 function AttackFxLayer({ b }) {
     return React.createElement("div", { className: "et-atkfx" }, (b.atkFx || []).map((fx) => React.createElement(AttackFxItem, { key: fx.id, fx })));
 }
@@ -25988,7 +26031,7 @@ function AttackFxItem({ fx }) {
             const fr = foe.getBoundingClientRect(), hr = hero.getBoundingClientRect(), c = fr.width / A.cw;
             return { k: c / z, at: (p) => [(fr.left + p[0] * c - L.left) / z, (fr.top + p[1] * c - L.top) / z],
                 hero: [(hr.left + hr.width * 0.62 - L.left) / z, (hr.top + hr.height * 0.42 - L.top) / z],
-                side: [(hr.right - hr.width * 0.04 - L.left) / z, (hr.top + hr.height * 0.42 - L.top) / z] }; // the body edge facing the enemies
+                side: [(hr.right - hr.width * 0.04 - L.left) / z, (hr.top + hr.height * 0.42 - L.top) / z], hh: hr.height / z }; // the body edge facing the enemies
         };
         const add = (el) => { layer.appendChild(el); els.push(el); return el; };
         // a frame sheet played once with its anchor on (x, y); xf = extra transform (the stretched drain ribbon)
@@ -26034,6 +26077,37 @@ function AttackFxItem({ fx }) {
         }
         if (F.kind === "marks")
             later(F.at + shot * MELEE_GAP, () => { const G = geo(); if (G) sheetAt(F.sheet, G.k, G.hero[0], G.hero[1]); });
+        if (F.kind === "song") {
+            // the Siren's melody (Nov 18 2026, user: "the siren special animation hitting the hero"): red music notes leave her
+            // mouth one after another and fly to the hero, and her red breath gust breaks over the hero as the first one lands
+            const S = F.sheet, cellPos = (i) => (i / (S.cols - 1)) * 100 + "% 0%";
+            F.notes.forEach((t0, j) => later(t0, () => {
+                const G = geo();
+                if (!G) return;
+                const [x0, y0] = G.at(F.mouth), x1 = G.hero[0] + (j - 1) * 0.12 * G.hh, y1 = G.hero[1] - G.hh * (0.12 + 0.06 * j);
+                const sz = F.noteH * G.k, el = add(document.createElement("div"));
+                el.className = "et-atkfx-sheet";
+                Object.assign(el.style, { width: sz + "px", height: sz + "px", left: x0 - sz / 2 + "px", top: y0 - sz / 2 + "px",
+                    backgroundImage: "url(" + S.src + ")", backgroundSize: S.cols * 100 + "% 100%", backgroundPosition: cellPos(S.note0 + (j % 3)) });
+                const dx = x1 - x0, dy = y1 - y0, wob = sz * 0.6 * (j % 2 ? -1 : 1);
+                el.animate([
+                    { transform: "translate(0px,0px) scale(.3) rotate(0deg)", opacity: 0.2 },
+                    { transform: "translate(" + dx * 0.33 + "px," + (dy * 0.33 - wob) + "px) scale(1) rotate(-14deg)", opacity: 1, offset: 0.3 },
+                    { transform: "translate(" + dx * 0.66 + "px," + (dy * 0.66 + wob) + "px) scale(1.05) rotate(12deg)", opacity: 1, offset: 0.65 },
+                    { transform: "translate(" + dx + "px," + dy + "px) scale(1.25) rotate(0deg)", opacity: 1 }
+                ], { duration: F.fly, easing: "ease-in", fill: "forwards" });
+                timers.push(setTimeout(() => el.animate([{ transform: "translate(" + dx + "px," + dy + "px) scale(1.25)", opacity: 1 }, { transform: "translate(" + dx + "px," + dy + "px) scale(1.9)", opacity: 0 }], { duration: 260, easing: "ease-out", fill: "forwards" }), F.fly));
+                timers.push(setTimeout(() => el.remove(), F.fly + 280));
+            }));
+            later(F.notes[0] + F.fly, () => {
+                const G = geo();
+                if (!G) return;
+                // the gust's narrow end (cell px S.gustFrom) sits on the hero's side facing the Siren; it fans across the hero
+                const [mx, my] = G.at(F.mouth), [sx, sy] = G.side, k = (G.hh * 0.75) / S.gustLen;
+                const ang = Math.atan2(sy - my, sx - mx) * 180 / Math.PI - S.gustAxis;
+                sheetAt({ src: S.src, cw: S.cw, ch: S.ch, cols: S.cols, rows: 1, n: 5, ms: 75, res: 1 }, k, sx + G.hh * 0.08, sy - G.hh * 0.05, "rotate(" + ang.toFixed(1) + "deg)", S.gustFrom);
+            });
+        }
         if (F.kind === "drain" || F.kind === "bite") // a bite without lifesteal (Dragon) shows only the flash
             // user (Nov 13): the FRONT of the red bite (the art's left edge, cell x 1) sits on the hero's side nearest the wolf
             later(F.at + shot * MELEE_GAP, () => { const G = geo(); if (G) sheetAt(F.flash, G.k, G.side[0], G.side[1], "", [1, F.flash.anchor[1]]); });
@@ -26274,6 +26348,7 @@ function HeroFigure({ g, b }) {
     };
     return (React.createElement("div", { className: "et-hero" },
         React.createElement(FxHost, { b, tgt: "hero" }),
+        b.heroStunned && React.createElement(StunBirds, { sel: ".et-heroanim .et-eanim-box, .et-hero-img, .et-hero-sprite svg" }),
         totemMode(g) && (g.totems || []).length > 0 && (React.createElement("div", { className: "et-totrow" + tutGlow(g, "totems"), style: { display: "flex", justifyContent: "center", gap: 5, flexWrap: "wrap", marginBottom: 4 } }, g.totems.map((t) => (React.createElement("span", { key: t.id, title: totemDesc(t.id, t.lv), style: { fontSize: 10.5, background: "rgba(30,22,13,.85)", border: "1px solid #8a744c",
                 borderRadius: 6, padding: "2px 7px", color: "#e2cf9f" } },
             "\u{1F5FF}",
@@ -26358,7 +26433,7 @@ function HeroFigure({ g, b }) {
                     React.createElement("circle", { cx: "27", cy: "20.8", r: "1", fill: "#2a2118" }),
                     React.createElement("circle", { cx: "32.6", cy: "20.8", r: "1", fill: "#2a2118" }),
                     React.createElement("path", { d: "M27.5 25 Q30.5 26.6 33.5 24.6", stroke: "#8a5a3a", strokeWidth: "1.1", fill: "none", strokeLinecap: "round" })),
-                b.heroStunned ? React.createElement("span", { style: { position: "absolute", top: 10, fontSize: 22 } }, "\u{1F4AB}") : null),
+                null),
             !wallMode && heads.map((m, i) => (React.createElement("div", { key: i + (m.rise ? "r" + m.count : ""), className: "et-minihead" + (m.rise ? " rise" : ""), style: { ...pos(MINI_POS[i]), border: `2px solid ${stroke}`, opacity: Math.max(0.6, op) } },
                 MINION_EMOJI[m.name] || "\u{1F43E}",
                 m.count > 1 && React.createElement("span", { className: "et-minicount" }, "\u00d7" + m.count),
@@ -31794,6 +31869,7 @@ function EldertoneInner() {
                             const fzd = foeSize(en);
                             return React.createElement("div", { key: en.id, className: "et-foe sized chim gone", style: { "--ehn": fzd.h, "--ea": fzd.a } },
                                 React.createElement("div", { className: "et-intent-top" }, React.createElement("span", { className: "pill" }, "\u{1F4AB} Stunned")),
+                            React.createElement(StunBirds, { sel: ".et-chim" }),
                                 React.createElement("div", { className: "et-eslot", style: { visibility: "hidden" } }, "\u2022"),
                                 chimeraStrip(b, en),
                                 React.createElement("div", { className: "et-foename", style: { visibility: "hidden" } }, "\u00a0"),
@@ -31843,6 +31919,7 @@ function EldertoneInner() {
                             alive(b).filter((a) => a.armSlot && a.summonerId === en.id).map((a) => renderFoe(a, b.enemies.indexOf(a), true))) : el;
                         const el = (React.createElement("div", { key: en.id, "data-eid": en.id, className: "et-foe" + (en.arriveAt && Date.now() - en.arriveAt < 1500 ? " et-arrive" : "") + (armMode ? " et-vinearm" : fz.h ? " sized" : "") + (CHIMERA_PART[en.name] ? " chim" : "") + (tgt && tgt.id === en.id ? " tgt" : "") + tutGlow(g, "foe"), style: armMode ? { left: "calc(var(--h) * " + (1.32 + VINE_HAND[en.armSlot]).toFixed(2) + " - 26px)" } : fz.h ? { "--ehn": fz.h, "--ea": fz.a } : undefined, onClick: () => mut((g) => { logDecision(g, "target", { enemy: en.name, via: "click" }); g.battle.target = en.id; logAfter(g); }) },
                             React.createElement(FxHost, { b, tgt: en.id }),
+                            !en.dead && (en.st.stun || 0) > 0 && React.createElement(StunBirds, null),
                             React.createElement("div", { className: "et-intent-top" }, en.intent && !en.dead ? React.createElement("span", { className: "pill" },
                                 iconizeLabel(intentLabel(b, en)),
                                 (() => { const ls = intentTipLines(b, en); return ls.length ? React.createElement("div", { className: "et-inttip" }, ls.map((t, k2) => React.createElement("div", { key: k2 }, t))) : null; })()) : null),
