@@ -25085,7 +25085,10 @@ function atkFxHitAt(F) { return F.kind === "missile" ? F.at + F.fly : F.at + 50;
 ATTACK_FX["Icy Shell"].attack.holdF = 15;
 // Dragon bite (user, Nov 18 2026): the Dire Wolf's red bite flash lands on the hero instead of the damage slash (no drain ribbon:
 // the Dragon has no lifesteal); "at" = its bite strike (430 ms) - 50, so the hero flinches as the jaws close
-ATTACK_FX.Dragon = { bite: { kind: "bite", at: 380, flash: ATTACK_FX["Dire Wolf"].bite.flash } }; // the wand holds its launch pose while a volley's later missiles form
+ATTACK_FX.Dragon = { bite: { kind: "bite", at: 380, flash: ATTACK_FX["Dire Wolf"].bite.flash } };
+// Gryphon (user, Nov 18 2026): its attacks leave the Dire Wolf's claw marks on the hero instead of the damage slash; "at" = its
+// strike (396 ms) - 50; a double hit lands two sets MELEE_GAP apart
+ATTACK_FX.Gryphon = { attack: { kind: "marks", at: 346, sheet: ATTACK_FX["Dire Wolf"].attack.sheet } }; // the wand holds its launch pose while a volley's later missiles form
 // ── DISPLAY TIMING (Nov 13 2026, user: "the hero needs to start the attack animation before the hit animations show";
 // "enemies should attack one at a time, not all at once"; "when the icy shell attacks 3x, fire 3 missiles in quick
 // succession from one wand animation — the 2nd slightly higher, starting just after the 1st is fully formed, the 3rd
