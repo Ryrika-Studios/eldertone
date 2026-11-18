@@ -22901,8 +22901,11 @@ function enemyPhase(b, g) {
             en.puff = !(ENEMY_ANIM.Butterfly && ENEMY_ANIM.Butterfly.a.leave);
             en.leave = !en.puff; // display: it shrinks into a glowing orb and is gone (user, Nov 17 2026), instead of smoke
             en.puffAt = Date.now() + (b.__actStart || 0);
-            if (en.leave)
-                dispMark(b, (b.__actStart || 0) + ENEMY_ANIM.Butterfly.a.leave[1] * ENEMY_ANIM.Butterfly.a.leave[2]);
+            if (en.leave) {
+                const LV = ENEMY_ANIM.Butterfly, lv = (LV.leaveF || LV.a.leave[1]) * LV.a.leave[2];
+                en.leaveEnd = en.puffAt + lv; // display: when the orb has faded away
+                dispMark(b, (b.__actStart || 0) + lv);
+            }
             en.hp = 0;
             const commons = Object.keys(ENEMIES).filter((n2) => ["F", "I"].includes(ENEMIES[n2].biome) && ENEMIES[n2].kind === "normal" && !SYNTH.has(n2));
             const e2 = makeEnemy(pick(commons));
@@ -22910,7 +22913,10 @@ function enemyPhase(b, g) {
                 e2.st.entrenched = 4; // same opener startBattle gives it
             e2._justSpawned = true; // telegraphs now, acts next phase (was acting on an unseen intent)
             rollIntent(e2, b);
-            b.enemies.push(e2);
+            // user (Nov 18 2026): the newcomer takes the Butterfly's spot in the row and shows up as its orb vanishes
+            b.enemies.splice(b.enemies.indexOf(en) + 1, 0, e2);
+            if (en.leaveEnd)
+                e2.arriveAt = en.leaveEnd;
             log(b, ((b.playsThisTurn || 0) >= 4 ? "Startled by your flurry, the" : "The") + " Butterfly flutters away — " + e2.name + " takes its place!");
             if (alive(b).length === 0)
                 b.over = "win";
@@ -24268,7 +24274,9 @@ html body .et-foe .et-esprite.et-chim{position:relative;overflow:visible;display
 .et-chimlay{position:absolute;background-repeat:no-repeat;display:block}
 .et-chimlay.mine{filter:drop-shadow(0 0 6px #ffd76a) drop-shadow(0 0 3px #ffd76a)}
 html body .et-foe.et-dead.burst{overflow:visible}
-html body .et-foe.et-dead.leave{animation-delay:1.7s}
+html body .et-foe.et-dead.leave{animation:none}
+.et-foe.et-arrive{animation:foeArrive .35s ease-out both}
+@keyframes foeArrive{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:none}}
 html body .et-foe.chim.down{animation:foeGone .45s ease 1.8s forwards;overflow:hidden}
 html body .et-foe .et-emerge{position:relative;display:block}
 html body .et-foe .et-emerge-fx{position:absolute;left:50%;bottom:0;transform:translateX(-50%);pointer-events:none;z-index:6}
@@ -25557,6 +25565,8 @@ Object.assign(ENEMY_ASPECT, {"Phoenix": 1.16, "Phoenix Egg": 1.16, "Boulder": 1.
 // height x the Rogue's). Both measure the idle frame-0 body, so the numbers carry over 1:1. Enemies without a kit keep the above.
 Object.assign(ENEMY_SIZE, {"Assassin": 1.0, "Blue Wand Fairy": 0.79, "Red Wand Fairy": 0.79, "Yellow Wand Fairy": 0.79, "Bruiser": 1.05, "Dire Wolf": 0.85, "Fire Imp": 0.87, "Fireworks Vendor": 0.9, "Gnome Village": 0.85, "Golem": 1.2, "Gray Gnome": 0.6, "Red Gnome": 0.6, "Yellow Gnome": 0.6, "Growing Mass": 0.85, "Grub": 0.4, "Ice Hedgehog": 0.8, "Ice Troll Axeman": 1.05, "Ice Troll Chieftain": 1.05, "Ice Wraith": 1.05, "Icy Shell": 1.0, "Lizard Rider": 1.25, "Magpie": 0.45, "Mushroom": 0.7, "Salamander": 0.78, "Skeleton Archer": 1.0, "Skeleton Warrior": 1.0, "Snail": 0.4, "Snake": 0.92, "Snow Golem": 0.85, "Troll Hoard": 1.25, "Troll King": 1.45, "Troll": 0.8, "Vineman": 1.25, "Yeti": 1.11});
 ENEMY_SIZE["Phoenix Egg"] = ENEMY_SIZE["Phoenix"];
+ENEMY_SIZE.Butterfly = 0.9; // user (Nov 18 2026): twice its old 0.45
+ENEMY_ANIM.Butterfly.leaveF = 38; // its exit orb has faded out by frame 38 of 50 (frames 40-49 are empty): the newcomer steps in here
 ENEMY_SIZE["Baby Gryphon"] = ENEMY_SIZE["Griffin Egg"] = 0.6; // one shared sheet + body box (the box spans egg and chick)
 // Unity kit liftRel: how far above the floor a flyer's body hovers, in hero body heights (Wand Fairies at the Rogue's chest-ish,
 // Magpie at his chest, Fire Imp at his knees)
@@ -30226,9 +30236,12 @@ function EldertoneInner() {
             return;
         const now = Date.now();
         let next = Infinity;
-        for (const e of b.enemies)
+        for (const e of b.enemies) {
             if (e.dead && e.puffAt > now)
                 next = Math.min(next, e.puffAt);
+            if (e.leaveEnd > now) // the Butterfly's orb fades out, its replacement steps in
+                next = Math.min(next, e.leaveEnd);
+        }
         if ((b.__busyUntil || 0) > now)
             next = Math.min(next, b.__busyUntil);
         if (next === Infinity)
@@ -31807,7 +31820,11 @@ function EldertoneInner() {
                                 React.createElement("div", { className: "et-eslot", style: { visibility: "hidden" } }, "\u2022"),
                                 React.createElement(EnemyAnim, { name: "Boulder", atk: 0, hit: 0, cls: "", fitH: true, idle: "explode" }));
                         }
+                        if (!en.dead && en.arriveAt > Date.now()) // the Butterfly's replacement: not here until its orb has faded
+                            return null;
                         if (en.dead && en.leave && !(en.puffAt > Date.now())) { // the Butterfly flies away as a fading orb (its turn has come up on screen)
+                            if (en.leaveEnd && Date.now() >= en.leaveEnd)
+                                return null; // gone: its replacement stands in this spot now
                             const fzl = foeSize(en);
                             return React.createElement("div", { key: en.id, className: "et-foe sized et-dead burst leave", style: { "--ehn": fzl.h, "--ea": fzl.a, "--bh": "var(--h)", maxWidth: "calc(var(--h) * " + fzl.a + " + 16px)" } },
                                 React.createElement("div", { className: "et-intent-top" }),
@@ -31824,7 +31841,7 @@ function EldertoneInner() {
                         const fz = foeSize(en);
                         const vineWrap = (el) => (!armMode && vmG && en === vmG) ? React.createElement("div", { key: "vg" + en.id, className: "et-vinegrp", style: { "--ehn": fz.h } }, el,
                             alive(b).filter((a) => a.armSlot && a.summonerId === en.id).map((a) => renderFoe(a, b.enemies.indexOf(a), true))) : el;
-                        const el = (React.createElement("div", { key: en.id, "data-eid": en.id, className: "et-foe" + (armMode ? " et-vinearm" : fz.h ? " sized" : "") + (CHIMERA_PART[en.name] ? " chim" : "") + (tgt && tgt.id === en.id ? " tgt" : "") + tutGlow(g, "foe"), style: armMode ? { left: "calc(var(--h) * " + (1.32 + VINE_HAND[en.armSlot]).toFixed(2) + " - 26px)" } : fz.h ? { "--ehn": fz.h, "--ea": fz.a } : undefined, onClick: () => mut((g) => { logDecision(g, "target", { enemy: en.name, via: "click" }); g.battle.target = en.id; logAfter(g); }) },
+                        const el = (React.createElement("div", { key: en.id, "data-eid": en.id, className: "et-foe" + (en.arriveAt && Date.now() - en.arriveAt < 1500 ? " et-arrive" : "") + (armMode ? " et-vinearm" : fz.h ? " sized" : "") + (CHIMERA_PART[en.name] ? " chim" : "") + (tgt && tgt.id === en.id ? " tgt" : "") + tutGlow(g, "foe"), style: armMode ? { left: "calc(var(--h) * " + (1.32 + VINE_HAND[en.armSlot]).toFixed(2) + " - 26px)" } : fz.h ? { "--ehn": fz.h, "--ea": fz.a } : undefined, onClick: () => mut((g) => { logDecision(g, "target", { enemy: en.name, via: "click" }); g.battle.target = en.id; logAfter(g); }) },
                             React.createElement(FxHost, { b, tgt: en.id }),
                             React.createElement("div", { className: "et-intent-top" }, en.intent && !en.dead ? React.createElement("span", { className: "pill" },
                                 iconizeLabel(intentLabel(b, en)),
