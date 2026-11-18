@@ -22684,7 +22684,6 @@ function dragonBigHit(en) {
 }
 function enemyAttackHero(b, g, en, dmg, lifesteal) {
     // attack FX (display-only): queue the effect and hold the hero's hit FX / flinch until it lands
-    const F = !b.enemyNoAtk && ATTACK_FX[en.name] ? ATTACK_FX[en.name][lifesteal && ATTACK_FX[en.name].bite ? "bite" : "attack"] : null;
     const prevDelay = b.__hitDelay || 0;
     // which shot of this enemy's turn (volleys) and when its turn started on screen (enemies act one at a time)
     const inAct = !!(b.__enemyPhase && b.__actor === en);
@@ -22693,14 +22692,19 @@ function enemyAttackHero(b, g, en, dmg, lifesteal) {
     if (shot === 0) {
         en.__atkK = null;
         if (ENEMY_ANIM[en.name] && ENEMY_ANIM[en.name].a.attackfly) {
-            en.__atkK = dragonBigHit(en) ? (en.__airStrike ? "attackfly" : "attack") : "bite";
+            // user (Nov 18 2026): fire breath ONLY from the air (its big hit right after Dragon Flight); every ground attack is a bite
+            en.__atkK = dragonBigHit(en) && en.__airStrike ? "attackfly" : "bite";
             en.__airStrike = false;
         }
     }
+    // the attack's FX: a Dire Wolf lifesteal = its Lifesteal Bite; a sheet's own variant (the Dragon's bite) uses its own entry
+    const X = ATTACK_FX[en.name];
+    const fxK = X && lifesteal && X.bite ? "bite" : (X && en.__atkK && X[en.__atkK]) ? en.__atkK : "attack";
+    const F = !b.enemyNoAtk && X ? X[fxK] || null : null;
     const vol = F && F.kind === "missile";
     const hitAt = F ? (vol ? F.at + shot * VOLLEY_GAP + F.fly : atkFxHitAt(F) + shot * MELEE_GAP) : enemyStrikeMs(en) + shot * (BAKED_PROJECTILE.has(en.name) ? VOLLEY_GAP : MELEE_GAP);
     if (F)
-        b.atkFx = (b.atkFx || []).concat([{ id: b.fxSeq = (b.fxSeq || 0) + 1, en: en.id, name: en.name, k: lifesteal && ATTACK_FX[en.name].bite ? "bite" : "attack", ts: Date.now(), d: s0, shot }]).slice(-12);
+        b.atkFx = (b.atkFx || []).concat([{ id: b.fxSeq = (b.fxSeq || 0) + 1, en: en.id, name: en.name, k: fxK, ts: Date.now(), d: s0, shot }]).slice(-12);
     if (shot === 0) {
         en.animAtkDelay = s0;
         en.animAtkHold = null;
@@ -22711,7 +22715,7 @@ function enemyAttackHero(b, g, en, dmg, lifesteal) {
     dispMark(b, s0 + hitAt + 400);
     const prevNoSlash = b.__noSlash, prevShot = b.__shotK;
     // user (Nov 13): the missile burst / claw marks / lifesteal magic REPLACE the damage slash (the hero only flinches)
-    b.__noSlash = !!(F && (F.kind === "missile" || F.kind === "marks" || F.kind === "drain"));
+    b.__noSlash = !!(F && (F.kind === "missile" || F.kind === "marks" || F.kind === "drain" || F.kind === "bite"));
     b.__shotK = shot;
     try {
         return enemyAttackHeroBody(b, g, en, dmg, lifesteal);
@@ -25072,7 +25076,10 @@ Object.assign(ENEMY_ANIM, {"Gryphon":{"src":"sprites/gryphon.webp?v=1","cw":234,
 // The hero's flinch and hit slash wait for the impact (atkFxHitAt -> b.__hitDelay). Built by scratchpad dw/build2.py.
 const ATTACK_FX = {"Icy Shell":{"attack":{"kind":"missile","at":750,"fly":350,"img":"sprites/fx-icy-missile.webp?v=1","w":202,"h":59,"head":[56.8,29.2],"res":2,"from":[9.2,112.0]}},"Dire Wolf":{"attack":{"kind":"marks","at":650,"sheet":{"src":"sprites/fx-wolf-claw.webp?v=1","cw":129,"ch":179,"cols":14,"rows":1,"n":14,"ms":50,"res":2,"anchor":[64.2,86.6]}},"bite":{"kind":"drain","at":650,"flash":{"src":"sprites/fx-wolf-flash.webp?v=1","cw":101,"ch":123,"cols":9,"rows":1,"n":9,"ms":50,"res":2,"anchor":[57.2,37.8]},"drainAt":1100,"drain":{"src":"sprites/fx-wolf-drain.webp?v=1","cw":175,"ch":158,"cols":28,"rows":1,"n":28,"ms":50,"res":2,"anchor":[31.3,30.4],"a":[31.3,30.4],"b":[170.2,26.4]},"mouth":[67.9,100.0]}}};
 function atkFxHitAt(F) { return F.kind === "missile" ? F.at + F.fly : F.at + 50; }
-ATTACK_FX["Icy Shell"].attack.holdF = 15; // the wand holds its launch pose while a volley's later missiles form
+ATTACK_FX["Icy Shell"].attack.holdF = 15;
+// Dragon bite (user, Nov 18 2026): the Dire Wolf's red bite flash lands on the hero instead of the damage slash (no drain ribbon:
+// the Dragon has no lifesteal); "at" = its bite strike (430 ms) - 50, so the hero flinches as the jaws close
+ATTACK_FX.Dragon = { bite: { kind: "bite", at: 380, flash: ATTACK_FX["Dire Wolf"].bite.flash } }; // the wand holds its launch pose while a volley's later missiles form
 // ── DISPLAY TIMING (Nov 13 2026, user: "the hero needs to start the attack animation before the hit animations show";
 // "enemies should attack one at a time, not all at once"; "when the icy shell attacks 3x, fire 3 missiles in quick
 // succession from one wand animation — the 2nd slightly higher, starting just after the 1st is fully formed, the 3rd
@@ -26008,9 +26015,10 @@ function AttackFxItem({ fx }) {
         }
         if (F.kind === "marks")
             later(F.at + shot * MELEE_GAP, () => { const G = geo(); if (G) sheetAt(F.sheet, G.k, G.hero[0], G.hero[1]); });
-        if (F.kind === "drain") {
+        if (F.kind === "drain" || F.kind === "bite") // a bite without lifesteal (Dragon) shows only the flash
             // user (Nov 13): the FRONT of the red bite (the art's left edge, cell x 1) sits on the hero's side nearest the wolf
             later(F.at + shot * MELEE_GAP, () => { const G = geo(); if (G) sheetAt(F.flash, G.k, G.side[0], G.side[1], "", [1, F.flash.anchor[1]]); });
+        if (F.kind === "drain") {
             later(F.drainAt + shot * MELEE_GAP, () => {
                 const G = geo();
                 if (!G) return;
