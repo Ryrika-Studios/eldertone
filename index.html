@@ -19670,11 +19670,11 @@ function foeLetter(b, en, ei) {
 // The battle screen's FxHost overlays render these; sims never read them.
 // the enemies' turn is still playing out on screen: plays / End Turn wait (b.__busyUntil, set by endTurn)
 function uiBusy(b) { return !!b && (b.__busyUntil || 0) > Date.now(); }
-function fxPush(b, kind, tgt, delay, n) {
+function fxPush(b, kind, tgt, delay, n, st) {
     if (!b || !b.fxQueue)
         return;
     const d = delay != null ? delay : (b.__hitDelay || 0);
-    b.fxQueue.push({ id: b.fxSeq++, k: kind, t: tgt, d, n }); // d: ms to wait (an attack FX in flight, a swing, the enemy's turn)
+    b.fxQueue.push({ id: b.fxSeq++, k: kind, t: tgt, d, n, st }); // st: the status a "gain" pop names (e.g. "strength") // d: ms to wait (an attack FX in flight, a swing, the enemy's turn)
     dispMark(b, d + 400);
     if (b.fxQueue.length > 30)
         b.fxQueue.splice(0, b.fxQueue.length - 30);
@@ -20014,6 +20014,9 @@ function damageEnemy(b, g, en, raw, opts = {}) {
         if (gy) {
             gy.st.strength += 1;
             enemyAnimEv(gy, "gold", b); // display: it glows gold as it gains the Strength, then back to brown (user, Nov 17 2026)
+            if (gy.animEv && gy.animEv.k === "gold")
+                gy.animEv.d = hd; // ...as the blow lands on the egg
+            fxPush(b, "gain", gy.id, hd, 1, "strength"); // display: "+1 Strength" rises over it (user, Nov 18 2026)
             log(b, gy.name + " shrieks in fury (+1 Strength)!");
         }
     }
@@ -24618,6 +24621,9 @@ html body .et-encmeet .et-esprite.et-eanim{font-size:140px}
 .et-hprow .et-hpicon.sh b{font-size:11.5px}
 .et-shieldpop{position:absolute;left:50%;top:14%;z-index:9;pointer-events:none;display:flex;align-items:center;gap:3px;opacity:0;transform:translate(-50%,0) scale(.4);animation:shieldPop 1.5s ease-out forwards}
 .et-shieldpop img{width:30px;height:37px;filter:drop-shadow(0 0 6px rgba(127,246,255,.9))}
+.et-gainpop{white-space:nowrap}
+.et-shieldpop.et-gainpop img{width:30px;height:30px;filter:drop-shadow(0 0 5px rgba(120,255,140,.8))}
+.et-shieldpop.et-gainpop span{color:#7dff8a}
 .et-shieldpop span{font:800 20px 'Alegreya Sans',sans-serif;color:#7ff6ff;text-shadow:0 0 3px #000,0 0 3px #000,0 2px 2px #000}
 @keyframes shieldPop{0%{opacity:0;transform:translate(-50%,10px) scale(.4)}15%{opacity:1;transform:translate(-50%,0) scale(1.18)}28%{transform:translate(-50%,-4px) scale(1)}75%{opacity:1;transform:translate(-50%,-16px) scale(1)}100%{opacity:0;transform:translate(-50%,-26px) scale(1)}}
 @keyframes fxShieldFade{0%{opacity:0}18%{opacity:1}75%{opacity:1}100%{opacity:0}}
@@ -26098,6 +26104,13 @@ function FxHost({ b, tgt }) {
         const art = FX_ART[f.k] || FX_ART.buff;
         // gaining Shield = Unity's "Shield Up" flipbook (Hit FX Library shieldUpEffect: the shield with an up arrow rising
         // from a line, 10 frames at 6 fps, looping, full for 0.85 s then a 1 s fade) + the +N badge (Nov 14 2026, user)
+        // a status gain named in green over the character ("+1 Strength" on the Gryphon as an egg is hit; user, Nov 18 2026)
+        if (f.k === "gain") {
+            const nm = f.st ? f.st[0].toUpperCase() + f.st.slice(1) : "";
+            return React.createElement("div", { key: f.id, className: "et-shieldpop et-gainpop", style: { animationDelay: (i * 0.16 + (f.d || 0) / 1000) + "s" } },
+                STATUS_ICONS[f.st] ? React.createElement("img", { src: STATUS_ICONS[f.st], alt: "" }) : null,
+                React.createElement("span", null, "+" + (f.n || 1) + " " + nm));
+        }
         if (f.k === "shield") {
             const dl = { animationDelay: (i * 0.16 + (f.d || 0) / 1000) + "s" };
             return React.createElement(React.Fragment, { key: f.id },
