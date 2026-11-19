@@ -25160,13 +25160,14 @@ const HERO_SCALE = { rogue: 1, necromancer: 1, iceknight: 1.1 };
 // build_fury_pieces_web.py: one sheet row per piece, one column per frame). cell / pts / r are in Drive source px: cell =
 // the square frame cell, pts = each slot's centre from the ring centre (y down), r = the ring band radius they sit on,
 // which the game maps onto its own ring band (FURY_AURA_R x the 140px pose).
-const FURY_PIECES = {"necromancer":{"src":"sprites/fury-skulls.webp?v=1","cols":10,"rows":8,"cell":293,"r":683,"pts":[[0,-679],[484,-484],[680,-7],[490,480],[0,685],[-484,484],[-682,0],[-486,-480],[261,-630],[629,-264],[633,255],[266,632],[-262,633],[-632,262],[-632,-259],[-263,-628]],"art":[0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7],"rot":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},"iceknight":{"scale":1.5,"src":"sprites/fury-shards.webp?v=1","cols":12,"rows":8,"cell":567,"r":888,"pts":[[28,-887],[577,-565],[879,-57],[675,626],[18,889],[-660,659],[-893,-33],[-624,-635],[341,-776],[771,-344],[849,302],[370,826],[-340,845],[-850,334],[-816,-360],[-324,-828]],"art":[0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7],"rot":[0,0,0,0,0,0,0,0,21.9,20.3,23.3,23.0,23.1,23.5,21.7,23.2]}};
+const FURY_PIECES = {"necromancer":{"src":"sprites/fury-skulls.webp?v=1","cols":10,"rows":8,"cell":293,"r":683,"pts":[[0,-679],[484,-484],[680,-7],[490,480],[0,685],[-484,484],[-682,0],[-486,-480],[261,-630],[629,-264],[633,255],[266,632],[-262,633],[-632,262],[-632,-259],[-263,-628]],"art":[0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7],"rot":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},"iceknight":{"scale":0.65,"src":"sprites/fury-shards.webp?v=1","cols":12,"rows":8,"cell":567,"r":888,"pts":[[28,-887],[577,-565],[879,-57],[675,626],[18,889],[-660,659],[-893,-33],[-624,-635],[341,-776],[771,-344],[849,302],[370,826],[-340,845],[-850,334],[-816,-360],[-324,-828]],"art":[0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7],"rot":[0,0,0,0,0,0,0,0,21.9,20.3,23.3,23.0,23.1,23.5,21.7,23.2]}};
 // one piece; its spin phase comes from the page clock at mount, so a piece that appears later still lines up with the others
 function FuryPiece({ P, i, k }) {
     const [delay] = useState(() => -((performance.now() / 1000) % 14));
     const [x, y] = P.pts[i];
     // scale: the shard art is a thin crystal in a large frame, so on the web's small ring it reads as a speck at 1x
-    // (user: "didn't see the ice shard") — the Ice Knight's pieces draw 1.5x; positions are unchanged
+    // (user: "didn't see the ice shard") — the Ice Knight's pieces drew 1.5x; Nov 19 2026 (user: "the biggest shard about the
+    // size of a minion") 0.65x: the longest crystal (71% of its cell) ~34 px = a ring minion's 34 px slot; positions unchanged
     const ang = Math.atan2(x, -y) * 180 / Math.PI, rad = Math.hypot(x, y) * k, size = P.cell * k * (P.scale || 1);
     const spin = { animationDelay: delay.toFixed(3) + "s" };
     return React.createElement("span", { style: { transform: "rotate(" + ang.toFixed(2) + "deg)" } },
