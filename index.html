@@ -24177,6 +24177,9 @@ const LOCKED_MODE = "totems"; // totem build only (relic machinery dormant)
 // ============================== UI ==============================
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+SC:wght@500;600;700&family=Alegreya:ital,wght@0,400;0,500;0,700;1,400&display=swap');
+.et-trailer{position:fixed;inset:0;z-index:200;background:rgba(6,4,2,.88);display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box}
+.et-trailer-box{width:min(1100px,100%,calc((100vh - 90px) * 16 / 9));display:flex;flex-direction:column;align-items:center;gap:10px}
+.et-trailer-box video{width:100%;aspect-ratio:16/9;background:#000;border:2px solid #b8913a;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.6)}
 /* DESKTOP ONE-SCREEN LAYOUTS (Oct 5 2026): loadout as two columns + one chord row, store
    sections side by side, less empty sky on short windows; the head-script fit zoom covers the rest */
 @media (min-width:900px) and (min-height:521px){
@@ -26624,6 +26627,26 @@ function SlotFrame({ L, empty, children, bare }) {
 // "Your Loadout is Full!" (Sep 29 2026, user mockups): replaces the old make-room popup. Step 1 shows the
 // new card and the whole loadout; step 2 picks what to remove — only the two reserves or the card holding
 // the new card's letter can go. Go back restores the snapshot mut() took before the pick.
+// ---- Watch the trailer (start menu): plays trailer/eldertone_trailer.mp4 in a pop-up ----
+// The video file sits beside the page (GitHub Pages repo + artifact files). Bump ?v= when it changes.
+const TRAILER_SRC = "trailer/eldertone_trailer.mp4?v=63";
+const TRAILER_POSTER = "trailer/eldertone_trailer_poster.jpg?v=63";
+function TrailerButton() {
+    const [open, setOpen] = useState(false);
+    useEffect(() => {
+        if (!open)
+            return;
+        const k = (e) => { if (e.key === "Escape") setOpen(false); };
+        window.addEventListener("keydown", k);
+        return () => window.removeEventListener("keydown", k);
+    }, [open]);
+    return React.createElement(React.Fragment, null,
+        React.createElement("button", { className: "et-btn", style: { marginLeft: 8, opacity: 0.85 }, title: "Watch the Eldertone trailer", onClick: () => setOpen(true) }, "\u{1F3AC} Watch the trailer"),
+        open && React.createElement("div", { className: "et-trailer", onClick: () => setOpen(false) },
+            React.createElement("div", { className: "et-trailer-box", onClick: (e) => e.stopPropagation() },
+                React.createElement("video", { src: TRAILER_SRC, poster: TRAILER_POSTER, controls: true, autoPlay: true, playsInline: true, preload: "auto" }),
+                React.createElement("button", { className: "et-btn et-trailer-close", onClick: () => setOpen(false) }, "Close"))));
+}
 function LoadoutFullScreen({ g, mut }) {
     const pe = g.pendingEquip;
     const L = pe.card.slot;
@@ -31409,6 +31432,7 @@ function EldertoneInner() {
                             ng.screen = "battle";
                             setGame(ng);
                         } }, "\u{1F4D6} Tutorial"),
+                    React.createElement(TrailerButton, null),
                     saved && (React.createElement("div", { style: { marginTop: 10 } },
                         React.createElement("button", { className: "et-btn", onClick: () => { logDecision(saved, "run_continue", {}); setGame(saved); } },
                             "Continue saved run (",

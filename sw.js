@@ -53,6 +53,9 @@ self.addEventListener("fetch", (e) => {
     return;
   const url = new URL(req.url);
   const sameOrigin = url.origin === self.location.origin;
+  // the trailer video streams with range requests, which the cache cannot store: leave it to the browser
+  if (/\.mp4$/.test(url.pathname))
+    return;
   if (sameOrigin && isPage(req))
     e.respondWith(pageFirst(req));
   else if (sameOrigin || /fonts\.(googleapis|gstatic)\.com$/.test(url.hostname))
