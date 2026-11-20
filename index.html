@@ -19744,8 +19744,9 @@ function gainShield(b, g, n) {
                 b.__fireOnShield = false;
             }
         }
-        // Ice Knight: Glacial Fury charges per shield gain — the hero's own, never a minion's (Sep 30 2026)
-        if (g && !b.over && !b.__minionAct && heroDef(g).furyCharge === "shield") {
+        // Ice Knight: Fury charges per shield gain FROM A CHORD only (Nov 20 2026, user) — Entrenched,
+        // totems, events and delayed effects no longer count; never a minion's (Sep 30 2026)
+        if (g && !b.over && b.__chordPlay && !b.__minionAct && heroDef(g).furyCharge === "shield") {
             g.fury = Math.min(g.furyMax, g.fury + 1);
             checkFuryBurst(b, g);
         }
@@ -21991,11 +21992,14 @@ function resolveChoicePick(b, g, ops, ch) {
         unleashed = true;
     }
     b.__unleashPlay = unleashed;
+    const prevChordPlay = b.__chordPlay;
+    b.__chordPlay = true; // a chord's effects are resolving (Ice Knight Fury counts these shields only)
     try {
         runOps(b, g, ops, { attackMult: mult });
     }
     finally {
         b.__unleashPlay = false;
+        b.__chordPlay = prevChordPlay;
     }
 }
 function transformChord(g, b, c, targetCard) {
@@ -22202,6 +22206,8 @@ function playChord(b, g, idx) {
     }
     b.__applyRatio = chargeRatio;
     b.__unleashPlay = !!ctx.unleashed;
+    const prevChordPlay = b.__chordPlay;
+    b.__chordPlay = true; // a chord's effects are resolving (Ice Knight Fury counts these shields only)
     try {
         for (let rp = 0; rp < repeats && !b.over; rp++) {
             runOps(b, g, ops, ctx);
@@ -22213,6 +22219,7 @@ function playChord(b, g, idx) {
     }
     finally {
         b.__unleashPlay = false;
+        b.__chordPlay = prevChordPlay;
     }
     b.__applyRatio = 1;
     if (ctx.didDamage && b.nextMult > 1)
