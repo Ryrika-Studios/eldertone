@@ -24676,6 +24676,7 @@ html body .et-encmeet .et-esprite.et-eanim{font-size:140px}
 .et-hero:has(.et-minihead:hover) .et-chartip{display:none}
 .et-tutpanel{position:absolute;left:50%;top:10px;transform:translateX(-50%);width:min(620px,94%);z-index:70;background:rgba(30,22,13,.96);border:2px solid #ffd76a;border-radius:10px;padding:10px 14px;font-size:13px;line-height:1.5;color:#efe6cf;text-align:center;box-shadow:0 6px 18px rgba(0,0,0,.5)}
 .et-tutpanel.right{left:auto;right:10px;transform:none;width:min(430px,60%)}
+.et-tutpanel.left{left:10px;transform:none;width:min(430px,48%)}
 .cf-art{height:22px;display:flex;align-items:center;justify-content:center;font-size:15px;line-height:1;border-bottom:1px solid rgba(0,0,0,.3);text-shadow:0 2px 5px rgba(0,0,0,.5)}
 .et-formtint{position:absolute;left:0;top:0;bottom:0;width:54%;z-index:1;pointer-events:none;border-radius:12px 0 0 12px}
 .et-formtint.dark{background:linear-gradient(90deg,rgba(12,4,24,.6),rgba(12,4,24,.25) 60%,rgba(12,4,24,0))}
@@ -25020,15 +25021,15 @@ const TUT_STEPS = [
     { title: "Chord slots", text: "Your chords — your cards — sit in the lettered slots along the bottom. Every chord belongs to ONE letter (A–G) and can only ever occupy that slot: two chords sharing a letter compete for the same slot, so building a deck means finding good chords across different letters.", glow: "chords" },
     { title: "The Transmuter", text: "Stuck with two great chords fighting over one letter? Stores sell a TRANSMUTER (80 gold) that moves one of your chords into a different slot — the only way around the one-chord-per-letter rule. Keep it in mind before a reward tempts you into a crowded letter.", glow: "chords" },
     { title: "Charging", text: "The ring on each chord is its CHARGE — every chord gains 1 at the start of your turn. A value written like 2 / 6 / 11 grows with charge: the BOLD number is what you'd get right now, and the last one is full charge. Playing a chord spends ALL of its charge.", glow: "chords", aim: [0.5, -0.02], img: "ring" },
-    { title: "Pick your target", text: "TWO enemies this time! Your attacks hit your TARGET — the enemy marked with the gold frame. Click the Grub (or press B, its letter) to target it instead of the Snail.", glow: "foe", sel: ".et-foes .et-foe:nth-child(2)", aim: [0.06, 0.42], require: (g, b) => b.enemies[1] && b.target === b.enemies[1].id },
+    { title: "Pick your target", text: "There are TWO enemies here. Your attacks hit your TARGET — the enemy marked with the gold frame. Click the Grub (or press B, its letter) to target it instead of the Snail.", glow: "foe", pos: "left", sel: ".et-foes .et-foe:nth-child(2)", aim: [0.55, 0.12], require: (g, b) => b.enemies[1] && b.target === b.enemies[1].id },
     { title: "Try it: play Attack", text: "Attack is fully charged — click it (or press 1) to strike your target at full power. One full-power hit should finish the Grub!", glow: "chords", sel: ".et-chords .et-slot:nth-child(1) .cf", aim: [0.5, -0.02], require: (g, b) => b.log.some((l) => l.startsWith("You play Attack")) },
-    { title: "Enemy intent", text: "The badge above each enemy is its INTENT — its next move. ⚔ numbers mean an incoming attack, 🛡 a shield, 💪 a power-up, ☠ a debuff aimed at you, and a ✦ star means a SPECIAL move unique to that enemy — a summon, a curse, a trick. Right now the Snail is winding up a ⚔3 attack…", glow: "foe", sel: ".et-foes .et-foe:nth-child(1)", aim: [0.06, 0.42] },
+    { title: "Enemy intent", text: "The badge above each enemy is its INTENT — its next move. ⚔ numbers mean an incoming attack, 🛡 a shield, a green arrow a power-up, a status icon (Weakened, Poison…) a debuff it will put on you, and a ✦ star means a SPECIAL move unique to that enemy — a summon, a curse, a trick. Hover the badge for the details. Right now the Snail is winding up a ⚔3 attack…", glow: "foe", pos: "left", sel: ".et-foes .et-foe:nth-child(1) .et-intent-top", aim: [0, 0.5] },
     { title: "The battle log", text: "When a ✦ special move (or anything else) happens, the full story is written in the BATTLE LOG up here — every hit, buff and surprise of the fight. Glance at it whenever something unexpected happens.", glow: "log" },
     { title: "Block it: play Defend early", text: "You don't have to wait for FULL charge — a chord can be played at any charge it has reached. Defend has just 1 charge, so it grants its first value, 3 Shield — exactly enough to blank the Snail's ⚔3. Play Defend now!", glow: "chords", sel: ".et-chords .et-slot:nth-child(4) .cf", aim: [0.5, -0.02], require: (g, b) => b.log.some((l) => l.startsWith("You play Defend")) },
     { title: "End your turn", text: "Click the END TURN diamond (or press Space). The Snail's attack will break against your Shield — then a new turn begins and your chords charge.", glow: "end", aim: [0.5, -0.02], require: (g, b) => b.turn >= 2 },
-    { title: "Fury", text: "The dark orb is FURY: every hit you land adds 1 charge. Unleashing a full orb has a DIFFERENT effect for every hero. You play the ROGUE — when she unleashes her fully charged Fury, her next chord attacks TWICE (all of its effects trigger a second time), and the orb empties. Fury fills at 3 in this tutorial (7 in a normal run, and some purchases lower it).", glow: "fury", aim: [0.5, -0.05] },
-    { title: "Totems", text: "Under the arrow sits your TOTEM: 🗿 Strength I, which granted +1 Strength when this battle began. Totems are run-long passives — you can hold up to three and level them up to IV, and each level makes them much stronger. You'll earn and upgrade them by defeating bosses.", glow: "totems", pos: "right", aim: [0.5, -0.1] },
-    { title: "Minions", text: "Your E-slot chord summons an Elephant. Play it once it's charged. MINIONS act automatically at the start of your every turn and live as little heads on your hero's ring — hover a head to see exactly what it does.", glow: "chords", sel: ".et-chords .et-slot:nth-child(5) .cf", aim: [0.5, -0.02], require: (g, b) => b.minions.length > 0 },
+    { title: "Fury", text: "The dark orb is FURY — the glowing ring around your hero brightens as it fills. Every hit you land adds 1 charge. A full orb does something DIFFERENT for every hero. You play the ROGUE — when her Fury is full, her next damage chord triggers TWICE, and the orb empties. Fury fills at 3 in this tutorial (7 in a normal run, and some purchases lower it).", glow: "fury", aim: [0.5, -0.05] },
+    { title: "Totems", text: "Under the arrow sits your TOTEM: 🗿 Strength I, which granted +1 Strength when this battle began. Totems are run-long passives — you can hold up to three and level them up to IV, and each level makes them much stronger. Every realm offers a free totem early on, and every boss you defeat offers another: take a new totem or level up one you have.", glow: "totems", pos: "right", aim: [0.5, -0.1] },
+    { title: "Minions", text: "Your E-slot chord summons an Elephant. Play it once it's charged. MINIONS act automatically at the start of every turn and stand on your hero's glowing ring — hover one to see exactly what it does. Playing the chord again makes its minion stronger.", glow: "chords", sel: ".et-chords .et-slot:nth-child(5) .cf", aim: [0.5, -0.02], require: (g, b) => b.minions.length > 0 },
     { title: "You're ready!", text: "That's the core loop: charge chords, read intents, spend Fury, and build up totems and minions as the run grows. Now finish off this Snail to complete the tutorial. Good luck out there!", last: true },
 ];
 const TUT_SEL = { chords: ".et-chords", foe: ".et-foe", end: ".et-endturn", fury: ".et-fury-orb", totems: ".et-totrow", log: ".et-log" };
@@ -25056,7 +25057,10 @@ function TutArrow({ toSel, aim }) {
             const xc = Math.max(fr.left + 24, Math.min(fr.right - 24, tx));
             const y1 = below ? fr.bottom : above ? fr.top : (fr.top + fr.bottom) / 2;
             const x1 = (!below && !above) ? (tx > (fr.left + fr.right) / 2 ? fr.right : fr.left) : xc;
-            const np = { x1, y1, x2: tx, y2: ty };
+            // the arrow is drawn inside #root, which the fit-to-screen script may
+            // zoom — rects are in screen px, so undo that zoom for the svg
+            const z = parseFloat((document.getElementById("root") || {}).style?.zoom) || 1;
+            const np = { x1: x1 / z, y1: y1 / z, x2: tx / z, y2: ty / z };
             setPts((p) => (p && p.x1 === np.x1 && p.y1 === np.y1 && p.x2 === np.x2 && p.y2 === np.y2 ? p : np));
         };
         compute();
@@ -31772,7 +31776,7 @@ function EldertoneInner() {
                 g.tutorial && TUT_STEPS[g.tutorial.step] && (() => {
                     const st = TUT_STEPS[g.tutorial.step];
                     return React.createElement(React.Fragment, null,
-                        React.createElement("div", { className: "et-tutpanel" + (st.pos === "right" ? " right" : "") },
+                        React.createElement("div", { className: "et-tutpanel" + (st.pos ? " " + st.pos : "") },
                             React.createElement("b", null, "\u{1F4D6} " + st.title + "  (" + (g.tutorial.step + 1) + "/" + TUT_STEPS.length + ")"),
                             React.createElement("div", { style: { marginTop: 4 } }, st.text),
                             st.img === "ring" && React.createElement("div", { style: { display: "flex", gap: 14, justifyContent: "center", alignItems: "center", marginTop: 8 } },
