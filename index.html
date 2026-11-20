@@ -18153,6 +18153,32 @@ const HEROES = {
         pools: ["common", "ice"], furyCharge: "shield", furyFx: "iceshard",
         furyDesc: "Icy Shell charges every time he gains Shield. When the orb fills, an Ice Shard crystallizes on its own \u2014 each shard grants +" + ICE_SHARD_ARMORED + " " + ICE_SHARD_STAT_NAME + " while it stands." },
 };
+// Character Selection screen (Nov 20 2026, from the Unity build): bios, Fury names + emblems.
+// Fury names are the Unity profiles' specialAttackName; the Rogue's bio is the art team's
+// "Hero Selection Screen" mockup (Unity's own Rogue bio still reads "Warrior"), the other two
+// are the Unity profiles' characterBiography.
+const HERO_PROFILE = {
+    rogue: { furyName: "Parrying Blade", bio: "Unexplained destruction, theft, poison and mayhem are usually attributed to this hero of the night." },
+    necromancer: { furyName: "Skeletal Minion", bio: "A cursed corpse risen from forgotten crypts, the Necromancer stalks the battlefield with rotting claws and endless hunger." },
+    iceknight: { furyName: "Icy Shell", bio: "A master of frozen arcana, the Ice Knight bends blizzards and frost to imprison anyone who stands against him." },
+};
+// What each hero's Fury REALLY does — written from the engine rules (damageEnemy "hit" hook,
+// applyStatusEnemy "debuff" hook, gainShield "shield" hook, unleashFury, furyBurst) so the
+// selection screen and the start menu never drift from gameplay. n = charges to fill.
+function heroFuryText(hid, n) {
+    const hd = HEROES[hid];
+    if (!hd)
+        return "";
+    n = n || hd.furyMax;
+    if (hd.furyFx === "attack_x2")
+        return "Every hit she lands with a chord adds 1 Fury (her minions, shuriken volleys and the doubled attack itself add none). At " + n + " the orb is full: the next chord she plays that deals damage strikes twice — every hit lands a second time — and the orb empties.";
+    if (hd.furyFx === "skeleton")
+        return "Every debuff she applies adds 1 Fury — one per enemy it lands on (her minions' debuffs add none). At " + n + " the orb bursts on its own and empties: a Skeleton rises on her aura and strikes the front enemy for " + SKELETON_ATK + " at the start of each of her turns.";
+    if (hd.furyFx === "iceshard")
+        return "Each time he gains Shield adds 1 Fury \u2014 from any source except minions. At " + n + " the orb bursts on its own and empties: an Ice Shard forms on his aura and grants +" + ICE_SHARD_ARMORED + " " + ICE_SHARD_STAT_NAME + " (" + ICE_SHARD_ARMORED + " Shield at the start of each of his turns) while it stands. Shards stack.";
+    return hd.furyDesc || "";
+}
+Object.keys(HEROES).forEach((h) => { HEROES[h].furyDesc = heroFuryText(h); });
 function heroDef(g) { return HEROES[(g && g.heroId) || "rogue"] || HEROES.rogue; }
 function cardPoolOf(g) { return isV3(g) ? V3_POOL : ITEM_POOL; }
 function heroPool(g) {
@@ -24177,6 +24203,79 @@ const LOCKED_MODE = "totems"; // totem build only (relic machinery dormant)
 // ============================== UI ==============================
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+SC:wght@500;600;700&family=Alegreya:ital,wght@0,400;0,500;0,700;1,400&display=swap');
+.et-cs{position:fixed;inset:0;z-index:50;background:#14100c url(sprites/cs-bg.webp?v=1) center/cover no-repeat;color:#efe6cf;display:flex;flex-direction:column;overflow:auto;font-family:'Alegreya',Georgia,serif}
+.et-cs-head{flex:0 0 auto;background:rgba(0,0,0,.88);text-align:center;padding:12px 0 10px;font-family:'Cormorant SC',serif;font-weight:700;font-size:32px;color:#e9a83a;letter-spacing:.5px}
+.et-cs-main{flex:1 1 auto;display:grid;grid-template-columns:130px minmax(240px,1fr) minmax(360px,1.2fr);gap:22px;padding:18px 32px 8px;align-items:center;min-height:0}
+.et-cs-ports{display:flex;flex-direction:column;gap:16px;align-self:center}
+.et-cs-port{width:116px;height:116px;padding:0;border:3px solid #5b4630;border-radius:4px;background:#1b1510;cursor:pointer;overflow:hidden;box-shadow:0 3px 8px rgba(0,0,0,.5);transition:border-color .15s,transform .15s}
+.et-cs-port img{width:100%;height:100%;object-fit:cover;display:block;filter:saturate(.75) brightness(.8)}
+.et-cs-port:hover{transform:scale(1.04)}
+.et-cs-port.on{border-color:#f0c24a;box-shadow:0 0 0 2px rgba(240,194,74,.35),0 4px 12px rgba(0,0,0,.6)}
+.et-cs-port.on img{filter:none}
+.et-cs-port.rand{display:flex;align-items:center;justify-content:center;font-size:44px;color:#e9a83a}
+.et-cs-stage{position:relative;display:flex;align-items:center;justify-content:center;height:100%;min-height:300px}
+.et-cs-fig{font-size:min(400px,50vh);line-height:0;filter:drop-shadow(0 8px 10px rgba(0,0,0,.55))}
+.et-cs .et-heroanim{position:relative;left:auto;bottom:auto;transform:none;font-size:inherit}
+.et-cs-coin{display:inline-block;width:.85em;height:.85em;border-radius:50%;background:radial-gradient(circle at 35% 35%,#ffe58a,#d9a21f 60%,#9a6a0e);border:2px solid #6e4a08;vertical-align:-2px;margin-right:5px}
+.et-cs-shadow{position:absolute;bottom:12%;left:50%;width:46%;height:22px;transform:translateX(-50%);background:radial-gradient(ellipse at center,rgba(0,0,0,.55),rgba(0,0,0,0) 70%);pointer-events:none}
+.et-cs-q{font-size:min(200px,30vh);font-family:'Cormorant SC',serif;color:rgba(233,168,58,.75);text-shadow:0 6px 14px rgba(0,0,0,.6)}
+.et-cs-arrow{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:64px;border:0;background:none;cursor:pointer;color:#c9c2b4;font-size:54px;line-height:64px;padding:0;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+.et-cs-arrow:hover{color:#f0c24a}
+.et-cs-arrow.l{left:0}.et-cs-arrow.r{right:0}
+.et-cs-info{display:flex;flex-direction:column;gap:14px;align-self:center}
+.et-cs-box{background:rgba(14,11,8,.62);border-radius:8px;padding:14px 20px}
+.et-cs-name{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap}
+.et-cs-name h2{margin:0;font-family:'Cormorant SC',serif;font-weight:700;font-size:54px;line-height:1;color:#fff;text-shadow:0 2px 0 #000}
+.et-cs-stat{font-size:22px;font-weight:700;white-space:nowrap}
+.et-cs-bio{margin-top:8px;font-size:19px;line-height:1.45}
+.et-cs-fury{display:flex;gap:14px;align-items:center}
+.et-cs-fury img{width:110px;height:110px;flex:0 0 auto;object-fit:contain}
+.et-cs-fury h3,.et-cs-deckh{margin:0 0 4px;font-family:'Cormorant SC',serif;font-weight:700;font-size:27px;color:#e9a83a}
+.et-cs-fury p{margin:0;font-size:17px;line-height:1.45}
+.et-cs-fill{margin-top:6px;font-size:14px;color:#cfc1a2}
+.et-cs-deck{display:flex;gap:12px;flex-wrap:wrap}
+.et-cs-deck{gap:16px}.et-cs-deck .cf.v3card{width:160px}
+.et-cs-foot{flex:0 0 auto;display:flex;justify-content:space-between;padding:6px 28px 18px}
+.et-cs-btn{font-family:'Cormorant SC',serif;font-weight:700;font-size:28px;color:#fff;border:3px solid;padding:9px 60px;cursor:pointer;clip-path:polygon(14px 0,calc(100% - 14px) 0,100% 50%,calc(100% - 14px) 100%,14px 100%,0 50%);text-shadow:0 2px 0 rgba(0,0,0,.5)}
+.et-cs-btn.back{background:#b8322c;border-color:#e2524a}
+.et-cs-btn.go{background:#3f8a2a;border-color:#7fd04e}
+.et-cs-btn:hover{filter:brightness(1.12)}
+.et-cs-keys{font-size:11.5px;color:#b9ad93;text-align:center;align-self:center}
+@media (max-width:1380px), (max-height:820px){
+.et-cs-name h2{font-size:42px}.et-cs-stat{font-size:18px}.et-cs-bio{font-size:16px}
+.et-cs-fury img{width:84px;height:84px}.et-cs-fury h3,.et-cs-deckh{font-size:22px}.et-cs-fury p{font-size:15px}.et-cs-fill{font-size:12.5px}
+.et-cs-deck .cf.v3card{width:128px}.et-cs-port{width:96px;height:96px}.et-cs-main{grid-template-columns:110px minmax(220px,1fr) minmax(340px,1.2fr)}
+.et-cs-head{font-size:26px}.et-cs-btn{font-size:24px;padding:7px 46px}
+}
+@media (max-width:899px), (max-height:560px){
+.et-cs-head{font-size:20px;padding:6px 0 5px}
+.et-cs-main{grid-template-columns:70px minmax(150px,.8fr) minmax(280px,1.3fr);gap:10px;padding:8px 12px 4px}
+.et-cs-port{width:62px;height:62px}.et-cs-ports{gap:8px;margin-top:0}
+.et-cs-port.rand{font-size:30px}
+.et-cs-stage{min-height:200px}.et-cs-fig{font-size:min(190px,40vh)}
+.et-cs-name h2{font-size:28px}.et-cs-stat{font-size:15px}
+.et-cs-bio{font-size:13px;margin-top:4px}.et-cs-box{padding:8px 11px}.et-cs-info{gap:7px}
+.et-cs-fury img{width:54px;height:54px}.et-cs-fury h3,.et-cs-deckh{font-size:17px}.et-cs-fury p{font-size:12px}
+.et-cs-deck .cf.v3card{width:84px}
+.et-cs-foot{padding:4px 12px 10px}.et-cs-btn{font-size:18px;padding:5px 30px}
+}
+@media (max-height:560px){
+.et-cs-head{font-size:17px;padding:4px 0 3px}
+.et-cs-main{grid-template-columns:58px minmax(140px,.7fr) minmax(300px,1.5fr);padding:6px 12px 0}
+.et-cs-port{width:50px;height:50px;border-width:2px}.et-cs-ports{gap:6px}.et-cs-port.rand{font-size:24px}
+.et-cs-stage{min-height:0}.et-cs-fig{font-size:min(170px,44vh)}
+.et-cs-fill,.et-cs-keys{display:none}
+.et-cs-name h2{font-size:22px}.et-cs-stat{font-size:12.5px}.et-cs-name{gap:10px}
+.et-cs-bio{font-size:11.5px;line-height:1.35;margin-top:2px}.et-cs-box{padding:6px 10px}.et-cs-info{gap:5px}
+.et-cs-fury{gap:8px}.et-cs-fury img{width:40px;height:40px}.et-cs-fury h3,.et-cs-deckh{font-size:14px;margin-bottom:1px}.et-cs-fury p{font-size:11px;line-height:1.35}
+.et-cs-deck{gap:8px}.et-cs-deck .cf.v3card{width:66px}
+.et-cs-foot{padding:2px 12px 6px}.et-cs-btn{font-size:15px;padding:3px 24px;border-width:2px}
+}
+@media (max-width:620px){
+.et-cs-main{grid-template-columns:1fr;}
+.et-cs-ports{flex-direction:row;justify-content:center}
+.et-cs-stage{min-height:180px}
+}
 .et-trailer{position:fixed;inset:0;z-index:200;background:rgba(6,4,2,.88);display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box}
 .et-trailer-box{width:min(1100px,100%,calc((100vh - 90px) * 16 / 9));display:flex;flex-direction:column;align-items:center;gap:10px}
 .et-trailer-box video{width:100%;aspect-ratio:16/9;background:#000;border:2px solid #b8913a;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.6)}
@@ -26638,6 +26737,64 @@ function SlotFrame({ L, empty, children, bare }) {
 // The video file sits beside the page (GitHub Pages repo + artifact files). Bump ?v= when it changes.
 const TRAILER_SRC = "trailer/eldertone_trailer.mp4?v=63";
 const TRAILER_POSTER = "trailer/eldertone_trailer_poster.jpg?v=63";
+// ---- Character Selection (Nov 20 2026): the Unity build's "Pick Your Hero" screen ----
+// Opens from "Begin the run". Portraits left, the idle hero in the middle, name / health /
+// gold / bio, the named Fury (heroFuryText — the real rules), and the starting deck.
+const CS_HEROES = ["rogue", "necromancer", "iceknight", "random"];
+function CharSelect({ hero, onPick, maxHp, furyMax, deck, onBack, onProceed }) {
+    const hid = hero;
+    const hd = HEROES[hid];
+    const prof = HERO_PROFILE[hid];
+    const cycle = (d) => onPick(CS_HEROES[(CS_HEROES.indexOf(hid) + d + CS_HEROES.length) % CS_HEROES.length]);
+    useEffect(() => {
+        const onKey = (e) => {
+            if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); cycle(-1); }
+            else if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); cycle(1); }
+            else if (e.key === "Enter") { e.preventDefault(); onProceed(); }
+            else if (e.key === "Escape") { e.preventDefault(); onBack(); }
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    });
+    const card = (name) => {
+        const c = CARD_BY[cardKey(name, 1)];
+        if (!c)
+            return null;
+        return React.createElement(CardFace, { key: name, orb: true, v3: { txt: c.txt, max: c.c }, name: dispName(c.n, c.slot), slot: c.slot, lv: 1, rows: c.txt, activeIdx: null, ring: { charge: 0, max: c.c } });
+    };
+    return React.createElement("div", { className: "et-cs" },
+        React.createElement("div", { className: "et-cs-head" }, "Pick Your Hero"),
+        React.createElement("div", { className: "et-cs-main" },
+            React.createElement("div", { className: "et-cs-ports" }, CS_HEROES.map((h) => React.createElement("button", { key: h, className: "et-cs-port" + (h === hid ? " on" : "") + (h === "random" ? " rand" : ""), title: h === "random" ? "Random hero" : HEROES[h].name, onClick: () => onPick(h) },
+                h === "random" ? "\u{1F3B2}" : React.createElement("img", { src: "sprites/cs-portrait-" + h + ".webp?v=1", alt: HEROES[h].name })))),
+            React.createElement("div", { className: "et-cs-stage" },
+                React.createElement("button", { className: "et-cs-arrow l", title: "Previous hero (←)", onClick: () => cycle(-1) }, "‹"),
+                hd && HERO_ANIM[hid] ? React.createElement("div", { key: hid, className: "et-cs-fig", style: { transform: "scale(" + (HERO_SCALE[hid] || 1) + ")", transformOrigin: "50% 100%" } },
+                    React.createElement(EnemyAnim, { name: hid, data: HERO_ANIM[hid], fitH: true, atk: 0, hit: 0, cls: "" }))
+                    : React.createElement("div", { className: "et-cs-q" }, "?"),
+                React.createElement("div", { className: "et-cs-shadow" }),
+                React.createElement("button", { className: "et-cs-arrow r", title: "Next hero (→)", onClick: () => cycle(1) }, "›")),
+            React.createElement("div", { className: "et-cs-info" },
+                React.createElement("div", { className: "et-cs-box" },
+                    React.createElement("div", { className: "et-cs-name" },
+                        React.createElement("h2", null, hd ? hd.name : "Random"),
+                        React.createElement("span", { className: "et-cs-stat" }, "\u2764\uFE0F HP: " + (hd ? maxHp + "/" + maxHp : "?")),
+                        React.createElement("span", { className: "et-cs-stat" }, React.createElement("span", { className: "et-cs-coin" }), "Gold: " + (hd ? (hd.gold || 0) : "?"))),
+                    React.createElement("div", { className: "et-cs-bio" }, hd ? prof.bio : "Let fate choose: one of the three heroes, with that hero's own health, Fury and starting chords.")),
+                React.createElement("div", { className: "et-cs-box et-cs-fury" },
+                    hd ? React.createElement("img", { src: "sprites/cs-fury-" + hid + ".webp?v=1", alt: "" }) : null,
+                    React.createElement("div", null,
+                        React.createElement("h3", null, hd ? "Fury: " + prof.furyName : "Fury"),
+                        React.createElement("p", null, hd ? heroFuryText(hid, furyMax) : "Every hero's Fury works differently — you'll find out which one you got when the run begins."),
+                        hd ? React.createElement("div", { className: "et-cs-fill" }, "The orb under your hero's health bar shows your Fury, and the glowing ring around your hero brightens as it fills.") : null)),
+                React.createElement("div", { className: "et-cs-box" },
+                    React.createElement("div", { className: "et-cs-deckh" }, "Starting Deck"),
+                    hd ? React.createElement("div", { className: "et-cs-deck" }, deck.map(card)) : React.createElement("div", { className: "et-cs-bio" }, "Rolled with the hero.")))),
+        React.createElement("div", { className: "et-cs-foot" },
+            React.createElement("button", { className: "et-cs-btn back", onClick: onBack }, "Back"),
+            React.createElement("div", { className: "et-cs-keys" }, "← → change hero · Enter proceed · Esc back"),
+            React.createElement("button", { className: "et-cs-btn go", onClick: onProceed }, "Proceed")));
+}
 function TrailerButton() {
     const [open, setOpen] = useState(false);
     useEffect(() => {
@@ -30374,6 +30531,7 @@ function EldertoneInner() {
     const [showDeck, setShowDeck] = useState(false);
     const [showMap, setShowMap] = useState(false);
     const [heroSel, setHeroSel] = useState("rogue");
+    const [csOpen, setCsOpen] = useState(false); // Character Selection screen (opens from "Begin the run")
     const verSel = "v3"; // V3 is the only version: V2 retired Sep 28 2026, Classic removed Oct 2 2026
     const [maxHp, setMaxHp] = useState(75);
     const [furyMax, setFuryMax] = useState(7);
@@ -31297,6 +31455,17 @@ function EldertoneInner() {
         return () => window.removeEventListener("keydown", onKey);
     }, []);
     if (!game) {
+        if (csOpen) {
+            const beginRun = () => {
+                setCsOpen(false);
+                const ng = newGame({ maxHp, furyMax, deck: [d1, d2, d3], gameMode: LOCKED_MODE || gameModeSel, hero: heroSel });
+                logDecision(ng, "run_start", { deck: [d1, d2, d3], maxHp, furyMax, gameMode: ng.gameMode, hero: heroSel });
+                setGame(ng);
+            };
+            return React.createElement("div", { className: "et-root" },
+                React.createElement("style", null, CSS),
+                React.createElement(CharSelect, { hero: heroSel, onPick: pickHero, maxHp, furyMax, deck: [d1, d2, d3], onBack: () => setCsOpen(false), onProceed: beginRun }));
+        }
         return (React.createElement("div", { className: "et-root" },
             React.createElement("style", null, CSS),
             React.createElement("img", { className: "et-logo", src: TITLE_LOGO, alt: "Eldertone" }),
@@ -31404,11 +31573,7 @@ function EldertoneInner() {
                                 " Auto runs, and ",
                                 "\u26a1",
                                 " simulations. Single battle jumps straight into the chosen fight and the run ends when it does.")))),
-                    React.createElement("button", { className: "et-btn", onClick: () => {
-                            const ng = newGame({ maxHp, furyMax, deck: [d1, d2, d3], gameMode: LOCKED_MODE || gameModeSel, hero: heroSel });
-                            logDecision(ng, "run_start", { deck: [d1, d2, d3], maxHp, furyMax, gameMode: ng.gameMode, hero: heroSel });
-                            setGame(ng);
-                        } }, "Begin the run"),
+                    React.createElement("button", { className: "et-btn", onClick: () => setCsOpen(true) }, "Begin the run"),
                     React.createElement("button", { className: "et-btn", style: { marginLeft: 8, opacity: 0.85 }, title: "A guided practice battle: chord slots, charging, Fury, enemy intents, totems and minions", onClick: () => {
                             // the tutorial ignores Test options and never touches the run save
                             const keep = window.__eldertoneTestOpts;
