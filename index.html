@@ -18170,12 +18170,13 @@ function heroFuryText(hid, n) {
     if (!hd)
         return "";
     n = n || hd.furyMax;
+    // wording by the user (Nov 20 2026); numbers stay tied to the constants
     if (hd.furyFx === "attack_x2")
-        return "Every hit she lands with a chord adds 1 Fury (her minions, shuriken volleys and the doubled attack itself add none). At " + n + " the orb is full: the next chord she plays that deals damage strikes twice — every hit lands a second time — and the orb empties.";
+        return "Gains one fury each time she deals damage from a chord. With a fully charged fury, her next attack triggers twice.";
     if (hd.furyFx === "skeleton")
-        return "Every debuff she applies adds 1 Fury — one per enemy it lands on (her minions' debuffs add none). At " + n + " the orb bursts on its own and empties: a Skeleton rises on her aura and strikes the front enemy for " + SKELETON_ATK + " at the start of each of her turns.";
+        return "Gains 1 fury each time she applies a debuff on an enemy. When her fury is full, she summons a skeleton minion that deals " + SKELETON_ATK + " damage to the front enemy every turn.";
     if (hd.furyFx === "iceshard")
-        return "Each time he gains Shield adds 1 Fury \u2014 from any source except minions. At " + n + " the orb bursts on its own and empties: an Ice Shard forms on his aura and grants +" + ICE_SHARD_ARMORED + " " + ICE_SHARD_STAT_NAME + " (" + ICE_SHARD_ARMORED + " Shield at the start of each of his turns) while it stands. Shards stack.";
+        return "Gains 1 fury each time he gains shield from a chord. Each time his fury is full, he summons an ice shard that gives +" + ICE_SHARD_ARMORED + " " + ICE_SHARD_STAT_NAME.toLowerCase() + " (+" + ICE_SHARD_ARMORED + " shield at the start of each turn).";
     return hd.furyDesc || "";
 }
 Object.keys(HEROES).forEach((h) => { HEROES[h].furyDesc = heroFuryText(h); });
@@ -24233,7 +24234,7 @@ const CSS = `
 .et-cs-fury h3,.et-cs-deckh{margin:0 0 4px;font-family:'Cormorant SC',serif;font-weight:700;font-size:27px;color:#e9a83a}
 .et-cs-fury p{margin:0;font-size:17px;line-height:1.45}
 .et-cs-fill{margin-top:6px;font-size:14px;color:#cfc1a2}
-.et-cs-deck{display:flex;gap:12px;flex-wrap:wrap}
+.et-cs-deck{display:flex;gap:12px;flex-wrap:nowrap}.et-cs-deck>*{flex:0 1 auto;min-width:0}
 .et-cs-deck{gap:16px}.et-cs-deck .cf.v3card{width:160px}
 .et-cs-foot{flex:0 0 auto;display:flex;justify-content:space-between;padding:6px 28px 18px}
 .et-cs-btn{font-family:'Cormorant SC',serif;font-weight:700;font-size:28px;color:#fff;border:3px solid;padding:9px 60px;cursor:pointer;clip-path:polygon(14px 0,calc(100% - 14px) 0,100% 50%,calc(100% - 14px) 100%,14px 100%,0 50%);text-shadow:0 2px 0 rgba(0,0,0,.5)}
