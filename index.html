@@ -24373,6 +24373,33 @@ const CSS = `
 .et-trailer{position:fixed;inset:0;z-index:200;background:rgba(6,4,2,.88);display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box}
 .et-trailer-box{width:min(1100px,100%,calc((100vh - 90px) * 16 / 9));display:flex;flex-direction:column;align-items:center;gap:10px}
 .et-trailer-box video{width:100%;aspect-ratio:16/9;background:#000;border:2px solid #b8913a;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.6)}
+/* TITLE SCREEN: the logo fills everything above the button row */
+.et-ts{position:fixed;inset:0;z-index:50;background:#000;color:#efe6cf;display:flex;flex-direction:column;align-items:center;gap:clamp(8px,2.2vh,22px);padding:clamp(10px,3vh,30px) 16px clamp(14px,3.6vh,36px);box-sizing:border-box;overflow:hidden;font-family:'Alegreya',Georgia,serif}
+.et-ts-logo{flex:1 1 0;min-height:0;width:100%;object-fit:contain;display:block}
+.et-ts-warn{max-width:560px;padding:6px 12px;border-radius:8px;background:#3a2c12;border:1px solid #8a744c;color:#e8c98a;font-size:12.5px;text-align:center}
+.et-ts-btns{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);column-gap:clamp(10px,3vw,40px);row-gap:9px;align-items:center;width:min(1060px,100%)}
+.et-ts-btn{font-family:'Cormorant SC',serif;font-weight:700;line-height:1.05;cursor:pointer;border:2px solid;clip-path:polygon(14px 0,calc(100% - 14px) 0,100% 50%,calc(100% - 14px) 100%,14px 100%,0 50%);transition:filter .12s}
+.et-ts-btn:hover,.et-ts-btn:focus-visible{filter:brightness(1.16);outline:none}
+.et-ts-main{grid-column:2;grid-row:1;min-width:clamp(190px,27vw,350px);padding:clamp(10px,1.8vh,17px) 42px;font-size:clamp(25px,3.3vw,40px);white-space:nowrap;color:#1c1206;background:linear-gradient(#ffd98c,#e9a93f);border-color:#fff0c8}
+.et-ts-main small{display:block;margin-top:3px;font-family:'Alegreya',Georgia,serif;font-weight:500;font-size:clamp(12px,1.2vw,15px);color:#4c3412}
+.et-ts-side{grid-row:1;padding:clamp(8px,1.3vh,12px) 30px;font-size:clamp(17px,1.8vw,24px);color:#fabe5e;background:#1d150b;border-color:#b8913a}
+.et-ts-side.l{grid-column:1;justify-self:end}
+.et-ts-side.r{grid-column:3;justify-self:start}
+.et-ts-new{grid-column:2;grid-row:2;justify-self:center;padding:6px 28px;font-size:clamp(15px,1.4vw,19px);color:#efe6cf;background:#1d150b;border-color:#8a744c}
+@media (max-width:620px){
+.et-ts{padding-left:8px;padding-right:8px}
+.et-ts-btns{column-gap:5px}
+.et-ts-btn{clip-path:polygon(6px 0,calc(100% - 6px) 0,100% 50%,calc(100% - 6px) 100%,6px 100%,0 50%)}
+.et-ts-main{min-width:0;padding:10px 12px;font-size:clamp(16px,4.9vw,20px)}
+.et-ts-side{max-width:100%;padding:7px 8px;font-size:clamp(12px,3.6vw,14px)}
+}
+@media (max-height:520px){
+.et-ts{padding:6px 12px 8px;gap:5px}
+.et-ts-main{padding-top:6px;padding-bottom:6px;font-size:23px}
+.et-ts-main small{margin-top:1px;font-size:11px}
+.et-ts-new{padding:3px 22px;font-size:14px}
+.et-ts-btns{row-gap:4px}
+}
 /* DESKTOP ONE-SCREEN LAYOUTS (Oct 5 2026): loadout as two columns + one chord row, store
    sections side by side, less empty sky on short windows; the head-script fit zoom covers the rest */
 @media (min-width:900px) and (min-height:521px){
@@ -26889,7 +26916,22 @@ function CharSelect({ hero, onPick, maxHp, furyMax, deck, onBack, onProceed }) {
             React.createElement("div", { className: "et-cs-keys" }, "← → change hero · Enter proceed · Esc back"),
             React.createElement("button", { className: "et-cs-btn go", onClick: onProceed }, "Proceed")));
 }
-function TrailerButton() {
+// ---- Title screen: logo background, Trailer / Play (or Continue + New Run) / Test Options ----
+function TitleScreen({ saved, warn, onPlay, onContinue, onTest }) {
+    return React.createElement("div", { className: "et-ts" },
+        warn ? React.createElement("div", { className: "et-ts-warn" }, "⚠ This window can't keep saves after it closes — runs last for this session only.") : null,
+        React.createElement("img", { className: "et-ts-logo", src: "sprites/title-logo.webp?v=1", alt: "Eldertone" }),
+        React.createElement("div", { className: "et-ts-btns" },
+            React.createElement(TrailerButton, { className: "et-ts-btn et-ts-side l", label: "Watch Trailer" }),
+            saved
+                ? React.createElement("button", { className: "et-ts-btn et-ts-main", onClick: onContinue },
+                    "Continue Saved Run",
+                    React.createElement("small", null, (BIOME_NAME[BIOMES[saved.biomeIdx || 0]] || "") + " " + saved.node + "/" + biomeLen(saved) + " · " + saved.hp + "/" + saved.maxHp + " hp"))
+                : React.createElement("button", { className: "et-ts-btn et-ts-main", onClick: onPlay }, "Play Game"),
+            React.createElement("button", { className: "et-ts-btn et-ts-side r", onClick: onTest }, "Test Options"),
+            saved ? React.createElement("button", { className: "et-ts-btn et-ts-new", onClick: onPlay }, "Start a New Run") : null));
+}
+function TrailerButton({ className, label }) {
     const [open, setOpen] = useState(false);
     useEffect(() => {
         if (!open)
@@ -26899,7 +26941,7 @@ function TrailerButton() {
         return () => window.removeEventListener("keydown", k);
     }, [open]);
     return React.createElement(React.Fragment, null,
-        React.createElement("button", { className: "et-btn", style: { marginLeft: 8, opacity: 0.85 }, title: "Watch the Eldertone trailer", onClick: () => setOpen(true) }, "\u{1F3AC} Watch the trailer"),
+        React.createElement("button", { className: className || "et-btn", style: className ? undefined : { marginLeft: 8, opacity: 0.85 }, title: "Watch the Eldertone trailer", onClick: () => setOpen(true) }, label || "\u{1F3AC} Watch the trailer"),
         open && React.createElement("div", { className: "et-trailer", onClick: () => setOpen(false) },
             React.createElement("div", { className: "et-trailer-box", onClick: (e) => e.stopPropagation() },
                 React.createElement("video", { src: TRAILER_SRC, poster: TRAILER_POSTER, controls: true, autoPlay: true, playsInline: true, preload: "auto" }),
@@ -30631,6 +30673,7 @@ function EldertoneInner() {
     const [showMap, setShowMap] = useState(false);
     const [heroSel, setHeroSel] = useState("rogue");
     const [csOpen, setCsOpen] = useState(false); // Character Selection screen (opens from "Begin the run")
+    const [menuTest, setMenuTest] = useState(false); // false = title screen, true = the full Test Options menu
     const verSel = "v3"; // V3 is the only version: V2 retired Sep 28 2026, Classic removed Oct 2 2026
     const [maxHp, setMaxHp] = useState(75);
     const [furyMax, setFuryMax] = useState(7);
@@ -31565,10 +31608,16 @@ function EldertoneInner() {
                 React.createElement("style", null, CSS),
                 React.createElement(CharSelect, { hero: heroSel, onPick: pickHero, maxHp, furyMax, deck: [d1, d2, d3], onBack: () => setCsOpen(false), onProceed: beginRun }));
         }
+        if (!menuTest) {
+            return React.createElement("div", { className: "et-root" },
+                React.createElement("style", null, CSS),
+                React.createElement(TitleScreen, { saved, warn: !!(window.storage && window.storage.__ephemeral), onPlay: () => setCsOpen(true), onContinue: () => { logDecision(saved, "run_continue", {}); setGame(saved); }, onTest: () => setMenuTest(true) }));
+        }
         return (React.createElement("div", { className: "et-root" },
             React.createElement("style", null, CSS),
+            React.createElement("div", { style: { maxWidth: 460, margin: "0 auto" } },
+                React.createElement("button", { className: "et-btn", onClick: () => setMenuTest(false) }, "\u2190 Back to title")),
             React.createElement("img", { className: "et-logo", src: TITLE_LOGO, alt: "Eldertone" }),
-            React.createElement("div", { className: "et-sub" }, "a roguelike of chords & charge \u2014 playable prototype"),
             (window.storage && window.storage.__ephemeral) ? React.createElement("div", { style: { maxWidth: 460, margin: "0 auto 10px", padding: "7px 12px", borderRadius: 8, background: "#3a2c12", border: "1px solid #8a744c", color: "#e8c98a", fontSize: 12.5 } },
                 "\u26a0 This window can't keep saves after it closes \u2014 runs and card sets last for this session only. Use the Code button during a run to export a save code you can paste back in later.") : null,
             React.createElement("div", { className: "et-panel", style: { maxWidth: 460, margin: "0 auto" } },
