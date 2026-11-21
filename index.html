@@ -24296,6 +24296,7 @@ const LOCKED_MODE = "totems"; // totem build only (relic machinery dormant)
 // ============================== UI ==============================
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+SC:wght@500;600;700&family=Alegreya:ital,wght@0,400;0,500;0,700;1,400&display=swap');
+.et-badge.temp{outline:1px dashed rgba(255,255,255,.7);outline-offset:-2px;opacity:.92}
 .et-cs{position:fixed;inset:0;z-index:50;background:#14100c url(sprites/cs-bg.webp?v=1) center/cover no-repeat;color:#efe6cf;display:flex;flex-direction:column;overflow:auto;font-family:'Alegreya',Georgia,serif}
 .et-cs-head{flex:0 0 auto;background:rgba(0,0,0,.88);text-align:center;padding:12px 0 10px;font-family:'Cormorant SC',serif;font-weight:700;font-size:32px;color:#e9a83a;letter-spacing:.5px}
 .et-cs-main{flex:1 1 auto;display:grid;grid-template-columns:130px minmax(240px,1fr) minmax(360px,1.2fr);gap:22px;padding:18px 32px 8px;align-items:center;min-height:0}
@@ -27108,14 +27109,19 @@ function iconizeLabel(s) {
     }
     return out;
 }
+// temporary Strength / Armored (this turn only): their own dashed badge next to the permanent one (Nov 20 2026, user)
+const TEMP_BADGES = [["_tempStr", "strength", "Str"], ["_tempArm", "armored", "Arm"]];
 function Badges({ st }) {
     const items = Object.keys(st).filter((k) => st[k] !== 0 && ST_META[k]);
-    if (!items.length)
+    const temps = TEMP_BADGES.filter(([k]) => st[k]);
+    if (!items.length && !temps.length)
         return null;
-    return (React.createElement("div", { className: "et-badges" }, items.map((k) => (React.createElement("span", { key: k, className: "et-badge " + (ST_META[k][1] === "deb" || st[k] < 0 ? "deb" : "") },
+    return (React.createElement("div", { className: "et-badges" }, temps.map(([k, ic, lbl]) => React.createElement("span", { key: k, className: "et-badge temp" + (st[k] < 0 ? " deb" : ""), title: "Temporary " + (ic === "strength" ? "Strength" : "Armored") + " - gone at the end of this turn" },
+        STATUS_ICONS[ic] ? React.createElement("img", { className: "st-ico", src: STATUS_ICONS[ic], alt: "" }) : lbl,
+        " ", (st[k] > 0 ? "+" : "") + st[k])).concat(items.map((k) => (React.createElement("span", { key: k, className: "et-badge " + (ST_META[k][1] === "deb" || st[k] < 0 ? "deb" : "") },
         STATUS_ICONS[k] ? React.createElement("img", { className: "st-ico", src: STATUS_ICONS[k], alt: "" }) : ST_META[k][0],
         " ",
-        st[k])))));
+        st[k]))))));
 }
 class ErrorShield extends React.Component {
     constructor(p) { super(p); this.state = { err: null }; }
@@ -33236,6 +33242,10 @@ function charStatusEntries(shield, st, extra) {
     const out = [];
     if (shield > 0)
         out.push(["Shield " + shield, STATUS_INFO.shield[1]]);
+    if (st._tempStr)
+        out.push(["Temporary Strength " + (st._tempStr > 0 ? "+" : "") + st._tempStr, "Adds to every attack you make this turn; gone when your turn ends."]);
+    if (st._tempArm)
+        out.push(["Temporary Armored " + (st._tempArm > 0 ? "+" : "") + st._tempArm, "Adds to every Shield you gain this turn; gone when your turn ends."]);
     for (const k in st) {
         if (!st[k] || k.startsWith("_"))
             continue;
