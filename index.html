@@ -19302,7 +19302,7 @@ function intentTipLines(b, en) {
             lines.push("⏳ Winding up a heavier attack that lands on a later turn.");
         else if (p[0] === "deb")
             lines.push(p[1] === "burn"
-                ? "🔥 Will raise its OWN Firewall by " + (p[2] || "") + " — every attack you make against it burns you for its full wall (then its wall drops 25%)."
+                ? "🔥 Will raise its OWN Firewall by " + (p[2] || "") + " — every hit you land on it burns you for its full wall (your Shield soaks it first; then its wall drops 25%). A miss or a dodge never touches the wall."
                 : "🌀 Will afflict you with " + p[2] + " " + (STATUS_INFO[p[1]] ? STATUS_INFO[p[1]][0] : p[1]) + ".");
         else if (p[0] === "buff" || p[0] === "buff_ally" || p[0] === "buff_all")
             lines.push("⬆ Will strengthen itself" + (p[0] === "buff" ? "" : p[0] === "buff_all" ? " and its allies" : " or an ally") + ".");
@@ -19957,13 +19957,6 @@ function damageEnemy(b, g, en, raw, opts = {}) {
         return 0;
     }
     let n = raw;
-    if (!opts.flat && !opts.noWall && en.st.burn > 0) { // noWall: shuriken volleys fly over the wall
-        const d = en.st.burn;
-        if (en.special !== "fire_spikes") // Salamander Firewall stacks do not decay (Enemies Final)
-            en.st.burn = Math.floor(en.st.burn * 0.75);
-        log(b, "You strike through " + en.name + "'s Firewall and take " + d + "! (wall now " + en.st.burn + ")");
-        heroTakeDamage(b, g, d, en.name + "'s Firewall");
-    }
     if (!opts.flat && totemMode(g) && !opts._totemHit) {
         opts._totemHit = true;
         // (the Debuff totem's attack riders are gone — Totems sheet, Oct 9 2026: it is a turn-start curse only)
@@ -19993,6 +19986,17 @@ function damageEnemy(b, g, en, raw, opts = {}) {
         if (Math.random() < 0.1 * Math.min(10, en.st.dodge)) {
             log(b, en.name + " dodges!");
             return 0;
+        }
+        // An enemy's Firewall burns you (your Shield soaks it) for each of your hits that reaches it - a miss or a
+        // dodge never touches the wall (Nov 20 2026, user). noWall: shuriken volleys fly over the wall.
+        if (!opts.noWall && en.st.burn > 0) {
+            const d = en.st.burn;
+            if (en.special !== "fire_spikes") // Salamander Firewall stacks do not decay (Enemies Final)
+                en.st.burn = Math.floor(en.st.burn * 0.75);
+            log(b, "You strike through " + en.name + "'s Firewall and take " + d + "! (wall now " + en.st.burn + ")");
+            heroTakeDamage(b, g, d, en.name + "'s Firewall");
+            if (b.over)
+                return 0;
         }
     }
     if (en.special === "ten_hits")
@@ -22788,26 +22792,31 @@ function enemyAttackHeroBody(b, g, en, dmg, lifesteal) {
         g.fury = Math.min(g.furyMax, g.fury + 1);
         checkFuryBurst(b, g);
     }
-    if (b.hero.st.burn > 0) {
+    // Your Firewall burns an attacker whose attack reaches you (Nov 20 2026, user: a Blind miss or a dodge never
+    // touches the wall); its Shield soaks the burn first. A struck wall falls 25% (V2, Sep 2026: both directions).
+    const wallBurn = () => {
+        if (!(b.hero.st.burn > 0) || en.dead)
+            return;
         const bm = (b.hero.flags && b.hero.flags.burn_mult) || 1;
         let d = b.hero.st.burn * bm;
         if (en.special === "ten_hits")
             d = Math.min(d, 1);
-        // V2 (Sep 2026): the Firewall totem no longer stops decay — a struck
-        // wall always falls 25%, both directions.
         b.hero.st.burn = Math.floor(b.hero.st.burn * 0.75);
-        log(b, en.name + " crashes into your Firewall and takes " + d + "! (wall " + b.hero.st.burn + ")");
+        const soak = Math.min(en.shield || 0, d);
+        en.shield -= soak;
+        log(b, en.name + " crashes into your Firewall and takes " + d + (soak ? " (" + soak + " on its Shield)" : "") + "! (wall " + b.hero.st.burn + ")");
         en._slainBy = "your Firewall";
         fxPush(b, "slash_fire", en.id);
-        en.hp -= d;
+        en.hp -= d - soak;
         zombieBreakOff(b, en);
         if (en.hp <= 0) {
             killEnemy(b, g, en);
             if (en.dead)
                 log(b, en.name + " is slain by your Firewall \u2014 but the attack still lands!");
         }
-    }
+    };
     if (b.noDmgAll) {
+        wallBurn();
         log(b, en.name + " cannot deal damage (Bastion).");
         return;
     }
@@ -22857,6 +22866,7 @@ function enemyAttackHeroBody(b, g, en, dmg, lifesteal) {
         }
         return;
     }
+    wallBurn();
     const dealt = heroTakeDamage(b, g, n, en.name);
     log(b, en.name + " hits you for " + n + ".");
     if (lifesteal) {
@@ -33118,7 +33128,7 @@ const STATUS_INFO = {
     armored: ["Armored", "Every Shield gain grants this much extra Shield. Can be negative."],
     entrenched: ["Entrenched", "Gain this much Shield at the start of every turn."],
     poison: ["Poison", "At end of turn: take damage equal to stacks, then stacks fall by 1."],
-    burn: ["Firewall", "Each attack against this character strikes the wall: the attacker takes 1 damage per stack, then stacks fall by 25% — unless you hold the Firewall totem, which keeps YOUR wall from decaying (and grows it at L2+)."],
+    burn: ["Firewall", "Each attack that reaches this character strikes the wall: the attacker takes 1 damage per stack (its Shield soaks it first), then stacks fall by 25%. An attack that misses or is dodged never touches the wall."],
     spikes: ["Spikes", "Attackers take this much damage when they hit this character."],
     stun: ["Stunned", "Skips its action while stunned."],
     enraged: ["Enraged", "Gain this much Fury at the start of each turn."],
