@@ -19746,14 +19746,24 @@ function foeLetter(b, en, ei) {
 // The battle screen's FxHost overlays render these; sims never read them.
 // the enemies' turn is still playing out on screen: plays / End Turn wait (b.__busyUntil, set by endTurn)
 function uiBusy(b) { return !!b && (b.__busyUntil || 0) > Date.now(); }
+// AOE timing (Nov 20 2026, user): every enemy of an AOE takes its hit at the same moment. Only effects of the same lane
+// (hits / everything else) landing on the SAME target at the same moment are spaced FX_STACK_MS apart (a multi-hit card).
+const FX_SAME_MS = 60, FX_STACK_MS = 160, KILL_FX_MS = 1350;
 function fxPush(b, kind, tgt, delay, n, st) {
+    const d0 = delay != null ? delay : ((b && b.__hitDelay) || 0);
     if (!b || !b.fxQueue)
-        return;
-    const d = delay != null ? delay : (b.__hitDelay || 0);
-    b.fxQueue.push({ id: b.fxSeq++, k: kind, t: tgt, d, n, st }); // st: the status a "gain" pop names (e.g. "strength") // d: ms to wait (an attack FX in flight, a swing, the enemy's turn)
+        return d0;
+    const base = Date.now() + d0, lane = /^slash/.test(kind) ? 1 : 0;
+    let stack = 0;
+    for (const f of b.fxQueue)
+        if (f.t === tgt && f.lane === lane && f.base != null && Math.abs(f.base - base) < FX_SAME_MS)
+            stack += 1;
+    const d = d0 + stack * FX_STACK_MS; // returned so the flinch and the death land with this exact hit
+    b.fxQueue.push({ id: b.fxSeq++, k: kind, t: tgt, d, n, st, base, lane }); // st: the status a "gain" pop names (e.g. "strength") // d: ms to wait (an attack FX in flight, a swing, the enemy's turn)
     dispMark(b, d + 400);
     if (b.fxQueue.length > 30)
         b.fxQueue.splice(0, b.fxQueue.length - 30);
+    return d;
 }
 function log(b, msg) { b.log.push(msg); if (b.log.length > 60)
     b.log.shift(); }
@@ -20063,8 +20073,7 @@ function damageEnemy(b, g, en, raw, opts = {}) {
     en.hp -= hpDmg;
     trollRage(b, en, hpDmg, opts);
     // display: the hero's own swing — the slash, flinch and death wait for the frame the weapon lands (user, Nov 13)
-    const hd = (b.__hitDelay || 0) + (!opts.minion && !b.__enemyPhase ? (HERO_STRIKE_MS[(g && g.heroId) || "rogue"] || 0) : 0);
-    fxPush(b, "slash", en.id, hd);
+    const hd = fxPush(b, "slash", en.id, (b.__hitDelay || 0) + (!opts.minion && !b.__enemyPhase ? (HERO_STRIKE_MS[(g && g.heroId) || "rogue"] || 0) : 0));
     en.animHit = (en.animHit || 0) + 1; // display-only: EnemyAnim plays the hurt frames
     en.animHitDelay = hd;
     en.__dieD = hd;
@@ -20231,8 +20240,9 @@ function killEnemy(b, g, en) {
     en.dead = true;
     en.puff = true; // display: this corpse dissolves into smoke in the battle render
     // display: it stays standing until the blow that killed it lands on screen (a swing / an enemy's turn)
-    const dieD = (en.__dieD != null && Date.now() - (en.__dieT || 0) < 5) ? en.__dieD : (b.__hitDelay || 0);
-    en.puffAt = dieD > 0 ? Date.now() + dieD : 0;
+    const dieD = (en.__dieD != null && Date.now() - (en.__dieT || 0) < 40) ? en.__dieD : (b.__hitDelay || 0);
+    en.puffD = Math.max(0, dieD); // the smoke starts this long after the render, on the same clock as the hit FX
+    en.puffAt = Date.now() + en.puffD;
     en.__dieD = null;
     if (en.name === "Boulder") { en.puff = false; en.burst = true; } // display: it explodes instead (Deliver set)
     if (CHIMERA_PART[en.name]) en.puff = false; // display: the head hangs stunned on the body (chimeraStrip)
@@ -20267,6 +20277,8 @@ function killEnemy(b, g, en) {
             if (!e2.dead && e2.summonerId === en.id) {
                 e2.dead = true;
                 e2.puff = true;
+                e2.puffD = en.puffD; // its smoke goes up as its leader falls
+                e2.puffAt = en.puffAt;
                 e2.hp = 0;
                 log(b, e2.name + " flees without its leader!");
             }
@@ -23027,7 +23039,8 @@ function enemyPhase(b, g) {
             en.dead = true;
             en.puff = !(ENEMY_ANIM.Butterfly && ENEMY_ANIM.Butterfly.a.leave);
             en.leave = !en.puff; // display: it shrinks into a glowing orb and is gone (user, Nov 17 2026), instead of smoke
-            en.puffAt = Date.now() + (b.__actStart || 0);
+            en.puffD = b.__actStart || 0;
+            en.puffAt = Date.now() + en.puffD;
             if (en.leave) {
                 const LV = ENEMY_ANIM.Butterfly, lv = (LV.leaveF || LV.a.leave[1]) * LV.a.leave[2];
                 en.leaveEnd = en.puffAt + lv; // display: when the orb has faded away
@@ -24373,37 +24386,36 @@ const CSS = `
 .et-trailer{position:fixed;inset:0;z-index:200;background:rgba(6,4,2,.88);display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box}
 .et-trailer-box{width:min(1100px,100%,calc((100vh - 90px) * 16 / 9));display:flex;flex-direction:column;align-items:center;gap:10px}
 .et-trailer-box video{width:100%;aspect-ratio:16/9;background:#000;border:2px solid #b8913a;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.6)}
-/* TITLE SCREEN: Rogue vs Troll King art (sprites/title-bg.webp), logo in the sky, big button row */
-.et-ts{--c:clamp(9px,1.1vw,21px);position:fixed;inset:0;z-index:50;background:#0a0906 url(sprites/title-bg.webp?v=1) left 50% top -3.4vh/cover no-repeat;color:#efe6cf;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:clamp(10px,3vh,30px) 16px clamp(12px,2.8vh,30px);box-sizing:border-box;overflow:hidden;font-family:'Alegreya',Georgia,serif}
+/* TITLE SCREEN: Rogue vs Troll King art (sprites/title-bg.webp), logo in the sky, button row */
+.et-ts{--c:clamp(6px,.77vw,15px);position:fixed;inset:0;z-index:50;background:#0a0906 url(sprites/title-bg.webp?v=1) left 50% top -3.4vh/cover no-repeat;color:#efe6cf;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:clamp(10px,3vh,30px) 16px clamp(12px,2.8vh,30px);box-sizing:border-box;overflow:hidden;font-family:'Alegreya',Georgia,serif}
 .et-ts-logo{position:absolute;top:2.2vh;right:7vw;height:32vh;width:auto;display:block;filter:drop-shadow(0 3px 9px rgba(0,0,0,.5))}
 .et-ts-warn{position:relative;margin-bottom:auto;max-width:560px;padding:6px 12px;border-radius:8px;background:#3a2c12;border:1px solid #8a744c;color:#e8c98a;font-size:12.5px;text-align:center}
-.et-ts-btns{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);column-gap:clamp(8px,1.2vw,24px);row-gap:clamp(5px,1.1vh,12px);align-items:center;width:min(1590px,100%)}
-.et-ts-btn{font-family:'Cormorant SC',serif;font-weight:700;line-height:1.05;cursor:pointer;border:3px solid;clip-path:polygon(var(--c) 0,calc(100% - var(--c)) 0,100% 50%,calc(100% - var(--c)) 100%,var(--c) 100%,0 50%);transition:filter .12s;white-space:nowrap}
+.et-ts-btns{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);column-gap:clamp(6px,.84vw,17px);row-gap:clamp(4px,.8vh,8px);align-items:center;width:min(1113px,100%)}
+.et-ts-btn{font-family:'Cormorant SC',serif;font-weight:700;line-height:1.05;cursor:pointer;border:2px solid;clip-path:polygon(var(--c) 0,calc(100% - var(--c)) 0,100% 50%,calc(100% - var(--c)) 100%,var(--c) 100%,0 50%);transition:filter .12s;white-space:nowrap}
 .et-ts-btn:hover,.et-ts-btn:focus-visible{filter:brightness(1.16);outline:none}
-.et-ts-main{grid-column:2;grid-row:1;min-width:min(40.5vw,525px);padding:clamp(12px,2.7vh,26px) clamp(20px,2.7vw,34px);font-size:min(60px,4.6vw);color:#1c1206;background:linear-gradient(#ffd98c,#e9a93f);border-color:#fff0c8}
-.et-ts-main small{display:block;margin-top:4px;font-family:'Alegreya',Georgia,serif;font-weight:500;font-size:min(22px,1.7vw);color:#4c3412}
-.et-ts-side{grid-row:1;padding:clamp(9px,2vh,18px) clamp(16px,2vw,26px);font-size:min(36px,2.6vw);color:#fabe5e;background:#1d150b;border-color:#b8913a}
+.et-ts-main{grid-column:2;grid-row:1;min-width:min(28.35vw,368px);padding:clamp(8px,1.9vh,18px) clamp(14px,1.9vw,24px);font-size:clamp(22px,3.22vw,42px);color:#1c1206;background:linear-gradient(#ffd98c,#e9a93f);border-color:#fff0c8}
+.et-ts-main small{display:block;margin-top:3px;font-family:'Alegreya',Georgia,serif;font-weight:500;font-size:clamp(11px,1.2vw,15px);color:#4c3412}
+.et-ts-side{grid-row:1;padding:clamp(6px,1.4vh,13px) clamp(11px,1.4vw,18px);font-size:clamp(14px,1.82vw,25px);color:#fabe5e;background:#1d150b;border-color:#b8913a}
 .et-ts-side.l{grid-column:1;justify-self:end}
 .et-ts-side.r{grid-column:3;justify-self:start}
-.et-ts-new{grid-column:2;grid-row:2;justify-self:center;padding:clamp(6px,1.3vh,9px) clamp(24px,3vw,42px);font-size:min(28px,2.1vw);color:#efe6cf;background:#1d150b;border-color:#8a744c}
+.et-ts-new{grid-column:2;grid-row:2;justify-self:center;padding:clamp(4px,.9vh,6px) clamp(17px,2.1vw,29px);font-size:clamp(13px,1.47vw,20px);color:#efe6cf;background:#1d150b;border-color:#8a744c}
 @media (max-height:520px){
 .et-ts{padding:6px 12px 7px}
 .et-ts-logo{top:1.5vh;height:36vh}
-.et-ts-btn{border-width:2px}
-.et-ts-main{padding-top:7px;padding-bottom:7px;font-size:min(34px,4.6vw)}
-.et-ts-main small{margin-top:1px;font-size:15px}
-.et-ts-side{padding-top:7px;padding-bottom:7px;font-size:min(24px,2.6vw)}
-.et-ts-new{padding:4px 28px;font-size:min(21px,2.6vw)}
-.et-ts-btns{row-gap:4px}
+.et-ts-main{padding-top:5px;padding-bottom:5px;font-size:clamp(19px,3.22vw,24px)}
+.et-ts-main small{margin-top:1px;font-size:11px}
+.et-ts-side{padding-top:5px;padding-bottom:5px;font-size:clamp(12px,1.82vw,17px)}
+.et-ts-new{padding:3px 20px;font-size:clamp(12px,1.82vw,15px)}
+.et-ts-btns{row-gap:3px}
 }
 @media (orientation:portrait){
-.et-ts{--bh:max(205px,32vw);--art:calc(100% - var(--bh) - 58.5vw);background-image:linear-gradient(#cad0be 0,#cad0be var(--art),rgba(202,208,190,0) calc(var(--art) + 4vw)),url(sprites/title-bg.webp?v=1);background-size:100% 100%,104vw auto;background-position:0 0,left 50% bottom var(--bh);background-repeat:no-repeat;padding-left:8px;padding-right:8px}
+.et-ts{--bh:max(150px,23vw);--art:calc(100% - var(--bh) - 58.5vw);background-image:linear-gradient(#cad0be 0,#cad0be var(--art),rgba(202,208,190,0) calc(var(--art) + 4vw)),url(sprites/title-bg.webp?v=1);background-size:100% 100%,104vw auto;background-position:0 0,left 50% bottom var(--bh);background-repeat:no-repeat;padding-left:8px;padding-right:8px}
 .et-ts-logo{left:50%;right:auto;transform:translateX(-50%);top:2.5vh;height:min(calc(100% - var(--bh) - 58.5vw - 4vh),64vw)}
-.et-ts-btns{grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:8px;row-gap:8px;width:min(620px,100%)}
-.et-ts-main{grid-column:1 / 3;grid-row:1;min-width:0;padding:12px 14px;font-size:min(8vw,50px)}
-.et-ts-main small{font-size:min(3.8vw,22px)}
-.et-ts-new{grid-column:1 / 3;grid-row:2;padding:6px 24px;font-size:min(5.2vw,28px)}
-.et-ts-side{grid-row:3;padding:8px 6px;font-size:min(5.3vw,30px)}
+.et-ts-btns{grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:6px;row-gap:6px;width:min(434px,86%)}
+.et-ts-main{grid-column:1 / 3;grid-row:1;min-width:0;padding:8px 10px;font-size:clamp(19px,5.6vw,35px)}
+.et-ts-main small{font-size:clamp(11px,2.7vw,15px)}
+.et-ts-new{grid-column:1 / 3;grid-row:2;padding:4px 17px;font-size:clamp(12px,3.64vw,20px)}
+.et-ts-side{grid-row:3;padding:6px 4px;font-size:clamp(12px,3.7vw,21px)}
 .et-ts-side.l{grid-column:1;justify-self:stretch}
 .et-ts-side.r{grid-column:2;justify-self:stretch}
 }
@@ -24936,6 +24948,14 @@ html body .et-encmeet .et-esprite.et-eanim{font-size:140px}
 .et-foe.et-dead{pointer-events:none;overflow:hidden;max-width:112px;animation:foeGone .45s ease .85s forwards}
 .et-foe.et-zhold{pointer-events:none;cursor:default;align-self:flex-end}
 @keyframes foeGone{to{max-width:0;opacity:0}}
+.et-foe.et-dying{pointer-events:none;cursor:default;overflow:visible;animation:foeGone .45s ease calc(var(--kd,0ms) + .85s) forwards}
+html body .et-foe.sized.et-dying{max-width:max(calc(104 * var(--u)),calc(var(--h) * var(--ea)))}
+.et-foe.et-dying.stay{animation:none}
+.et-foe.et-dying > :not(.et-fx):not(.et-espwrap):not(.et-shieldpop),.et-foe.et-dying .et-espwrap > :not(.et-killsmoke){animation:foeBodyFade .24s ease-out var(--kd,0ms) forwards}
+@keyframes foeBodyFade{to{opacity:0}}
+.et-killsmoke{position:absolute;left:50%;top:50%;width:0;height:0;z-index:7;pointer-events:none;transform:scale(var(--ks,1))}
+.et-killsmoke .et-pf{--o:0s;animation-delay:calc(var(--kd,0ms) + var(--o))}
+.et-killsmoke .et-pf1{--o:.06s}.et-killsmoke .et-pf2{--o:.12s}.et-killsmoke .et-pf3{--o:.09s}.et-killsmoke .et-pf4{--o:.15s}.et-killsmoke .et-pf5{--o:.03s}
 .et-smoke{position:relative;height:80px;margin-top:46px}
 .cf-bagslot{width:16px;height:16px;flex-shrink:0;border:1px dashed rgba(240,225,190,.35);border-radius:4px;display:inline-flex;align-items:center;justify-content:center;background:rgba(0,0,0,.25)}
 .cf-bagslot.filled{border-style:solid;border-color:rgba(255,215,106,.7);box-shadow:0 0 4px rgba(255,215,106,.35)}
@@ -26428,7 +26448,7 @@ function FxHost({ b, tgt }) {
     if (!b || !b.fxQueue)
         return null;
     // "burn" (a Firewall gain) no longer pops a flame: the Firewall Ring flares up instead (Nov 8 2026)
-    const items = b.fxQueue.filter((f) => f.t === tgt && f.k !== "burn").slice(-4);
+    const items = b.fxQueue.filter((f) => f.t === tgt && f.k !== "burn").slice(-6);
     return React.createElement(React.Fragment, null, items.map((f, i) => {
         const art = FX_ART[f.k] || FX_ART.buff;
         // gaining Shield = Unity's "Shield Up" flipbook (Hit FX Library shieldUpEffect: the shield with an up arrow rising
@@ -26436,19 +26456,19 @@ function FxHost({ b, tgt }) {
         // a status gain named in green over the character ("+1 Strength" on the Gryphon as an egg is hit; user, Nov 18 2026)
         if (f.k === "gain") {
             const nm = f.st ? f.st[0].toUpperCase() + f.st.slice(1) : "";
-            return React.createElement("div", { key: f.id, className: "et-shieldpop et-gainpop", style: { animationDelay: (i * 0.16 + (f.d || 0) / 1000) + "s" } },
+            return React.createElement("div", { key: f.id, className: "et-shieldpop et-gainpop", style: { animationDelay: ((f.d || 0) / 1000) + "s" } },
                 STATUS_ICONS[f.st] ? React.createElement("img", { src: STATUS_ICONS[f.st], alt: "" }) : null,
                 React.createElement("span", null, "+" + (f.n || 1) + " " + nm));
         }
         if (f.k === "shield") {
-            const dl = { animationDelay: (i * 0.16 + (f.d || 0) / 1000) + "s" };
+            const dl = { animationDelay: ((f.d || 0) / 1000) + "s" };
             return React.createElement(React.Fragment, { key: f.id },
                 React.createElement("div", { className: "et-fx shieldup", style: dl }, React.createElement("span", { className: "et-fx-shieldup", style: dl })),
                 f.n > 0 && React.createElement("div", { className: "et-shieldpop", style: dl },
                     React.createElement("img", { src: SHIELD_BADGE, alt: "" }),
                     React.createElement("span", null, "+" + f.n)));
         }
-        return React.createElement("div", { key: f.id, className: "et-fx " + art.anim, style: { animationDelay: (i * 0.16 + (f.d || 0) / 1000) + "s" } },
+        return React.createElement("div", { key: f.id, className: "et-fx " + art.anim, style: { animationDelay: ((f.d || 0) / 1000) + "s" } },
             art.anim === "sheet" ? React.createElement(FxSheet, { art, delay: f.d || 0 }) : art.img
                 ? React.createElement("img", { src: art.img, alt: "" })
                 : React.createElement("span", { className: "et-fx-svg", dangerouslySetInnerHTML: { __html: art.svg } }));
@@ -32245,7 +32265,7 @@ function EldertoneInner() {
                                 React.createElement("div", { className: "et-ehp", style: { visibility: "hidden" } }),
                                 React.createElement("div", { style: { minHeight: 18, marginTop: 4 } }));
                         }
-                        if (en.dead && en.burst) { // a Boulder shot to pieces explodes where it stood
+                        if (en.dead && en.burst && !(en.puffAt > Date.now())) { // a Boulder shot to pieces explodes where it stood
                             const fzd = foeSize(en);
                             return React.createElement("div", { key: en.id, className: "et-foe sized et-dead burst", style: { "--ehn": fzd.h, "--ea": fzd.a, "--bh": "var(--h)", maxWidth: "calc(var(--h) * " + fzd.a + " + 16px)" } },
                                 React.createElement("div", { className: "et-intent-top" }),
@@ -32266,14 +32286,14 @@ function EldertoneInner() {
                                 React.createElement("div", { className: "et-ehp", style: { visibility: "hidden" } }),
                                 React.createElement("div", { style: { minHeight: 18, marginTop: 4 } }));
                         }
-                        const dying = en.dead && (en.puff || en.leave) && en.puffAt > Date.now(); // its killing blow has not landed on screen yet
+                        // the SAME element carries a defeated enemy through its last hit: the slash (FxHost) and the smoke start together (--kd)
+                        const dying = en.dead && (en.puff ? Date.now() < (en.puffAt || 0) + KILL_FX_MS : (en.leave || en.burst) && en.puffAt > Date.now());
                         if (en.dead && !dying)
-                            return en.puff ? (React.createElement("div", { key: en.id, className: "et-foe et-dead" },
-                                React.createElement("div", { className: "et-smoke" }, [0, 1, 2, 3, 4, 5].map((i) => React.createElement("span", { key: i, className: "et-pf et-pf" + i }))))) : null;
+                            return null;
                         const fz = foeSize(en);
                         const vineWrap = (el) => (!armMode && vmG && en === vmG) ? React.createElement("div", { key: "vg" + en.id, className: "et-vinegrp", style: { "--ehn": fz.h } }, el,
                             alive(b).filter((a) => a.armSlot && a.summonerId === en.id).map((a) => renderFoe(a, b.enemies.indexOf(a), true))) : el;
-                        const el = (React.createElement("div", { key: en.id, "data-eid": en.id, className: "et-foe" + (en.arriveAt && Date.now() - en.arriveAt < 1500 ? " et-arrive" : "") + (armMode ? " et-vinearm" : fz.h ? " sized" : "") + (CHIMERA_PART[en.name] ? " chim" : "") + (tgt && tgt.id === en.id ? " tgt" : "") + tutGlow(g, "foe"), style: armMode ? { left: "calc(var(--h) * " + (1.32 + VINE_HAND[en.armSlot]).toFixed(2) + " - 26px)" } : fz.h ? { "--ehn": fz.h, "--ea": fz.a } : undefined, onClick: () => mut((g) => { logDecision(g, "target", { enemy: en.name, via: "click" }); g.battle.target = en.id; logAfter(g); }) },
+                        const el = (React.createElement("div", { key: en.id, "data-eid": en.id, className: "et-foe" + (en.arriveAt && Date.now() - en.arriveAt < 1500 ? " et-arrive" : "") + (armMode ? " et-vinearm" : fz.h ? " sized" : "") + (CHIMERA_PART[en.name] ? " chim" : "") + (tgt && tgt.id === en.id ? " tgt" : "") + (dying && en.puff ? " et-dying" + (en.zOf != null || en.special === "zombie_parts" ? " stay" : "") : "") + tutGlow(g, "foe"), style: Object.assign(armMode ? { left: "calc(var(--h) * " + (1.32 + VINE_HAND[en.armSlot]).toFixed(2) + " - 26px)" } : fz.h ? { "--ehn": fz.h, "--ea": fz.a } : {}, dying && en.puff ? { "--kd": (en.puffD || 0) + "ms", "--ks": ((fz.h || 90) / 90).toFixed(2) } : null), onClick: () => mut((g) => { logDecision(g, "target", { enemy: en.name, via: "click" }); g.battle.target = en.id; logAfter(g); }) },
                             React.createElement(FxHost, { b, tgt: en.id }),
                             !en.dead && (en.st.stun || 0) > 0 && React.createElement(StunBirds, null),
                             React.createElement("div", { className: "et-intent-top" }, en.intent && !en.dead ? React.createElement("span", { className: "pill" },
@@ -32286,7 +32306,8 @@ function EldertoneInner() {
                             // hydra heads are tinted by their element.
                             isV3(g) ? React.createElement("div", { className: "et-espwrap" },
                                 CHIMERA_PART[en.name] ? chimeraStrip(b, en) : FoeSpriteView(en, b),
-                                React.createElement(FirewallRing, fz.h ? { n: (en.st && en.st.burn) || 0, sized: true, ratio: Math.max(1, 1.1 * (fz.a || 1)) } : { n: (en.st && en.st.burn) || 0, w: 100 })) : CHIMERA_PART[en.name] ? chimeraStrip(b, en) : FoeSpriteView(en, b),
+                                React.createElement(FirewallRing, fz.h ? { n: (en.st && en.st.burn) || 0, sized: true, ratio: Math.max(1, 1.1 * (fz.a || 1)) } : { n: (en.st && en.st.burn) || 0, w: 100 }),
+                                dying && en.puff ? React.createElement("div", { className: "et-killsmoke" }, [0, 1, 2, 3, 4, 5].map((i) => React.createElement("span", { key: i, className: "et-pf et-pf" + i }))) : null) : CHIMERA_PART[en.name] ? chimeraStrip(b, en) : FoeSpriteView(en, b),
                             React.createElement("div", { className: "et-foename" },
                                 CHIMERA_PART[en.name] ? CHIMERA_PART[en.name][0] : en.name,
                                 en.kind !== "normal" ? " \u2605" : ""),
@@ -32317,9 +32338,8 @@ function EldertoneInner() {
                                 React.createElement(Badges, { st: en.st }))));
                         return vineWrap(el);
                     }; if (zG) { // A, B, C (parts or held places), then the Zombie in D
-                        const smoke = (e) => e && e.puff ? React.createElement("div", { className: "et-smoke" }, [0, 1, 2, 3, 4, 5].map((i) => React.createElement("span", { key: i, className: "et-pf et-pf" + i }))) : null;
-                        const hold = (e, key) => { const fz = e && foeSize(e); return React.createElement("div", { key, className: "et-foe et-zhold" + (fz && fz.h ? " sized" : ""), style: fz && fz.h ? { "--ehn": fz.h, "--ea": fz.a } : undefined }, smoke(e)); };
-                        const showable = (e) => e && (!e.dead || (e.puff && e.puffAt > Date.now()));
+                        const hold = (e, key) => { const fz = e && foeSize(e); return React.createElement("div", { key, className: "et-foe et-zhold" + (fz && fz.h ? " sized" : ""), style: fz && fz.h ? { "--ehn": fz.h, "--ea": fz.a } : undefined }); };
+                        const showable = (e) => e && (!e.dead || (e.puff && Date.now() < (e.puffAt || 0) + KILL_FX_MS));
                         const out = ["A", "B", "C"].map((L) => { const p = b.enemies.filter((e) => e.zSlot === L && e.zOf === zG.id).pop(); return showable(p) ? renderFoe(p, b.enemies.indexOf(p)) : hold(p, "zh" + L); });
                         out.push(showable(zG) ? renderFoe(zG, b.enemies.indexOf(zG)) : hold(zG, "zhD"));
                         return out.concat(b.enemies.filter((e) => e !== zG && !(e.zSlot && e.zOf === zG.id)).map((en) => renderFoe(en, b.enemies.indexOf(en))));
