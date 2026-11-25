@@ -24710,7 +24710,7 @@ html body .et-encfoe .et-esprite.et-eanim{font-size:104px}
 .et-foe.et-blimpcol{position:absolute;bottom:0;display:flex;flex-direction:column;justify-content:flex-end;align-items:center}
 .et-blimpproxy{position:absolute;visibility:hidden;pointer-events:none}
 .et-intent-top.et-blimppill{position:absolute;transform:translateX(-50%);margin:0;z-index:4;white-space:nowrap}
-.et-blimpbar{position:relative;z-index:4;width:116px;flex:0 0 auto;transform:translateX(var(--bd,0px))}
+.et-blimpbar{position:relative;z-index:4;width:116px;flex:0 0 auto;transform:translate(var(--bd,0px),var(--bdy,0px))}
 .et-blimprow{display:flex;align-items:center;gap:4px}
 .et-blimprow .et-eslot{margin:0;flex:0 0 auto}
 .et-blimprow .et-ehprow{flex:1;margin-top:0}
@@ -25838,7 +25838,15 @@ function blimpLayout(el, grp, gs) {
         return null;
     const gb = Gr.bottom, up = (y) => (gb - y) / z; // screen y -> css px above the group's bottom
     const bar = el.querySelector(".et-blimpcol .et-ehprow"), hero = scene.querySelector(".et-hero .et-heroanim .et-eanim-box") || scene.querySelector(".et-hero-imgwrap");
-    const barMid = bar ? up(bar.getBoundingClientRect().top + bar.getBoundingClientRect().height / 2) : 60;
+    // the three bars line up with the hero's bar (user, Nov 25 2026): shift the bar blocks by the difference
+    const eb = el.querySelector(".et-blimpcol .et-ehp"), hb = scene.querySelector(".et-hero .et-herohp");
+    const mid = (x) => { const r = x.getBoundingClientRect(); return r.top + r.height / 2; };
+    let dy = 0;
+    if (eb && hb)
+        dy = (mid(hb) - (mid(eb) - (gs.dy || 0) * z)) / z;
+    el.style.setProperty("--bdy", dy.toFixed(1) + "px");
+    gs.dy = dy;
+    const barMid = eb && hb ? up(mid(hb)) : bar ? up(bar.getBoundingClientRect().top + bar.getBoundingClientRect().height / 2) : 60;
     const feet = hero ? up(hero.getBoundingClientRect().bottom) : barMid + 20;
     let sceneTop = up(scene.getBoundingClientRect().top);
     const sceneH = scene.getBoundingClientRect().height / z;
