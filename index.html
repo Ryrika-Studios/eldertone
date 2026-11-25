@@ -19740,6 +19740,9 @@ function foeLetter(b, en, ei) {
     const vm = vineGroup(b);
     if (vm && (en === vm || (en.armSlot && en.summonerId === vm.id)))
         return en === vm ? "C" : VINE_SLOT[en.armSlot];
+    const bg = blimpGroup(b);
+    if (bg && (en === bg.bl || bg.elves.includes(en)))
+        return en === bg.bl ? "B" : bg.elves.indexOf(en) === 0 ? "A" : "C";
     return SLOT_LETTERS[ei];
 }
 // combat FX event (display-only): kind = key into FX_ART, tgt = enemy id or "hero".
@@ -22826,7 +22829,7 @@ function enemyAttackHero(b, g, en, dmg, lifesteal) {
     const shot = inAct ? (en.__shot = (en.__shot || 0) + 1) - 1 : 0;
     const s0 = inAct ? (b.__actStart || 0) : prevDelay;
     if (shot === 0) {
-        en.__atkK = null;
+        en.__atkK = en.special === "blimp" && en.flags && en.flags.boom ? "boom" : null; // its self-destruct: the hit lands on the explosion
         if (ENEMY_ANIM[en.name] && ENEMY_ANIM[en.name].a.attackfly) {
             // user (Nov 18 2026): fire breath ONLY from the air (its big hit right after Dragon Flight); every ground attack is a bite
             en.__atkK = dragonBigHit(en) && en.__airStrike ? "attackfly" : "bite";
@@ -24701,6 +24704,16 @@ html body .et-encfoe .et-esprite.et-eanim{font-size:104px}
 .et-vineslot{height:var(--h,98px);width:52px}
 .et-vinegrp{position:relative;flex:0 0 auto;--u:min(1px, calc(100cqw / var(--fs)));--h:calc(var(--ehn) * var(--u));padding:0 calc(var(--h) * .3) 0 calc(var(--h) * .82)}
 .et-foe.et-vinearm{position:absolute;bottom:0;width:52px;z-index:3}
+.et-blimpgrp{position:relative;flex:0 0 auto;width:var(--gw,320px);height:84px;isolation:isolate}
+.et-blimp-layer{position:absolute;pointer-events:none;background-repeat:no-repeat}
+.et-blimp-layer.tgt{filter:drop-shadow(0 0 9px #ffd76a)}
+.et-foe.et-blimpcol{position:absolute;bottom:0;display:flex;flex-direction:column;justify-content:flex-end;align-items:center}
+.et-blimpproxy{position:absolute;visibility:hidden;pointer-events:none}
+.et-intent-top.et-blimppill{position:absolute;transform:translateX(-50%);margin:0;z-index:4;white-space:nowrap}
+.et-blimpbar{position:relative;z-index:4;width:116px;flex:0 0 auto;transform:translateX(var(--bd,0px))}
+.et-blimprow{display:flex;align-items:center;gap:4px}
+.et-blimprow .et-eslot{margin:0;flex:0 0 auto}
+.et-blimprow .et-ehprow{flex:1;margin-top:0}
 .et-vinearm .et-foename{visibility:hidden}
 .et-encfoe .et-esprite{font-size:56px}
 .et-encprev{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin:6px auto 16px;max-width:880px}
@@ -25358,6 +25371,11 @@ Object.assign(ENEMY_ANIM, {"Glow Worm":{"src":"sprites/glow-worm.webp?v=1","cw":
 // hero to the wolf's mouth (cell px). at / drainAt = ms after the attack starts; sprites are stored at res x the enemy sheet.
 // The hero's flinch and hit slash wait for the impact (atkFxHitAt -> b.__hitDelay). Built by scratchpad dw/build2.py.
 const ATTACK_FX = {"Icy Shell":{"attack":{"kind":"missile","at":750,"fly":350,"img":"sprites/fx-icy-missile.webp?v=1","w":202,"h":59,"head":[56.8,29.2],"res":2,"from":[9.2,112.0]}},"Dire Wolf":{"attack":{"kind":"marks","at":650,"sheet":{"src":"sprites/fx-wolf-claw.webp?v=1","cw":129,"ch":179,"cols":14,"rows":1,"n":14,"ms":50,"res":2,"anchor":[64.2,86.6]}},"bite":{"kind":"drain","at":650,"flash":{"src":"sprites/fx-wolf-flash.webp?v=1","cw":101,"ch":123,"cols":9,"rows":1,"n":9,"ms":50,"res":2,"anchor":[57.2,37.8]},"drainAt":1100,"drain":{"src":"sprites/fx-wolf-drain.webp?v=1","cw":175,"ch":158,"cols":28,"rows":1,"n":28,"ms":50,"res":2,"anchor":[31.3,30.4],"a":[31.3,30.4],"b":[170.2,26.4]},"mouth":[67.9,100.0]}}};
+// Blimp + Elves (Nov 25 2026): the elf sheet (pre-battle still + the missile's anchor), its thrown spiked ball, the
+// Blimp's still picture; the self-destruct's hit lands on the explosion
+Object.assign(ENEMY_ANIM, { "Elf": { src: "sprites/elf.webp?v=1", cw: 114, ch: 130, cols: 140, rows: 2, body: [31.5, 6.3, 71.1, 123.3], a: { idle: [0, 48, 50], attack: [48, 32, 50], hurt: [80, 22, 50] } } });
+Object.assign(ATTACK_FX, { "Elf": { attack: { kind: "missile", at: 450, fly: 550, img: "sprites/fx-elf-ball.webp?v=1", w: 94, h: 89, head: [46.7, 44.7], res: 2, from: [10.1, 54.4] } } });
+Object.assign(ENEMY_ART, { "Blimp": "sprites/blimp-still.webp?v=1" });
 function atkFxHitAt(F) { return F.kind === "missile" ? F.at + F.fly : F.at + 50; }
 ATTACK_FX["Icy Shell"].attack.holdF = 15;
 // Dragon bite (user, Nov 18 2026): the Dire Wolf's red bite flash lands on the hero instead of the damage slash (no drain ribbon:
@@ -25381,7 +25399,7 @@ ATTACK_FX.Gryphon = { attack: { kind: "marks", at: 346, sheet: ATTACK_FX["Dire W
 //   volleys     -> the k-th projectile of one enemy's turn launches VOLLEY_GAP ms after the previous one, VOLLEY_DY sheet px
 //                  higher/lower, while the attack animation holds its launch frame; melee multi-hits land 200 ms apart.
 const HERO_STRIKE_MS = { rogue: 220, necromancer: 700, iceknight: 630 };
-const ENEMY_STRIKE_MS = {"Gryphon": 396, "Baby Gryphon": 429, "Butterfly": 330, "Siren": 858, "Dragon": 1320, "Dragon|bite": 430, "Dragon|attackfly": 1254, "Dragon|attack": 1320,"Skeleton Warrior":429,"Skeleton Archer":627,"Ice Hedgehog":660,"Red Wand Fairy":462,"Blue Wand Fairy":462,"Yellow Wand Fairy":462,"Snake":560,"Troll":490,"Snow Golem":700,"Yeti":1120,"Fireworks Vendor":600,"Assassin":231,"Bruiser":396,"Gnome Village":528,"Gray Gnome":330,"Red Gnome":330,"Yellow Gnome":561,"Lizard Rider":825,"Snail":429,"Troll Hoard":462,"Troll King":396,"Vineman":429,"Golem":900,"Growing Mass":850,"Ice Troll Axeman":800,"Mushroom":1600,"Fire Imp":390,"Ice Troll Chieftain":850,"Ice Wraith":450,"Salamander":700,"Magpie":700,"Icy Shell":800,"Dire Wolf":700,"Phoenix":250,"Dwarf Queen":700,"Chimera Lion":450,"Chimera Goat":1250,"Chimera Snake":500};
+const ENEMY_STRIKE_MS = {"Gryphon": 396, "Baby Gryphon": 429, "Butterfly": 330, "Siren": 858, "Dragon": 1320, "Dragon|bite": 430, "Dragon|attackfly": 1254, "Dragon|attack": 1320,"Skeleton Warrior":429,"Skeleton Archer":627,"Ice Hedgehog":660,"Red Wand Fairy":462,"Blue Wand Fairy":462,"Yellow Wand Fairy":462,"Snake":560,"Troll":490,"Snow Golem":700,"Yeti":1120,"Fireworks Vendor":600,"Assassin":231,"Bruiser":396,"Gnome Village":528,"Gray Gnome":330,"Red Gnome":330,"Yellow Gnome":561,"Lizard Rider":825,"Snail":429,"Troll Hoard":462,"Troll King":396,"Vineman":429,"Golem":900,"Growing Mass":850,"Ice Troll Axeman":800,"Mushroom":1600,"Fire Imp":390,"Ice Troll Chieftain":850,"Ice Wraith":450,"Salamander":700,"Magpie":700,"Icy Shell":800,"Dire Wolf":700,"Phoenix":250,"Dwarf Queen":700,"Chimera Lion":450,"Chimera Goat":1250,"Chimera Snake":500,"Blimp|boom":1300};
 const VOLLEY_GAP = 100, VOLLEY_FORM = 100, VOLLEY_DY = [0, -14, 14, -28, 28], ACT_GAP = 150, MELEE_GAP = 200; // user (Nov 13): 0.1 s apart; 1st at 0, 2nd +1 step up, 3rd 1 step down
 // enemies whose projectile is drawn into their own attack sheet (no separate missile art): a multi-hit move still plays ONE
 // throw, its hits land VOLLEY_GAP apart (user, Nov 13: "use that 0.1 for all enemies with projectiles that fire multiple attacks")
@@ -25667,6 +25685,226 @@ function EnemyAnim({ name, atk, hit, cls, data, fitH, still, idle, ev, atkK, hit
 // A) the hand-animated grow / wither / attack frames play; any other order uses the layers (the arm that was really
 // killed fades away, a swinging arm punches). Driven by the en.vmEv queue (vmPush) + en.animAtk / animHit.
 const VINE_ANIM = {"cw":623,"ch":541,"base":{"src":"sprites/vineman-base.webp?v=1","cols":25,"rows":4,"a":{"idle":[0,80,33],"hurt":[80,20,33]}},"A":{"src":"sprites/vineman-armA.webp?v=1","cols":25,"rows":4,"a":{"idle":[0,80,33],"hurt":[80,20,33]}},"B":{"src":"sprites/vineman-armB.webp?v=1","cols":25,"rows":4,"a":{"idle":[0,80,33],"hurt":[80,20,33]}},"C":{"src":"sprites/vineman-armC.webp?v=1","cols":25,"rows":4,"a":{"idle":[0,80,33],"hurt":[80,20,33]}},"attacks":{"src":"sprites/vineman-attacks.webp?v=1","cols":25,"rows":9,"a":{"atk0":[0,30,33],"atkA1":[30,30,33],"atkA2":[60,30,33],"atkAB1":[90,30,33],"atkAB2":[120,30,33],"atkABC1":[150,30,33],"atkABC2":[180,30,33]}},"moves":{"src":"sprites/vineman-moves.webp?v=1","cols":25,"rows":9,"a":{"growA":[0,33,33],"growB":[33,33,33],"growC":[66,33,33],"witherA":[99,40,33],"witherB":[139,40,33],"witherC":[179,40,33]}},"body":[360,282,150,150],"C2":{"src":"sprites/vineman-armC2.webp?v=1","cols":25,"rows":4,"a":{"idle":[0,80,33],"hurt":[80,20,33]}}};
+// BLIMP + ELVES AIRSHIP (Nov 25 2026, user: "add to github" = the Unity airship in the web game). The Blimp and its two
+// Elves stay three enemies (own health, own turns, own targeting), drawn as ONE airship: the blimp (BLIMP_ANIM.back),
+// the elves standing in the gondola, then the hull rail + ropes (front) over them. Elves face left at opposite ends,
+// 1.5x the artist's size, grown about the gondola rail. A fallen elf fades out; both elves down -> the blimp blasts
+// itself (blast sheet, its hit lands on the explosion); the blimp down first -> its balloon pops, the base drops to the
+// floor and the elves fight on from it (fall, then ground idle). Sized to the scene: the gondola just over the bar row,
+// the top of the hydra heads at the top of the scene (the balloon's crown is cut off). All three health bars share one
+// row with each letter beside its bar. Geometry = the Unity kit cell (1108 x 840 px, fractions y-up from the bottom).
+const BLIMP_ANIM = {
+    W: 1108, H: 840, EK: 0.75, EW: 298, EH: 564, // the elf cell (elf kit px) -> cell px: half the blimp's density x 1.5
+    body: 0.4465, idleBottom: 0.2445, ground: 0.0696, hydraTop: 0.8786, wide: [0.1949, 0.7094], intent: [0.37, 0.842],
+    air: [[0.3151, 0.4097], [0.5496, 0.4141]], fallTo: [[0.3151, 0.3207], [0.5496, 0.3251]], down: [[0.3151, 0.2317], [0.5496, 0.2361]],
+    head: [0.4884, 0.4927], headDown: [0.3104, 0.3147], rail: 0.07, boost: 1.5,
+    back: { src: "sprites/blimp-back.webp?v=1", cw: 344, ch: 466, cols: 46, rows: 3, crop: [214, 9, 574, 776], a: { idle: [0, 48, 50], hurt: [48, 22, 50], pop: [70, 48, 50] } },
+    blast: { src: "sprites/blimp-blast.webp?v=1", cw: 499, ch: 378, cols: 32, rows: 2, crop: [0, 0, 1108, 840], a: { blast: [0, 56, 50] } },
+    front: { src: "sprites/blimp-front.webp?v=1", cw: 264, ch: 186, cols: 60, rows: 2, crop: [288, 475, 440, 310], a: { idle: [0, 48, 50], hurt: [48, 22, 50], pop: [70, 48, 50] } },
+    elf: { src: "sprites/elf.webp?v=1", cw: 114, ch: 130, cols: 140, rows: 2, crop: [0, 131, 253, 290], a: { idle: [0, 48, 50], attack: [48, 32, 50], hurt: [80, 22, 50], ground: [102, 48, 50] } },
+    fall: { src: "sprites/elf-fall.webp?v=1", cw: 112, ch: 254, cols: 48, rows: 1, crop: [48, 0, 250, 564], a: { fall: [0, 48, 50] } },
+};
+function blimpGroup(b) { // { bl, elves } when the field is only the Blimp and its Elves (fallen ones included)
+    if (!b || !b.enemies)
+        return null;
+    const bl = b.enemies.find((e) => e.special === "blimp");
+    if (!bl || !b.enemies.every((e) => e === bl || e.name === "Elf"))
+        return null;
+    return { bl, elves: b.enemies.filter((e) => e.name === "Elf").slice(0, 2) };
+}
+// where a sheet's cropped frame sits, in blimp-cell px (y up from the cell bottom); sc = cell px per sheet-source px
+function blimpRect(S, cx, cy, sc, srcW, srcH) {
+    const [x0, y0, w, h] = S.crop;
+    return { l: cx + x0 * sc, b: cy + (srcH - y0 - h) * sc, w: w * sc, h: h * sc };
+}
+// the elf's cell (cell px, bottom-left) for elf i at a spot (fractions), grown about the rail
+function blimpElfCell(i, spot) {
+    const A = BLIMP_ANIM, cw = A.EW * A.EK, ch = A.EH * A.EK;
+    const cy = (spot[i][1] + A.rail * (A.boost - 1)) * A.H * 1, cx = spot[i][0] * A.W;
+    return { l: cx - cw * A.boost / 2, b: cy - ch * A.boost / 2, sc: A.EK * A.boost };
+}
+function BlimpAnim({ b, grp, tgtId, geo }) {
+    const A = BLIMP_ANIM, refs = useRef({}), st = useRef(null);
+    const bl = grp.bl, elves = grp.elves;
+    if (!st.current)
+        st.current = { bl: { m: "idle", f: 0, atk: bl.animAtk || 0, hit: bl.animHit || 0 }, el: elves.map((e) => ({ m: "idle", f: 0, atk: e.animAtk || 0, hit: e.animHit || 0, gone: null })), popAt: null, blastAt: null, timers: [] };
+    const s = st.current;
+    s.geo = geo, s.grp = grp, s.tgt = tgtId;
+    const now = Date.now();
+    // engine events since the last render -> one-shots (each at the moment its turn / hit comes up on screen)
+    if ((bl.animAtk || 0) !== s.bl.atk) {
+        s.bl.atk = bl.animAtk || 0;
+        if (bl.flags && bl.flags.boom && s.blastAt == null)
+            s.blastAt = now + (bl.animAtkDelay || 0);
+    }
+    if ((bl.animHit || 0) !== s.bl.hit) {
+        s.bl.hit = bl.animHit || 0;
+        if (!bl.dead)
+            s.bl.hurtAt = now + (bl.animHitDelay || 0);
+    }
+    if (bl.dead && s.popAt == null && s.blastAt == null)
+        s[bl.flags && bl.flags.boom ? "blastAt" : "popAt"] = Math.max(now, bl.puffAt || now) - (bl.flags && bl.flags.boom ? 1300 : 0);
+    elves.forEach((e, i) => {
+        const E = s.el[i];
+        if (!E)
+            return;
+        if ((e.animAtk || 0) !== E.atk) { E.atk = e.animAtk || 0; E.atkAt = now + (e.animAtkDelay || 0); }
+        if ((e.animHit || 0) !== E.hit) { E.hit = e.animHit || 0; if (!e.dead) E.hurtAt = now + (e.animHitDelay || 0); }
+        if (e.dead && E.gone == null)
+            E.gone = Math.max(now, e.puffAt || now);
+    });
+    useEffect(() => {
+        let timer = null, gone = false;
+        const R = refs.current, dur = (S, k) => S.a[k][1] * S.a[k][2];
+        const put = (el, S, key, f) => {
+            if (!el)
+                return;
+            const i = S.a[key][0] + Math.min(f, S.a[key][1] - 1), pc = (j, n) => (n > 1 ? (j / (n - 1)) * 100 : 0) + "%";
+            el.style.backgroundPosition = pc(i % S.cols, S.cols) + " " + pc(Math.floor(i / S.cols), S.rows);
+        };
+        const place = (el, r, k, CL, CB) => {
+            if (!el)
+                return;
+            Object.assign(el.style, { left: (CL + r.l * k).toFixed(1) + "px", bottom: (CB + r.b * k).toFixed(1) + "px", width: (r.w * k).toFixed(1) + "px", height: (r.h * k).toFixed(1) + "px" });
+        };
+        const tick = () => {
+            if (gone)
+                return;
+            const G = s.geo, t = Date.now();
+            if (G && G.k > 0) {
+                const k = G.k, CL = G.CL;
+                const popDur = dur(A.back, "pop"), sincePop = s.popAt != null ? t - s.popAt : -1;
+                const popped = sincePop >= 0, falling = popped && sincePop < popDur;
+                const ease = (x) => x * x * (3 - 2 * x);
+                const CB = popped ? G.CBf + (G.CBg - G.CBf) * ease(Math.min(1, sincePop / popDur)) : G.CBf;
+                // ---- the blimp
+                let bk = "idle", bf = Math.floor(t / 50) % A.back.a.idle[1];
+                const S0 = s.bl;
+                if (S0.hurtAt != null && t >= S0.hurtAt) { S0.hurtFrom = S0.hurtAt; S0.hurtAt = null; }
+                if (S0.hurtFrom != null && t - S0.hurtFrom < dur(A.back, "hurt")) { bk = "hurt"; bf = Math.floor((t - S0.hurtFrom) / 50); }
+                if (popped) { bk = "pop"; bf = Math.floor(sincePop / 50); }
+                const blasting = s.blastAt != null && t >= s.blastAt, blastDone = blasting && t - s.blastAt >= dur(A.blast, "blast");
+                const showBack = !blasting && (s.blastAt == null || t < s.blastAt);
+                R.back.style.display = showBack ? "block" : "none";
+                R.front.style.display = showBack ? "block" : "none";
+                R.blast.style.display = blasting && !blastDone ? "block" : "none";
+                put(R.back, A.back, bk, bf); put(R.front, A.front, bk, bf);
+                place(R.back, blimpRect(A.back, 0, 0, 1, A.W, A.H), k, CL, CB);
+                place(R.front, blimpRect(A.front, 0, 0, 1, A.W, A.H), k, CL, CB);
+                if (blasting && !blastDone) { put(R.blast, A.blast, "blast", Math.floor((t - s.blastAt) / 50)); place(R.blast, blimpRect(A.blast, 0, 0, 1, A.W, A.H), k, CL, CB); }
+                const glow = (el, on) => { if (el) el.classList.toggle("tgt", !!on); };
+                glow(R.back, s.tgt != null && s.grp.bl.id === s.tgt && !s.grp.bl.dead);
+                // ---- the elves (idle ones ride the balloon's bob: same idle frame as the blimp)
+                s.grp.elves.forEach((e, i) => {
+                    const E = s.el[i], el = R["e" + i];
+                    if (!E || !el)
+                        return;
+                    let S = A.elf, key = popped ? "ground" : "idle", f = (bk === "idle" ? bf : Math.floor(t / 50)) % 48, spot = popped ? A.down : A.air;
+                    if (E.atkAt != null && t >= E.atkAt) { E.atkFrom = E.atkAt; E.atkAt = null; }
+                    if (E.hurtAt != null && t >= E.hurtAt) { E.hurtFrom = E.hurtAt; E.hurtAt = null; }
+                    if (E.atkFrom != null && t - E.atkFrom < dur(A.elf, "attack")) { key = "attack"; f = Math.floor((t - E.atkFrom) / 50); }
+                    else if (E.hurtFrom != null && t - E.hurtFrom < dur(A.elf, "hurt")) { key = "hurt"; f = Math.floor((t - E.hurtFrom) / 50); }
+                    if (falling) { S = A.fall; key = "fall"; f = Math.floor(sincePop / 50); spot = A.fallTo; }
+                    const c = blimpElfCell(i, spot), r = blimpRect(S, c.l, c.b, c.sc, A.EW, A.EH);
+                    if (el.__src !== S.src) { el.__src = S.src; el.style.backgroundImage = "url(" + S.src + ")"; el.style.backgroundSize = (S.cols * 100) + "% " + (S.rows * 100) + "%"; }
+                    put(el, S, key, f);
+                    place(el, r, k, CL, CB);
+                    const fade = E.gone != null ? Math.max(0, 1 - (t - E.gone) / 350) : 1;
+                    el.style.opacity = fade.toFixed(2);
+                    el.style.display = fade > 0 ? "block" : "none";
+                    glow(el, s.tgt === e.id && !e.dead);
+                });
+            }
+            timer = setTimeout(tick, 50);
+        };
+        tick();
+        return () => { gone = true; clearTimeout(timer); };
+    }, []);
+    const layer = (key, S, z) => React.createElement("div", { key, ref: (el) => { refs.current[key] = el; }, className: "et-blimp-layer", style: S ? { zIndex: z, backgroundImage: "url(" + S.src + ")", backgroundSize: (S.cols * 100) + "% " + (S.rows * 100) + "%" } : { zIndex: z } });
+    return React.createElement(React.Fragment, null,
+        layer("back", A.back, 1), layer("blast", A.blast, 1),
+        elves.map((e, i) => layer("e" + i, A.elf, 2)),
+        layer("front", A.front, 3));
+}
+// the airship's size and the columns' places, measured from the scene (written as CSS variables on the group, read by
+// the columns, and handed to BlimpAnim's timer). Bottom up: the bar row, the gondola just over it (and over the floor),
+// the hydra heads at the top of the scene.
+function blimpLayout(el, grp, gs) {
+    const A = BLIMP_ANIM, scene = el && el.closest(".et-scene");
+    if (!scene)
+        return null;
+    const Gr = el.getBoundingClientRect(), z = el.offsetWidth ? Gr.width / el.offsetWidth : 1;
+    if (!(z > 0))
+        return null;
+    const gb = Gr.bottom, up = (y) => (gb - y) / z; // screen y -> css px above the group's bottom
+    const bar = el.querySelector(".et-blimpcol .et-ehprow"), hero = scene.querySelector(".et-hero .et-heroanim .et-eanim-box") || scene.querySelector(".et-hero-imgwrap");
+    const barMid = bar ? up(bar.getBoundingClientRect().top + bar.getBoundingClientRect().height / 2) : 60;
+    const feet = hero ? up(hero.getBoundingClientRect().bottom) : barMid + 20;
+    let sceneTop = up(scene.getBoundingClientRect().top);
+    const sceneH = scene.getBoundingClientRect().height / z;
+    // phones: the top bar floats over the scene's sky - the hydra heads stop under it
+    const tb = document.querySelector(".et-battle > .et-topbar"), tr = tb && tb.getBoundingClientRect();
+    if (tr && tr.bottom > scene.getBoundingClientRect().top && tr.left < Gr.right && tr.right > Gr.left)
+        sceneTop = Math.min(sceneTop, up(tr.bottom + 4));
+    const gondola = Math.max(barMid + 15 + 6, feet + 0.03 * sceneH);
+    let k = (sceneTop - gondola) / ((A.hydraTop - A.idleBottom) * A.H);
+    const room = (el.parentElement ? el.parentElement.clientWidth : 600) - 16;
+    k = Math.max(0.12, Math.min(k, room / ((A.wide[1] - A.wide[0]) * A.W)));
+    const CL = -A.wide[0] * A.W * k, CBf = gondola - A.idleBottom * A.H * k, CBg = feet - A.ground * A.H * k;
+    const popped = grp.bl.dead && !(grp.bl.flags && grp.bl.flags.boom);
+    const CB = popped ? CBg : CBf, spot = popped ? A.down : A.air, head = popped ? A.headDown : A.head;
+    // columns: 0 = left elf, 1 = blimp, 2 = right elf; bar slots pushed apart where letter + bar would overlap
+    const cx = [CL + spot[0][0] * A.W * k, CL + A.body * A.W * k, CL + spot[1][0] * A.W * k];
+    const step = 124, xs = [cx[0]];
+    for (let i = 1; i < 3; i++) xs.push(Math.max(cx[i], xs[i - 1] + step));
+    const shift = (cx[0] + cx[1] + cx[2] - xs[0] - xs[1] - xs[2]) / 3;
+    const off = Math.max(0, 62 - (xs[0] + shift)); // the left bar must not stick out of the group's box
+    for (let i = 0; i < 3; i++) { cx[i] += off; xs[i] += off; }
+    const CLo = CL + off;
+    const v = { "--gw": Math.max((A.wide[1] - A.wide[0]) * A.W * k + off, xs[2] + shift + 62).toFixed(1) + "px" };
+    const ew = A.W * k * 0.13, bw = A.W * k * 0.09;
+    [0, 1, 2].forEach((i) => {
+        const w = i === 1 ? bw : ew, colL = cx[i] - w / 2;
+        v["--cl" + i] = colL.toFixed(1) + "px";
+        v["--cw" + i] = w.toFixed(1) + "px";
+        v["--bd" + i] = (xs[i] + shift - cx[i]).toFixed(1) + "px";
+        if (i === 1) {
+            v["--ch1"] = (CB + 0.88 * A.H * k).toFixed(1) + "px";
+            v["--pb1"] = (CBf + A.intent[1] * A.H * k - 11).toFixed(1) + "px";
+            v["--pd1"] = ((A.intent[0] - A.body) * A.W * k).toFixed(1) + "px";
+        }
+        else {
+            const e = i === 0 ? 0 : 1, rail = spot[e][1] - A.rail;
+            const hy = CB + (rail + (head[e] - rail) * A.boost) * A.H * k;
+            v["--ch" + i] = (hy + 4).toFixed(1) + "px";
+            v["--pb" + i] = (hy + 0.03 * A.H * k).toFixed(1) + "px";
+            v["--pd" + i] = "0px";
+            // the attack FX's missile starts from the elf's sheet cell: a proxy box over the drawn elf
+            const c = blimpElfCell(e, spot), r = blimpRect(A.elf, c.l, c.b, c.sc, A.EW, A.EH);
+            v["--xl" + i] = (CLo + r.l * k - colL).toFixed(1) + "px";
+            v["--xb" + i] = (CB + r.b * k).toFixed(1) + "px";
+            v["--xw" + i] = (r.w * k).toFixed(1) + "px";
+            v["--xh" + i] = (r.h * k).toFixed(1) + "px";
+        }
+    });
+    Object.entries(v).forEach(([n, val]) => el.style.setProperty(n, val));
+    gs.k = k, gs.CL = CLo, gs.CBf = CBf, gs.CBg = CBg;
+    return gs;
+}
+function BlimpGroup({ b, grp, tgtId, cols }) {
+    const ref = useRef(null), gs = useRef({}).current;
+    React.useLayoutEffect(() => { blimpLayout(ref.current, grp, gs); });
+    useEffect(() => {
+        const el = ref.current, scene = el && el.closest(".et-scene");
+        if (!scene || typeof ResizeObserver === "undefined")
+            return;
+        const ro = new ResizeObserver(() => blimpLayout(ref.current, grp, gs));
+        ro.observe(scene);
+        return () => ro.disconnect();
+    }, []);
+    return React.createElement("div", { ref, className: "et-blimpgrp" },
+        React.createElement(BlimpAnim, { b, grp, tgtId, geo: gs }), cols);
+}
 function VineAnim({ en, b, cls }) {
     const V = VINE_ANIM, refs = useRef({}), st = useRef(null);
     const liveSlots = (bb) => new Set((bb ? bb.enemies : []).filter((x) => !x.dead && x.summonerId === en.id && x.armSlot).map((x) => x.armSlot));
@@ -25829,7 +26067,7 @@ function VineAnim({ en, b, cls }) {
 // ONE shared factor when their widths would overflow it (see foeRowSizing), so proportions hold.
 const HERO_DRAW_H = 140;
 const ENEMY_SIZE = {"Magpie": 0.45, "Bruiser": 1.05, "Assassin": 1.0, "Snail": 0.4, "Lizard Rider": 1.1, "Troll": 1.15, "Troll Hoard": 1.15, "Red Gnome": 0.6, "Yellow Gnome": 0.6, "Gray Gnome": 0.6, "Gnome Village": 0.85, "Snake": 0.5, "Troll King": 1.3, "Vineman": 1.25, "Vine Arm": 0.7, "Mushroom": 0.55, "Grub": 0.4, "Grub Group": 0.55, "Skeleton Warrior": 1.0, "Skeleton Archer": 1.0, "Golem": 1.2, "Zombie": 1.0, "Growing Mass": 0.85, "Lich King": 1.15, "Dwarf Queen": 0.85, "Boulder": 0.6, "Fire Imp": 0.6, "Fireworks Vendor": 1.0, "Glow Worm": 0.45, "Red Wand Fairy": 0.55, "Blue Wand Fairy": 0.55, "Yellow Wand Fairy": 0.55, "Phoenix": 1.1, "Phoenix Egg": 0.45, "Salamander": 0.65, "Dragon": 1.4, "Chimera Lion": 1.5, "Chimera Goat": 1.5, "Chimera Snake": 1.5, "Zombie Arm": 0.35, "Zombie Leg": 0.55, "Zombie Head": 0.42, "Snow Golem": 1.2, "Ice Hedgehog": 0.5, "Ice Troll Chieftain": 1.25, "Ice Troll Axeman": 1.15, "Sled Catapult": 0.9, "Sled Goblin": 0.7, "Ice Wraith": 1.05, "Yeti": 1.3, "Icy Shell": 1.0, "Dire Wolf": 0.85, "Blimp": 0.85, "Elf": 0.9, "Butterfly": 0.45, "Gryphon": 1.15, "Griffin Egg": 0.35, "Baby Gryphon": 0.55, "Centaur": 1.2, "Siren": 1.0, "Sunguard Knight": 1.05, "Sunguard Mage": 1.0};
-const ENEMY_ASPECT = {"Dire Wolf": 1.1, "Icy Shell": 1.01, "Magpie": 1.23, "Bruiser": 0.71, "Assassin": 0.47, "Snail": 1.87, "Troll": 1.06, "Troll Hoard": 0.73, "Red Gnome": 1.15, "Yellow Gnome": 1.12, "Gray Gnome": 1.3, "Snake": 1.25, "Troll King": 1.29, "Vineman": 1.0, "Mushroom": 0.76, "Grub": 1.46, "Grub Group": 1.04, "Skeleton Warrior": 0.81, "Skeleton Archer": 0.97, "Golem": 1.37, "Zombie": 0.93, "Growing Mass": 1.39, "Lich King": 0.98, "Dwarf Queen": 1.75, "Fire Imp": 0.74, "Fireworks Vendor": 1.11, "Glow Worm": 1.88, "Red Wand Fairy": 1.28, "Blue Wand Fairy": 1.33, "Yellow Wand Fairy": 1.35, "Phoenix": 1.68, "Salamander": 1.39, "Dragon": 1.62, "Snow Golem": 1.83, "Ice Hedgehog": 1.13, "Ice Troll Chieftain": 1.22, "Ice Troll Axeman": 1.21, "Sled Catapult": 1.59, "Ice Wraith": 1.01, "Yeti": 0.86, "Butterfly": 0.66, "Centaur": 1.1, "Siren": 0.48, "Gnome Village": 2.11, "Sled Goblin": 0.99, "Lizard Rider": 1.12, "Blimp": 2.11, "Zombie Arm": 3.24, "Zombie Leg": 1.05, "Zombie Head": 0.95};
+const ENEMY_ASPECT = {"Dire Wolf": 1.1, "Icy Shell": 1.01, "Magpie": 1.23, "Bruiser": 0.71, "Assassin": 0.47, "Snail": 1.87, "Troll": 1.06, "Troll Hoard": 0.73, "Red Gnome": 1.15, "Yellow Gnome": 1.12, "Gray Gnome": 1.3, "Snake": 1.25, "Troll King": 1.29, "Vineman": 1.0, "Mushroom": 0.76, "Grub": 1.46, "Grub Group": 1.04, "Skeleton Warrior": 0.81, "Skeleton Archer": 0.97, "Golem": 1.37, "Zombie": 0.93, "Growing Mass": 1.39, "Lich King": 0.98, "Dwarf Queen": 1.75, "Fire Imp": 0.74, "Fireworks Vendor": 1.11, "Glow Worm": 1.88, "Red Wand Fairy": 1.28, "Blue Wand Fairy": 1.33, "Yellow Wand Fairy": 1.35, "Phoenix": 1.68, "Salamander": 1.39, "Dragon": 1.62, "Snow Golem": 1.83, "Ice Hedgehog": 1.13, "Ice Troll Chieftain": 1.22, "Ice Troll Axeman": 1.21, "Sled Catapult": 1.59, "Ice Wraith": 1.01, "Yeti": 0.86, "Butterfly": 0.66, "Centaur": 1.1, "Siren": 0.48, "Gnome Village": 2.11, "Sled Goblin": 0.99, "Lizard Rider": 1.12, "Blimp": 0.73, "Elf": 0.58, "Zombie Arm": 3.24, "Zombie Leg": 1.05, "Zombie Head": 0.95};
 Object.assign(ENEMY_ASPECT, {"Gryphon": 1.17, "Baby Gryphon": 1.1, "Griffin Egg": 1.1, "Butterfly": 0.66, "Siren": 0.49, "Dragon": 1.69});
 Object.assign(ENEMY_ASPECT, {"Phoenix": 1.16, "Phoenix Egg": 1.16, "Boulder": 1.41, "Dwarf Queen": 1.17});
 Object.assign(ENEMY_ASPECT, {"Glow Worm": 1.87});
@@ -32239,7 +32477,7 @@ function EldertoneInner() {
                 React.createElement("div", { className: "et-scene-inner" },
                     React.createElement(HeroFigure, { g: g, b: b }),
                     React.createElement(AttackFxLayer, { b }),
-                    React.createElement("div", { className: "et-foes", style: { "--fs": (b.__fsMax = Math.max(b.__fsMax || 0, b.enemies.filter((e) => !e.dead || (CHIMERA_PART[e.name] && b.enemies.some((x) => !x.dead && CHIMERA_PART[x.name]))).reduce((t, e) => { const vmF = vineGroup(b); if (vmF && e !== vmF && e.armSlot && e.summonerId === vmF.id) return t; const z = foeSize(e); return t + Math.max(FOE_MIN_W, z.h ? z.h * z.a : FOE_MIN_W) + FOE_GAP + (e === vmF ? z.h * 1.12 : 0); }, 0) + ((() => { const zF = zombieGroup(b); return zF ? (3 - b.enemies.filter((x) => !x.dead && x.zSlot && x.zOf === zF.id).length) * (FOE_MIN_W + FOE_GAP) : 0; })()) || 1)) } }, (() => { const vmG = vineGroup(b); const zG = zombieGroup(b); const renderFoe = (en, ei, armMode) => {
+                    React.createElement("div", { className: "et-foes", style: { "--fs": (b.__fsMax = Math.max(b.__fsMax || 0, b.enemies.filter((e) => !e.dead || (CHIMERA_PART[e.name] && b.enemies.some((x) => !x.dead && CHIMERA_PART[x.name]))).reduce((t, e) => { const bgF = blimpGroup(b); if (bgF && (e === bgF.bl || bgF.elves.includes(e))) return t + (e === bgF.bl ? 330 : 0); const vmF = vineGroup(b); if (vmF && e !== vmF && e.armSlot && e.summonerId === vmF.id) return t; const z = foeSize(e); return t + Math.max(FOE_MIN_W, z.h ? z.h * z.a : FOE_MIN_W) + FOE_GAP + (e === vmF ? z.h * 1.12 : 0); }, 0) + ((() => { const zF = zombieGroup(b); return zF ? (3 - b.enemies.filter((x) => !x.dead && x.zSlot && x.zOf === zF.id).length) * (FOE_MIN_W + FOE_GAP) : 0; })()) || 1)) } }, (() => { const vmG = vineGroup(b); const zG = zombieGroup(b); const renderFoe = (en, ei, armMode) => {
                         const L = foeLetter(b, en, ei);
                         if (en.dead && CHIMERA_PART[en.name] && b.enemies.some((x) => !x.dead && CHIMERA_PART[x.name])) {
                             const fzd = foeSize(en);
@@ -32337,7 +32575,36 @@ function EldertoneInner() {
                             React.createElement("div", { className: "et-badgerow", style: { marginTop: 4 } },
                                 React.createElement(Badges, { st: en.st }))));
                         return vineWrap(el);
-                    }; if (zG) { // A, B, C (parts or held places), then the Zombie in D
+                    }; const bG = blimpGroup(b); if (bG) { // the Blimp + its Elves: one airship, three narrow columns, one bar row
+                        const showable = (e) => !e.dead || (e.puffAt && Date.now() < e.puffAt); // a fallen one's column goes when its last hit lands
+                        const col = (en, i) => {
+                            const L = foeLetter(b, en, b.enemies.indexOf(en)), elf = i !== 1;
+                            const es = charStatusEntries(en.shield, en.st);
+                            { const spd = ENEMY_SPECIAL_DESC[en.name]; if (spd) es.unshift(["\u2726 " + spd[0], spd[1]]); }
+                            return React.createElement("div", { key: en.id, "data-eid": en.id, className: "et-foe et-blimpcol" + (tgt && tgt.id === en.id ? " tgt" : "") + tutGlow(g, "foe"),
+                                style: { left: "var(--cl" + i + ")", width: "var(--cw" + i + ")", height: "var(--ch" + i + ")", "--bd": "var(--bd" + i + ")" },
+                                onClick: () => mut((g) => { logDecision(g, "target", { enemy: en.name, via: "click" }); g.battle.target = en.id; logAfter(g); }) },
+                                React.createElement(FxHost, { b, tgt: en.id }),
+                                elf ? React.createElement("span", { className: "et-eanim-sheet et-blimpproxy", style: { left: "var(--xl" + i + ")", bottom: "var(--xb" + i + ")", width: "var(--xw" + i + ")", height: "var(--xh" + i + ")" } }) : null,
+                                !en.dead && (en.st.stun || 0) > 0 && elf ? React.createElement(StunBirds, { sel: ".et-blimpproxy" }) : null,
+                                React.createElement("div", { className: "et-intent-top et-blimppill", style: { bottom: "var(--pb" + i + ")", left: "calc(50% + var(--pd" + i + "))" } }, en.intent && !en.dead ? React.createElement("span", { className: "pill" },
+                                    iconizeLabel(intentLabel(b, en)),
+                                    (() => { const ls = intentTipLines(b, en); return ls.length ? React.createElement("div", { className: "et-inttip" }, ls.map((t, k2) => React.createElement("div", { key: k2 }, t))) : null; })()) : null),
+                                React.createElement("div", { className: "et-blimpbar" },
+                                    React.createElement("div", { className: "et-foename" }, elf ? "Elf" : en.name, en.kind !== "normal" ? " \u2605" : ""),
+                                    React.createElement("div", { className: "et-blimprow" },
+                                        React.createElement("div", { className: "et-eslot", title: "press " + (L || "?") + " to target" }, L || "\u2022"),
+                                        React.createElement("div", { className: "et-ehprow" },
+                                            React.createElement(HpIcon, { shield: en.shield }),
+                                            React.createElement("div", { className: "et-ehp" + (en.shield > 0 ? " shielded" : "") },
+                                                React.createElement("i", { style: { width: `${Math.max(0, (en.hp / en.maxHp) * 100)}%` } }),
+                                                React.createElement("span", null, en.hp, "/", en.maxHp)))),
+                                    es.length ? React.createElement("div", { className: "et-chartip" }, es.map(([t, d], k2) => React.createElement("div", { key: k2 }, React.createElement("b", null, t), " \u2014 ", d))) : null,
+                                    React.createElement("div", { className: "et-badgerow", style: { marginTop: 4 } }, React.createElement(Badges, { st: en.st }))));
+                        };
+                        const cols = [bG.elves[0], bG.bl, bG.elves[1]].map((en, i) => en && showable(en) ? col(en, i) : null);
+                        return [React.createElement(BlimpGroup, { key: "blimpgrp", b, grp: bG, tgtId: tgt ? tgt.id : null, cols })];
+                    } if (zG) { // A, B, C (parts or held places), then the Zombie in D
                         const hold = (e, key) => { const fz = e && foeSize(e); return React.createElement("div", { key, className: "et-foe et-zhold" + (fz && fz.h ? " sized" : ""), style: fz && fz.h ? { "--ehn": fz.h, "--ea": fz.a } : undefined }); };
                         const showable = (e) => e && (!e.dead || (e.puff && Date.now() < (e.puffAt || 0) + KILL_FX_MS));
                         const out = ["A", "B", "C"].map((L) => { const p = b.enemies.filter((e) => e.zSlot === L && e.zOf === zG.id).pop(); return showable(p) ? renderFoe(p, b.enemies.indexOf(p)) : hold(p, "zh" + L); });
