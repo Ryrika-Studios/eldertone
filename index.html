@@ -24988,10 +24988,8 @@ html body .et-foe.sized.et-dying{max-width:max(calc(104 * var(--u)),calc(var(--h
 .cf-fx.snow{display:block}
 .cf-fx.snow .sf{position:absolute;top:0;aspect-ratio:1;opacity:0;transform:translate(-50%,-110%);animation:cfSnowFall 1.9s cubic-bezier(.35,.1,.6,1) forwards}
 .cf-fx.snow .sf b{display:block;width:100%;height:100%;background:url(sprites/fx-lich-snow.webp?v=1) 0 0/4800% 200% no-repeat;animation:cfSnowSpin 2.4s steps(48,jump-none) infinite;filter:drop-shadow(0 0 4px #bfefff)}
-.cf-fx.snow .frost{position:absolute;inset:0;border-radius:inherit;opacity:0;background:radial-gradient(ellipse at 50% 30%,rgba(214,244,255,.55),rgba(150,210,240,.25) 60%,rgba(120,190,230,.1));box-shadow:inset 0 0 14px rgba(190,240,255,.9);animation:cfFrost 1.6s ease-out forwards}
 @keyframes cfSnowFall{0%{opacity:0;transform:translate(-50%,-110%) rotate(0deg)}12%{opacity:1}55%{transform:translate(-38%,90%) rotate(40deg)}82%{opacity:1}100%{opacity:0;transform:translate(-50%,230%) rotate(80deg)}}
 @keyframes cfSnowSpin{from{background-position-x:0%}to{background-position-x:100%}}
-@keyframes cfFrost{0%{opacity:0}25%{opacity:1}100%{opacity:0}}
 .et-pf{position:absolute;left:50%;top:50%;width:28px;height:28px;border-radius:50%;opacity:0;background:radial-gradient(circle at 35% 35%, #f2efe9, #a8a29a 65%, rgba(140,135,128,0) 100%);animation:puffUp .85s ease-out forwards}
 .et-pf0{--dx:-24px;--dy:-10px;width:32px;height:32px}
 .et-pf1{--dx:20px;--dy:-16px;animation-delay:.06s}
@@ -26103,7 +26101,7 @@ function VineAnim({ en, b, cls }) {
 // sprite (measured from ENEMY_ART / ENEMY_ANIM; emoji fallbacks ~1). The battle row shrinks every foe by
 // ONE shared factor when their widths would overflow it (see foeRowSizing), so proportions hold.
 const HERO_DRAW_H = 140;
-const ENEMY_SIZE = {"Magpie": 0.45, "Bruiser": 1.05, "Assassin": 1.0, "Snail": 0.4, "Lizard Rider": 1.1, "Troll": 1.15, "Troll Hoard": 1.15, "Red Gnome": 0.6, "Yellow Gnome": 0.6, "Gray Gnome": 0.6, "Gnome Village": 0.85, "Snake": 0.5, "Troll King": 1.3, "Vineman": 1.25, "Vine Arm": 0.7, "Mushroom": 0.55, "Grub": 0.4, "Grub Group": 0.55, "Skeleton Warrior": 1.0, "Skeleton Archer": 1.0, "Golem": 1.2, "Zombie": 1.0, "Growing Mass": 0.85, "Lich King": 1.3, "Dwarf Queen": 0.85, "Boulder": 0.6, "Fire Imp": 0.6, "Fireworks Vendor": 1.0, "Glow Worm": 0.45, "Red Wand Fairy": 0.55, "Blue Wand Fairy": 0.55, "Yellow Wand Fairy": 0.55, "Phoenix": 1.1, "Phoenix Egg": 0.45, "Salamander": 0.65, "Dragon": 1.4, "Chimera Lion": 1.5, "Chimera Goat": 1.5, "Chimera Snake": 1.5, "Zombie Arm": 0.35, "Zombie Leg": 0.55, "Zombie Head": 0.42, "Snow Golem": 1.2, "Ice Hedgehog": 0.5, "Ice Troll Chieftain": 1.25, "Ice Troll Axeman": 1.15, "Sled Catapult": 0.9, "Sled Goblin": 0.7, "Ice Wraith": 1.05, "Yeti": 1.3, "Icy Shell": 1.0, "Dire Wolf": 0.85, "Blimp": 0.85, "Elf": 0.9, "Butterfly": 0.45, "Gryphon": 1.15, "Griffin Egg": 0.35, "Baby Gryphon": 0.55, "Centaur": 1.2, "Siren": 1.0, "Sunguard Knight": 1.05, "Sunguard Mage": 1.0};
+const ENEMY_SIZE = {"Magpie": 0.45, "Bruiser": 1.05, "Assassin": 1.0, "Snail": 0.4, "Lizard Rider": 1.1, "Troll": 1.15, "Troll Hoard": 1.15, "Red Gnome": 0.6, "Yellow Gnome": 0.6, "Gray Gnome": 0.6, "Gnome Village": 0.85, "Snake": 0.5, "Troll King": 1.3, "Vineman": 1.25, "Vine Arm": 0.7, "Mushroom": 0.55, "Grub": 0.4, "Grub Group": 0.55, "Skeleton Warrior": 1.0, "Skeleton Archer": 1.0, "Golem": 1.2, "Zombie": 1.0, "Growing Mass": 0.85, "Lich King": 1.48, "Dwarf Queen": 0.85, "Boulder": 0.6, "Fire Imp": 0.6, "Fireworks Vendor": 1.0, "Glow Worm": 0.45, "Red Wand Fairy": 0.55, "Blue Wand Fairy": 0.55, "Yellow Wand Fairy": 0.55, "Phoenix": 1.1, "Phoenix Egg": 0.45, "Salamander": 0.65, "Dragon": 1.4, "Chimera Lion": 1.5, "Chimera Goat": 1.5, "Chimera Snake": 1.5, "Zombie Arm": 0.35, "Zombie Leg": 0.55, "Zombie Head": 0.42, "Snow Golem": 1.2, "Ice Hedgehog": 0.5, "Ice Troll Chieftain": 1.25, "Ice Troll Axeman": 1.15, "Sled Catapult": 0.9, "Sled Goblin": 0.7, "Ice Wraith": 1.05, "Yeti": 1.3, "Icy Shell": 1.0, "Dire Wolf": 0.85, "Blimp": 0.85, "Elf": 0.9, "Butterfly": 0.45, "Gryphon": 1.15, "Griffin Egg": 0.35, "Baby Gryphon": 0.55, "Centaur": 1.2, "Siren": 1.0, "Sunguard Knight": 1.05, "Sunguard Mage": 1.0};
 const ENEMY_ASPECT = {"Dire Wolf": 1.1, "Icy Shell": 1.01, "Magpie": 1.23, "Bruiser": 0.71, "Assassin": 0.47, "Snail": 1.87, "Troll": 1.06, "Troll Hoard": 0.73, "Red Gnome": 1.15, "Yellow Gnome": 1.12, "Gray Gnome": 1.3, "Snake": 1.25, "Troll King": 1.29, "Vineman": 1.0, "Mushroom": 0.76, "Grub": 1.46, "Grub Group": 1.04, "Skeleton Warrior": 0.81, "Skeleton Archer": 0.97, "Golem": 1.37, "Zombie": 0.93, "Growing Mass": 1.39, "Lich King": 0.94, "Dwarf Queen": 1.75, "Fire Imp": 0.74, "Fireworks Vendor": 1.11, "Glow Worm": 1.88, "Red Wand Fairy": 1.28, "Blue Wand Fairy": 1.33, "Yellow Wand Fairy": 1.35, "Phoenix": 1.68, "Salamander": 1.39, "Dragon": 1.62, "Snow Golem": 1.83, "Ice Hedgehog": 1.13, "Ice Troll Chieftain": 1.22, "Ice Troll Axeman": 1.21, "Sled Catapult": 1.59, "Ice Wraith": 1.01, "Yeti": 0.86, "Butterfly": 0.66, "Centaur": 1.1, "Siren": 0.48, "Gnome Village": 2.11, "Sled Goblin": 0.99, "Lizard Rider": 1.12, "Blimp": 0.73, "Elf": 0.58, "Zombie Arm": 3.24, "Zombie Leg": 1.05, "Zombie Head": 0.95};
 Object.assign(ENEMY_ASPECT, {"Gryphon": 1.17, "Baby Gryphon": 1.1, "Griffin Egg": 1.1, "Butterfly": 0.66, "Siren": 0.49, "Dragon": 1.69});
 Object.assign(ENEMY_ASPECT, {"Phoenix": 1.16, "Phoenix Egg": 1.16, "Boulder": 1.41, "Dwarf Queen": 1.17});
@@ -27373,13 +27371,13 @@ function V3CardFace({ name, baseName, slot, lv, rows, cls, footer, extra, onClic
 function dispTitle(name, lv) { return String(name).replace(/[\s✦🎵🔥]+$/u, "") + lvMark(lv); }
 // Lich King's Ice Unleash (Nov 25 2026, user: "the snowflakes should fall down cards that he reduces the charge of to 1"): the
 // delivery's two spinning flakes (sprites/fx-lich-snow.webp, row 0 = Snowflake 1, row 1 = Snowflake 2, 48 frames) drift down the
-// card at staggered sizes / delays; fx.d = when his unleash ring bursts on screen
+// card at staggered sizes / delays (no frost tint: user, Nov 25); fx.d = when his unleash ring bursts on screen
 const CARD_SNOW = [[20, 0, 0, 0.5], [64, 1, 160, 0.4], [42, 0, 330, 0.56], [80, 0, 520, 0.34], [12, 1, 600, 0.38], [54, 1, 800, 0.45]];
 function cardSnowFlakes(fx) {
     const born = fx.born || (fx.born = Date.now()), d = Math.max(0, (fx.d || 0) - (Date.now() - born));
-    return [React.createElement("i", { key: "frost", className: "frost", style: { animationDelay: d + 700 + "ms" } })].concat(CARD_SNOW.map(([x, row, t, sz], j) =>
+    return CARD_SNOW.map(([x, row, t, sz], j) =>
         React.createElement("i", { key: j, className: "sf", style: { left: x + "%", width: sz * 100 + "%", animationDelay: d + t + "ms" } },
-            React.createElement("b", { style: { backgroundPositionY: row * 100 + "%", animationDelay: -(j * 370) + "ms" } }))));
+            React.createElement("b", { style: { backgroundPositionY: row * 100 + "%", animationDelay: -(j * 370) + "ms" } })));
 }
 function CardFace({ name, slot, lv, rows, activeIdx, extra, footer, onClick, ready, locked, style, ring, tipKeys, tipFlip, tipExtra, fx, bagSlots, orb, v3 }) {
     // class border color: strip battle decorations (✦ 🎵 🔥) before the card lookup
