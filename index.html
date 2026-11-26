@@ -25698,6 +25698,11 @@ const BLIMP_ANIM = {
     body: 0.4465, idleBottom: 0.2445, ground: 0.0696, hydraTop: 0.8786, wide: [0.1949, 0.7094], intent: [0.37, 0.842],
     air: [[0.3151, 0.4097], [0.5496, 0.4141]], fallTo: [[0.3151, 0.3207], [0.5496, 0.3251]], down: [[0.3151, 0.2317], [0.5496, 0.2361]],
     head: [0.4884, 0.4927], headDown: [0.3104, 0.3147], rail: 0.07, boost: 1.5,
+    // the elf's feet row (elf px, of EH) in each fall frame, and in idle / ground. While falling the feet are pinned to the
+    // base: from the air spot's feet to the ground spot's feet as the artist's fall frames go, so an elf never leaves the
+    // gondola (user, Nov 25 2026: "the elves fall farther than the balloon ship and teleport back")
+    fallFeet: [263, 263, 263, 262, 262, 263, 263, 265, 267, 273, 285, 304, 329, 360, 397, 441, 491, 547, 559, 555, 551, 556, 563,
+        558, 560, 562, 563, 563].concat(Array(20).fill(562)), idleFeet: 410, groundFeet: 413,
     back: { src: "sprites/blimp-back.webp?v=1", cw: 344, ch: 466, cols: 46, rows: 3, crop: [214, 9, 574, 776], a: { idle: [0, 48, 50], hurt: [48, 22, 50], pop: [70, 48, 50] } },
     blast: { src: "sprites/blimp-blast.webp?v=1", cw: 499, ch: 378, cols: 32, rows: 2, crop: [0, 0, 1108, 840], a: { blast: [0, 56, 50] } },
     front: { src: "sprites/blimp-front.webp?v=1", cw: 264, ch: 186, cols: 60, rows: 2, crop: [288, 475, 440, 310], a: { idle: [0, 48, 50], hurt: [48, 22, 50], pop: [70, 48, 50] } },
@@ -25804,8 +25809,18 @@ function BlimpAnim({ b, grp, tgtId, geo }) {
                     if (E.hurtAt != null && t >= E.hurtAt) { E.hurtFrom = E.hurtAt; E.hurtAt = null; }
                     if (E.atkFrom != null && t - E.atkFrom < dur(A.elf, "attack")) { key = "attack"; f = Math.floor((t - E.atkFrom) / 50); }
                     else if (E.hurtFrom != null && t - E.hurtFrom < dur(A.elf, "hurt")) { key = "hurt"; f = Math.floor((t - E.hurtFrom) / 50); }
-                    if (falling) { S = A.fall; key = "fall"; f = Math.floor(sincePop / 50); spot = A.fallTo; }
-                    const c = blimpElfCell(i, spot), r = blimpRect(S, c.l, c.b, c.sc, A.EW, A.EH);
+                    let c;
+                    if (falling) {
+                        S = A.fall; key = "fall"; f = Math.min(47, Math.floor(sincePop / 50)); spot = A.fallTo;
+                        const F = A.fallFeet, row = F[f], p = (row - F[0]) / (F[47] - F[0]);
+                        const ca = blimpElfCell(i, A.air), cd = blimpElfCell(i, A.down), fi = ca.b + (A.EH - A.idleFeet) * ca.sc;
+                        const fg = cd.b + (A.EH - A.groundFeet) * cd.sc;
+                        c = blimpElfCell(i, spot);
+                        c.b = fi + (fg - fi) * p - (A.EH - row) * c.sc;
+                    }
+                    else
+                        c = blimpElfCell(i, spot);
+                    const r = blimpRect(S, c.l, c.b, c.sc, A.EW, A.EH);
                     if (el.__src !== S.src) { el.__src = S.src; el.style.backgroundImage = "url(" + S.src + ")"; el.style.backgroundSize = (S.cols * 100) + "% " + (S.rows * 100) + "%"; }
                     put(el, S, key, f);
                     place(el, r, k, CL, CB);
