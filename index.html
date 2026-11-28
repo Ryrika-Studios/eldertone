@@ -18789,6 +18789,11 @@ function rollIntent(en, b) {
         en.intent = { kind: "charge", label: "💪 buffing…" };
         return;
     }
+    if (en.special === "mage_shields_knight" && b && b.enemies && b.enemies.some((e) => e.name === "Sunguard Knight" && !e.dead)) {
+        // Enemies Final: while the Knight stands, her whole turn is the ward (Shield + 10 Strength) — show it (Nov 27 2026)
+        en.intent = { kind: "charge", ward: true, label: "\u2728 warding the Knight\u2026" };
+        return;
+    }
     if (en.special === "growing_mass" && b && b.enemies && gmGrowsOnTurn(b.turn + 1)) {
         // telegraph the growth one turn ahead (user, Oct 30 2026): next turn it does nothing but grow
         en.intent = { kind: "charge", grow: true, label: "\u{1F331} about to grow\u2026" };
@@ -19313,6 +19318,10 @@ function intentTipLines(b, en) {
     }
     if (en.intent.hold) {
         lines.push("\u{1F441} Sizing you up — it won't attack on the first turn.");
+        return lines;
+    }
+    if (en.intent.ward) {
+        lines.push("\u2728 Wraps the Sunguard Knight in a radiant bubble: Shield, and +10 Strength on his next attack. Break the bubble AND wound the Knight to stun her for a turn.");
         return lines;
     }
     const red = heroDmgRedPct(b);
@@ -20079,6 +20088,8 @@ function damageEnemy(b, g, en, raw, opts = {}) {
     const hd = fxPush(b, "slash", en.id, (b.__hitDelay || 0) + (!opts.minion && !b.__enemyPhase ? (HERO_STRIKE_MS[(g && g.heroId) || "rogue"] || 0) : 0));
     en.animHit = (en.animHit || 0) + 1; // display-only: EnemyAnim plays the hurt frames
     en.animHitDelay = hd;
+    if (abs > 0 && en.shield <= 0 && en.name === "Sunguard Knight")
+        en.flags.wardPop = { seq: ((en.flags.wardPop && en.flags.wardPop.seq) || 0) + 1, at: Date.now() + hd }; // display: the ward bubble bursts
     en.__dieD = hd;
     en.__dieT = Date.now();
     if (en.armSlot)
@@ -20242,6 +20253,8 @@ function killEnemy(b, g, en) {
     }
     en.dead = true;
     en.puff = true; // display: this corpse dissolves into smoke in the battle render
+    if (en.name === "Sunguard Knight")
+        b.enemies.forEach((mg) => { if (!mg.dead && mg.intent && mg.intent.ward) rollIntent(mg, b); });
     // display: it stays standing until the blow that killed it lands on screen (a swing / an enemy's turn)
     const dieD = (en.__dieD != null && Date.now() - (en.__dieT || 0) < 40) ? en.__dieD : (b.__hitDelay || 0);
     en.puffD = Math.max(0, dieD); // the smoke starts this long after the render, on the same clock as the hit FX
@@ -23064,6 +23077,8 @@ function enemyPhase(b, g) {
             continue;
         }
         // enemy turn start (Shield an ally gave it earlier this phase survives)
+        if (en.name === "Sunguard Knight" && en.shield > 0 && !en._allyShield)
+            en.flags.wardPop = { seq: ((en.flags.wardPop && en.flags.wardPop.seq) || 0) + 1, at: Date.now() + (b.__actStart || 0) }; // display: last turn's ward bubble bursts
         en.shield = en._allyShield || 0;
         en._allyShield = 0;
         en._actedTurn = b.turn;
@@ -23207,13 +23222,28 @@ function enemyPhase(b, g) {
         if (en.special === "mage_shields_knight") {
             const kn = b.enemies.find((e) => e.name === "Sunguard Knight" && !e.dead);
             if (kn) {
+                // display (Nov 27 2026): she raises her staff, the ward bubble leaves its orb and settles around the Knight
+                const s0 = b.__actStart || 0, WF = ATTACK_FX["Sunguard Mage"] && ATTACK_FX["Sunguard Mage"].ward;
+                const land = WF ? s0 + WF.at + WF.fly : s0, ph = b.__hitDelay;
+                if (WF) {
+                    en.animAtk = (en.animAtk || 0) + 1;
+                    en.animAtkDelay = s0;
+                    en.animAtkK = null;
+                    b.atkFx = (b.atkFx || []).concat([{ id: b.fxSeq = (b.fxSeq || 0) + 1, en: en.id, to: kn.id, name: en.name, k: "ward", ts: Date.now(), d: s0, shot: 0 }]).slice(-12);
+                    kn.flags.wardAt = Date.now() + land;
+                    dispMark(b, land + 500);
+                }
+                b.__hitDelay = land;
                 enemyGainShield(b, g, kn, rollTier("S", en.biome, 2));
+                b.__hitDelay = ph;
                 kn.flags.mageWard = true;
                 log(b, en.name + " wreathes the Knight in radiant wards.");
                 rollIntent(en, b);
                 continue;
             }
         }
+        if (en.intent && en.intent.ward)
+            rollIntent(en, b); // the Knight fell before her turn: she uses her own moves now
         // gnome link: a gnome that telegraphed the linked strike (rollIntent, 3+ gnomes)
         if (en.intent && en.intent.link)
             log(b, "Linked by rays of light, " + en.name + " strikes!");
@@ -24911,6 +24941,13 @@ html body .et-encmeet .et-esprite.et-eanim{font-size:140px}
 @keyframes fxHalfR{0%{transform:translateX(30%)}50%{transform:translateX(0)}62%{transform:translateX(3%)}74%{transform:translateX(0)}100%{transform:translateX(0)}}
 .et-espwrap{position:relative;display:inline-block}
 .et-hero-imgwrap,.et-espwrap{isolation:isolate}
+.et-sgward-spot,.et-sgward{position:absolute;left:50%;transform:translateX(-50%);pointer-events:none}
+.et-sgward-spot{visibility:hidden}
+.et-sgward{z-index:5;opacity:0;animation:sgWardIn .18s ease-out var(--in,0ms) forwards,sgWardBob 2.6s ease-in-out calc(var(--in,0ms) + .18s) infinite;filter:drop-shadow(0 0 6px rgba(255,214,120,.55))}
+.et-sgward.pop{animation:sgWardPop .42s ease-out var(--in,0ms) forwards}
+@keyframes sgWardIn{from{opacity:0}to{opacity:.92}}
+@keyframes sgWardBob{0%,100%{opacity:.92;transform:translateX(-50%) scale(1)}50%{opacity:.8;transform:translateX(-50%) scale(1.025)}}
+@keyframes sgWardPop{0%{opacity:.92;transform:translateX(-50%) scale(1)}35%{opacity:.85;transform:translateX(-50%) scale(1.14)}100%{opacity:0;transform:translateX(-50%) scale(1.32)}}
 .et-fwring{position:absolute;aspect-ratio:240/209;pointer-events:none;background-repeat:no-repeat;background-size:1400% 300%;filter:saturate(.92)}
 .et-fwring.back{z-index:-1}
 .et-fwring.front{z-index:4}
@@ -25388,6 +25425,15 @@ Object.assign(ATTACK_FX, { "Elf": { attack: { kind: "missile", at: 450, fly: 550
 Object.assign(ENEMY_ANIM, { "Lich King": {"src": "sprites/lich-king.webp?v=1", "cw": 328, "ch": 208, "cols": 24, "rows": 6, "body": [122, 37, 141, 150], "a": {"idle": [0, 48, 50], "attack": [48, 30, 50], "hurt": [78, 22, 50], "unleash": [100, 44, 50]}} });
 Object.assign(ATTACK_FX, { "Lich King": { attack: {"kind": "missile", "at": 700, "fly": 400, "img": "sprites/fx-lich-missile.webp?v=1", "w": 149, "h": 42, "head": [19.8, 20.6], "res": 2, "from": [77.6, 90.7]} } });
 Object.assign(ENEMY_ART, { "Blimp": "sprites/blimp-still.webp?v=1" });
+// Sunguard Knight + Mage (Nov 27 2026, Fiverr delivery; trailer_build/deliver_nov27/web_sunguard.py). The knight's art faces right, so
+// his sheet is MIRRORED. Her attack = staff raised, the energy ball (6 frames, fx-sg-ball) flies from the staff's orb; her ward
+// (every turn while the Knight stands) = the same staff spell, the bubble (fx-sg-bubble) flies to the Knight and stays around him
+// (SgWard) while that shield holds, bursting when it breaks or when his next turn starts.
+Object.assign(ENEMY_ANIM, { "Sunguard Knight": {"src": "sprites/sunguard-knight.webp?v=1", "cw": 394, "ch": 303, "cols": 20, "rows": 8, "body": [116.8, 101.6, 210.0, 150.0], "a": {"idle": [0, 80, 33], "attack": [80, 42, 33], "hurt": [122, 20, 33]}}, "Sunguard Mage": {"src": "sprites/sunguard-mage.webp?v=1", "cw": 135, "ch": 160, "cols": 59, "rows": 3, "body": [7.8, 9.7, 127.1, 150.0], "a": {"idle": [0, 40, 33], "attack": [40, 60, 33], "hurt": [100, 20, 33]}} });
+Object.assign(ATTACK_FX, { "Sunguard Mage": {
+    attack: { kind: "missile", at: 530, fly: 450, img: "sprites/fx-sg-ball.webp?v=1", w: 88, h: 88, head: [44, 44], res: 2, from: [105.1, 13.2], frames: 6, fms: 70 },
+    ward: { kind: "ward", at: 530, fly: 520, img: "sprites/fx-sg-bubble.webp?v=2", from: [105.1, 13.2] } } });
+const SG_BUBBLE = { w: 1.32, h: 1.18, bottom: -0.04 }; // the ward bubble around the Knight, in his drawn heights (--h)
 function atkFxHitAt(F) { return F.kind === "missile" ? F.at + F.fly : F.at + 50; }
 ATTACK_FX["Icy Shell"].attack.holdF = 15;
 // Dragon bite (user, Nov 18 2026): the Dire Wolf's red bite flash lands on the hero instead of the damage slash (no drain ribbon:
@@ -25411,7 +25457,7 @@ ATTACK_FX.Gryphon = { attack: { kind: "marks", at: 346, sheet: ATTACK_FX["Dire W
 //   volleys     -> the k-th projectile of one enemy's turn launches VOLLEY_GAP ms after the previous one, VOLLEY_DY sheet px
 //                  higher/lower, while the attack animation holds its launch frame; melee multi-hits land 200 ms apart.
 const HERO_STRIKE_MS = { rogue: 220, necromancer: 700, iceknight: 630 };
-const ENEMY_STRIKE_MS = {"Lich King": 1100, "Gryphon": 396, "Baby Gryphon": 429, "Butterfly": 330, "Siren": 858, "Dragon": 1320, "Dragon|bite": 430, "Dragon|attackfly": 1254, "Dragon|attack": 1320,"Skeleton Warrior":429,"Skeleton Archer":627,"Ice Hedgehog":660,"Red Wand Fairy":462,"Blue Wand Fairy":462,"Yellow Wand Fairy":462,"Snake":560,"Troll":490,"Snow Golem":700,"Yeti":1120,"Fireworks Vendor":600,"Assassin":231,"Bruiser":396,"Gnome Village":528,"Gray Gnome":330,"Red Gnome":330,"Yellow Gnome":561,"Lizard Rider":825,"Snail":429,"Troll Hoard":462,"Troll King":396,"Vineman":429,"Golem":900,"Growing Mass":850,"Ice Troll Axeman":800,"Mushroom":1600,"Fire Imp":390,"Ice Troll Chieftain":850,"Ice Wraith":450,"Salamander":700,"Magpie":700,"Icy Shell":800,"Dire Wolf":700,"Phoenix":250,"Dwarf Queen":700,"Chimera Lion":450,"Chimera Goat":1250,"Chimera Snake":500,"Blimp|boom":1300};
+const ENEMY_STRIKE_MS = {"Sunguard Knight": 900, "Lich King": 1100, "Gryphon": 396, "Baby Gryphon": 429, "Butterfly": 330, "Siren": 858, "Dragon": 1320, "Dragon|bite": 430, "Dragon|attackfly": 1254, "Dragon|attack": 1320,"Skeleton Warrior":429,"Skeleton Archer":627,"Ice Hedgehog":660,"Red Wand Fairy":462,"Blue Wand Fairy":462,"Yellow Wand Fairy":462,"Snake":560,"Troll":490,"Snow Golem":700,"Yeti":1120,"Fireworks Vendor":600,"Assassin":231,"Bruiser":396,"Gnome Village":528,"Gray Gnome":330,"Red Gnome":330,"Yellow Gnome":561,"Lizard Rider":825,"Snail":429,"Troll Hoard":462,"Troll King":396,"Vineman":429,"Golem":900,"Growing Mass":850,"Ice Troll Axeman":800,"Mushroom":1600,"Fire Imp":390,"Ice Troll Chieftain":850,"Ice Wraith":450,"Salamander":700,"Magpie":700,"Icy Shell":800,"Dire Wolf":700,"Phoenix":250,"Dwarf Queen":700,"Chimera Lion":450,"Chimera Goat":1250,"Chimera Snake":500,"Blimp|boom":1300};
 const VOLLEY_GAP = 100, VOLLEY_FORM = 100, VOLLEY_DY = [0, -14, 14, -28, 28], ACT_GAP = 150, MELEE_GAP = 200; // user (Nov 13): 0.1 s apart; 1st at 0, 2nd +1 step up, 3rd 1 step down
 // enemies whose projectile is drawn into their own attack sheet (no separate missile art): a multi-hit move still plays ONE
 // throw, its hits land VOLLEY_GAP apart (user, Nov 13: "use that 0.1 for all enemies with projectiles that fire multiple attacks")
@@ -26123,6 +26169,7 @@ ENEMY_SIZE["Baby Gryphon"] = ENEMY_SIZE["Griffin Egg"] = 0.6; // one shared shee
 // Unity kit liftRel: how far above the floor a flyer's body hovers, in hero body heights (Wand Fairies at the Rogue's chest-ish,
 // Magpie at his chest, Fire Imp at his knees)
 const ENEMY_LIFT = { Butterfly: 0.2, Siren: 0.15, "Red Wand Fairy": 0.39, "Blue Wand Fairy": 0.39, "Yellow Wand Fairy": 0.39, Magpie: 0.47, "Fire Imp": 0.23 }; // shares the Phoenix sheet + body box: the egg sits small inside it
+Object.assign(ENEMY_ASPECT, { "Sunguard Knight": 1.4, "Sunguard Mage": 0.85 });
 function foeSize(en) {
     const nm = en.name;
     const rel = ENEMY_SIZE[nm] || (nm.indexOf("Hydra ") === 0 ? 1.2 : nm.indexOf("Zombie ") === 0 ? 0 : 0.8);
@@ -26550,6 +26597,17 @@ function StunBirds({ sel }) {
     });
     return React.createElement("span", { ref, className: "et-stunbirds", "aria-hidden": "true" });
 }
+// the Mage's ward around the Sunguard Knight: an invisible spot the flying bubble aims at, the bubble itself while his shield from
+// her holds (it fades in when the flying one lands: flags.wardAt) and a burst when it breaks (flags.wardPop)
+function SgWard({ en }) {
+    const f = en.flags || {}, on = !en.dead && f.mageWard && en.shield > 0, img = ATTACK_FX["Sunguard Mage"].ward.img;
+    const box = { width: "calc(var(--h) * " + SG_BUBBLE.w + ")", height: "calc(var(--h) * " + SG_BUBBLE.h + ")", bottom: "calc(var(--h) * " + SG_BUBBLE.bottom + ")" };
+    const pop = f.wardPop && f.wardPop.at > Date.now() - 900 ? f.wardPop : null;
+    return React.createElement(React.Fragment, null,
+        React.createElement("span", { className: "et-sgward-spot", style: box }),
+        on ? React.createElement("img", { key: "w" + (f.wardAt || 0), className: "et-sgward", src: img, alt: "", style: Object.assign({ "--in": Math.max(0, (f.wardAt || 0) - Date.now()) + "ms" }, box) }) : null,
+        pop && !on ? React.createElement("img", { key: "p" + pop.seq, className: "et-sgward pop", src: img, alt: "", style: Object.assign({ "--in": Math.max(0, pop.at - Date.now()) + "ms" }, box) }) : null);
+}
 function AttackFxLayer({ b }) {
     return React.createElement("div", { className: "et-atkfx" }, (b.atkFx || []).map((fx) => React.createElement(AttackFxItem, { key: fx.id, fx })));
 }
@@ -26598,9 +26656,14 @@ function AttackFxItem({ fx }) {
                 if (!G) return;
                 const u = G.k / (F.res || 1), dy = VOLLEY_DY[shot % VOLLEY_DY.length] * G.k, [x0, y0a] = G.at(F.from), [x1, y1a] = G.hero;
                 const y0 = y0a + dy, y1 = y1a + dy * 0.6;
-                const ang = Math.atan2(y1 - y0, x1 - x0) * 180 / Math.PI + 180; // the art points left
-                const el = add(document.createElement("img"));
-                el.src = F.img; el.className = "et-atkfx-missile";
+                const ang = F.frames ? 0 : Math.atan2(y1 - y0, x1 - x0) * 180 / Math.PI + 180; // the art points left (a round ball doesn't turn)
+                const el = add(document.createElement(F.frames ? "div" : "img"));
+                if (F.frames) { // a frame strip (the Sunguard Mage's energy ball) loops while it flies
+                    Object.assign(el.style, { backgroundImage: "url(" + F.img + ")", backgroundSize: F.frames * 100 + "% 100%", backgroundRepeat: "no-repeat" });
+                    el.animate([{ backgroundPosition: "0% 0%" }, { backgroundPosition: "100% 0%" }], { duration: F.frames * F.fms, iterations: Infinity, easing: "steps(" + F.frames + ", jump-none)" });
+                }
+                else el.src = F.img;
+                el.className = "et-atkfx-missile";
                 Object.assign(el.style, { width: F.w * u + "px", height: F.h * u + "px", left: x0 - F.head[0] * u + "px", top: y0 - F.head[1] * u + "px", transformOrigin: F.head[0] * u + "px " + F.head[1] * u + "px" });
                 const rot = "rotate(" + ang.toFixed(1) + "deg)";
                 if (form > 0) // it forms on the staff (grows in) before it flies
@@ -26616,6 +26679,22 @@ function AttackFxItem({ fx }) {
                 }, form + F.fly));
             });
         }
+        if (F.kind === "ward") // the Sunguard Mage's bubble leaves her staff, grows as it flies and settles around the Knight
+            later(F.at, () => {
+                const G = geo(), T = layer.parentElement.querySelector('[data-eid="' + fx.to + '"] .et-sgward-spot');
+                if (!G || !T) return;
+                const L = layer.getBoundingClientRect(), z = L.width / (layer.offsetWidth || 1) || 1, r = T.getBoundingClientRect();
+                const [x0, y0] = G.at(F.from), w1 = r.width / z, h1 = r.height / z, x1 = (r.left - L.left) / z, y1 = (r.top - L.top) / z;
+                const el = add(document.createElement("img"));
+                el.src = F.img; el.className = "et-atkfx-missile";
+                Object.assign(el.style, { width: w1 + "px", height: h1 + "px", left: x1 + "px", top: y1 + "px", transformOrigin: "50% 50%" });
+                const sx = x0 - (x1 + w1 / 2), sy = y0 - (y1 + h1 / 2);
+                el.animate([{ transform: "translate(" + sx + "px," + sy + "px) scale(.08)", opacity: 0.5 },
+                    { transform: "translate(" + sx * 0.5 + "px," + (sy * 0.5 - h1 * 0.25) + "px) scale(.45)", opacity: 0.9, offset: 0.5 },
+                    { transform: "translate(0px,0px) scale(1.06)", opacity: 1, offset: 0.88 },
+                    { transform: "translate(0px,0px) scale(1)", opacity: 1 }], { duration: F.fly, easing: "ease-in-out", fill: "forwards" });
+                timers.push(setTimeout(() => el.remove(), F.fly + 60));
+            });
         if (F.kind === "marks")
             later(F.at + shot * MELEE_GAP, () => { const G = geo(); if (G) sheetAt(F.sheet, G.k, G.hero[0], G.hero[1]); });
         if (F.kind === "song") {
@@ -32598,6 +32677,7 @@ function EldertoneInner() {
                             isV3(g) ? React.createElement("div", { className: "et-espwrap" },
                                 CHIMERA_PART[en.name] ? chimeraStrip(b, en) : FoeSpriteView(en, b),
                                 React.createElement(FirewallRing, fz.h ? { n: (en.st && en.st.burn) || 0, sized: true, ratio: Math.max(1, 1.1 * (fz.a || 1)) } : { n: (en.st && en.st.burn) || 0, w: 100 }),
+                                en.name === "Sunguard Knight" && fz.h ? React.createElement(SgWard, { en }) : null,
                                 dying && en.puff ? React.createElement("div", { className: "et-killsmoke" }, [0, 1, 2, 3, 4, 5].map((i) => React.createElement("span", { key: i, className: "et-pf et-pf" + i }))) : null) : CHIMERA_PART[en.name] ? chimeraStrip(b, en) : FoeSpriteView(en, b),
                             React.createElement("div", { className: "et-foename" },
                                 CHIMERA_PART[en.name] ? CHIMERA_PART[en.name][0] : en.name,
