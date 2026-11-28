@@ -25426,13 +25426,13 @@ Object.assign(ENEMY_ANIM, { "Lich King": {"src": "sprites/lich-king.webp?v=1", "
 Object.assign(ATTACK_FX, { "Lich King": { attack: {"kind": "missile", "at": 700, "fly": 400, "img": "sprites/fx-lich-missile.webp?v=1", "w": 149, "h": 42, "head": [19.8, 20.6], "res": 2, "from": [77.6, 90.7]} } });
 Object.assign(ENEMY_ART, { "Blimp": "sprites/blimp-still.webp?v=1" });
 // Sunguard Knight + Mage (Nov 27 2026, Fiverr delivery; trailer_build/deliver_nov27/web_sunguard.py). The knight's art faces right, so
-// his sheet is MIRRORED. Her attack = staff raised, the energy ball (6 frames, fx-sg-ball) flies from the staff's orb; her ward
+// his sheet is MIRRORED, and so is hers (user, Nov 27: "her staff should be on the left"). Her attack = staff raised, the energy ball (6 frames, fx-sg-ball) flies from the staff's orb; her ward
 // (every turn while the Knight stands) = the same staff spell, the bubble (fx-sg-bubble) flies to the Knight and stays around him
 // (SgWard) while that shield holds, bursting when it breaks or when his next turn starts.
-Object.assign(ENEMY_ANIM, { "Sunguard Knight": {"src": "sprites/sunguard-knight.webp?v=1", "cw": 394, "ch": 303, "cols": 20, "rows": 8, "body": [116.8, 101.6, 210.0, 150.0], "a": {"idle": [0, 80, 33], "attack": [80, 42, 33], "hurt": [122, 20, 33]}}, "Sunguard Mage": {"src": "sprites/sunguard-mage.webp?v=1", "cw": 135, "ch": 160, "cols": 59, "rows": 3, "body": [7.8, 9.7, 127.1, 150.0], "a": {"idle": [0, 40, 33], "attack": [40, 60, 33], "hurt": [100, 20, 33]}} });
+Object.assign(ENEMY_ANIM, { "Sunguard Knight": {"src": "sprites/sunguard-knight.webp?v=2", "cw": 394, "ch": 303, "cols": 20, "rows": 8, "body": [116.8, 101.6, 210.0, 150.0], "a": {"idle": [0, 80, 33], "attack": [80, 42, 33], "hurt": [122, 20, 33]}}, "Sunguard Mage": {"src": "sprites/sunguard-mage.webp?v=2", "cw": 135, "ch": 160, "cols": 59, "rows": 3, "body": [0.0, 9.7, 127.1, 150.0], "a": {"idle": [0, 40, 33], "attack": [40, 60, 33], "hurt": [100, 20, 33]}} });
 Object.assign(ATTACK_FX, { "Sunguard Mage": {
-    attack: { kind: "missile", at: 530, fly: 450, img: "sprites/fx-sg-ball.webp?v=1", w: 88, h: 88, head: [44, 44], res: 2, from: [105.1, 13.2], frames: 6, fms: 70 },
-    ward: { kind: "ward", at: 530, fly: 520, img: "sprites/fx-sg-bubble.webp?v=2", from: [105.1, 13.2] } } });
+    attack: { kind: "missile", at: 530, fly: 450, img: "sprites/fx-sg-ball.webp?v=1", w: 88, h: 88, head: [44, 44], res: 2, from: [29.3, 13.0], frames: 6, fms: 70 },
+    ward: { kind: "ward", at: 530, fly: 520, img: "sprites/fx-sg-bubble.webp?v=2", from: [29.3, 13.0] } } });
 const SG_BUBBLE = { w: 1.32, h: 1.18, bottom: -0.04 }; // the ward bubble around the Knight, in his drawn heights (--h)
 function atkFxHitAt(F) { return F.kind === "missile" ? F.at + F.fly : F.at + 50; }
 ATTACK_FX["Icy Shell"].attack.holdF = 15;
